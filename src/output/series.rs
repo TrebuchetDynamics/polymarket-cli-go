@@ -3,7 +3,8 @@ use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
 use super::{
-    NONE, active_status, detail_field, format_date, format_decimal, print_detail_table, truncate,
+    NONE, OutputFormat, active_status, detail_field, format_date, format_decimal,
+    print_detail_table, print_json, truncate,
 };
 
 #[derive(Tabled)]
@@ -30,17 +31,26 @@ fn series_to_row(s: &Series) -> SeriesRow {
     }
 }
 
-pub fn print_series_table(series: &[Series]) {
-    if series.is_empty() {
-        println!("No series found.");
-        return;
+pub fn print_series_table(series: &[Series], output: &OutputFormat) -> anyhow::Result<()> {
+    match output {
+        OutputFormat::Table => {
+            if series.is_empty() {
+                println!("No series found.");
+                return Ok(());
+            }
+            let rows: Vec<SeriesRow> = series.iter().map(series_to_row).collect();
+            let table = Table::new(rows).with(Style::rounded()).to_string();
+            println!("{table}");
+        }
+        OutputFormat::Json => print_json(series)?,
     }
-    let rows: Vec<SeriesRow> = series.iter().map(series_to_row).collect();
-    let table = Table::new(rows).with(Style::rounded()).to_string();
-    println!("{table}");
+    Ok(())
 }
 
-pub fn print_series_detail(s: &Series) {
+pub fn print_series_detail(s: &Series, output: &OutputFormat) -> anyhow::Result<()> {
+    if matches!(output, OutputFormat::Json) {
+        return print_json(s);
+    }
     let mut rows: Vec<[String; 2]> = Vec::new();
 
     detail_field!(rows, "ID", s.id.clone());
@@ -107,4 +117,5 @@ pub fn print_series_detail(s: &Series) {
     );
 
     print_detail_table(rows);
+    Ok(())
 }

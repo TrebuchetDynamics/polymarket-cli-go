@@ -2,7 +2,7 @@ use polymarket_client_sdk::gamma::types::response::{RelatedTag, Tag};
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{NONE, detail_field, format_date, print_detail_table, truncate};
+use super::{NONE, OutputFormat, detail_field, format_date, print_detail_table, print_json, truncate};
 
 #[derive(Tabled)]
 struct TagRow {
@@ -25,14 +25,20 @@ fn tag_to_row(t: &Tag) -> TagRow {
     }
 }
 
-pub fn print_tags_table(tags: &[Tag]) {
-    if tags.is_empty() {
-        println!("No tags found.");
-        return;
+pub fn print_tags_table(tags: &[Tag], output: &OutputFormat) -> anyhow::Result<()> {
+    match output {
+        OutputFormat::Table => {
+            if tags.is_empty() {
+                println!("No tags found.");
+                return Ok(());
+            }
+            let rows: Vec<TagRow> = tags.iter().map(tag_to_row).collect();
+            let table = Table::new(rows).with(Style::rounded()).to_string();
+            println!("{table}");
+        }
+        OutputFormat::Json => print_json(tags)?,
     }
-    let rows: Vec<TagRow> = tags.iter().map(tag_to_row).collect();
-    let table = Table::new(rows).with(Style::rounded()).to_string();
-    println!("{table}");
+    Ok(())
 }
 
 #[derive(Tabled)]
@@ -56,18 +62,27 @@ fn related_tag_to_row(r: &RelatedTag) -> RelatedTagRow {
     }
 }
 
-pub fn print_related_tags_table(tags: &[RelatedTag]) {
-    if tags.is_empty() {
-        println!("No related tags found.");
-        return;
+pub fn print_related_tags_table(tags: &[RelatedTag], output: &OutputFormat) -> anyhow::Result<()> {
+    match output {
+        OutputFormat::Table => {
+            if tags.is_empty() {
+                println!("No related tags found.");
+                return Ok(());
+            }
+            let rows: Vec<RelatedTagRow> = tags.iter().map(related_tag_to_row).collect();
+            let table = Table::new(rows).with(Style::rounded()).to_string();
+            println!("{table}");
+        }
+        OutputFormat::Json => print_json(tags)?,
     }
-    let rows: Vec<RelatedTagRow> = tags.iter().map(related_tag_to_row).collect();
-    let table = Table::new(rows).with(Style::rounded()).to_string();
-    println!("{table}");
+    Ok(())
 }
 
 #[allow(clippy::vec_init_then_push)]
-pub fn print_tag_detail(t: &Tag) {
+pub fn print_tag_detail(t: &Tag, output: &OutputFormat) -> anyhow::Result<()> {
+    if matches!(output, OutputFormat::Json) {
+        return print_json(t);
+    }
     let mut rows: Vec<[String; 2]> = Vec::new();
 
     detail_field!(rows, "ID", t.id.clone());
@@ -100,4 +115,5 @@ pub fn print_tag_detail(t: &Tag) {
     );
 
     print_detail_table(rows);
+    Ok(())
 }

@@ -2,7 +2,7 @@ use polymarket_client_sdk::gamma::types::response::Comment;
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{NONE, detail_field, format_date, print_detail_table, truncate};
+use super::{NONE, OutputFormat, detail_field, format_date, print_detail_table, print_json, truncate};
 
 #[derive(Tabled)]
 struct CommentRow {
@@ -42,17 +42,26 @@ fn comment_to_row(c: &Comment) -> CommentRow {
     }
 }
 
-pub fn print_comments_table(comments: &[Comment]) {
-    if comments.is_empty() {
-        println!("No comments found.");
-        return;
+pub fn print_comments_table(comments: &[Comment], output: &OutputFormat) -> anyhow::Result<()> {
+    match output {
+        OutputFormat::Table => {
+            if comments.is_empty() {
+                println!("No comments found.");
+                return Ok(());
+            }
+            let rows: Vec<CommentRow> = comments.iter().map(comment_to_row).collect();
+            let table = Table::new(rows).with(Style::rounded()).to_string();
+            println!("{table}");
+        }
+        OutputFormat::Json => print_json(comments)?,
     }
-    let rows: Vec<CommentRow> = comments.iter().map(comment_to_row).collect();
-    let table = Table::new(rows).with(Style::rounded()).to_string();
-    println!("{table}");
+    Ok(())
 }
 
-pub fn print_comment_detail(c: &Comment) {
+pub fn print_comment_detail(c: &Comment, output: &OutputFormat) -> anyhow::Result<()> {
+    if matches!(output, OutputFormat::Json) {
+        return print_json(c);
+    }
     let mut rows: Vec<[String; 2]> = Vec::new();
 
     detail_field!(rows, "ID", c.id.clone());
@@ -111,4 +120,5 @@ pub fn print_comment_detail(c: &Comment) {
     );
 
     print_detail_table(rows);
+    Ok(())
 }

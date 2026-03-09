@@ -7,7 +7,7 @@ use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
 use super::END_CURSOR;
-use crate::output::{OutputFormat, truncate};
+use crate::output::{NONE, OutputFormat, truncate};
 
 pub fn print_clob_market(result: &MarketResponse, output: &OutputFormat) -> anyhow::Result<()> {
     match output {
@@ -18,7 +18,7 @@ pub fn print_clob_market(result: &MarketResponse, output: &OutputFormat) -> anyh
                 ["Slug".into(), result.market_slug.clone()],
                 [
                     "Condition ID".into(),
-                    result.condition_id.map_or("—".into(), |c| c.to_string()),
+                    result.condition_id.map_or(NONE.into(), |c| c.to_string()),
                 ],
                 ["Active".into(), result.active.to_string()],
                 ["Closed".into(), result.closed.to_string()],
@@ -34,7 +34,7 @@ pub fn print_clob_market(result: &MarketResponse, output: &OutputFormat) -> anyh
                 ["Neg Risk".into(), result.neg_risk.to_string()],
                 [
                     "End Date".into(),
-                    result.end_date_iso.map_or("—".into(), |d| d.to_rfc3339()),
+                    result.end_date_iso.map_or(NONE.into(), |d| d.to_rfc3339()),
                 ],
             ];
             for token in &result.tokens {
@@ -128,7 +128,7 @@ pub fn print_simplified_markets(
                 .map(|m| Row {
                     condition_id: m
                         .condition_id
-                        .map_or("—".into(), |c| truncate(&c.to_string(), 14)),
+                        .map_or(NONE.into(), |c| truncate(&c.to_string(), 14)),
                     tokens: m.tokens.len().to_string(),
                     active: if m.active { "Yes" } else { "No" }.into(),
                     closed: if m.closed { "Yes" } else { "No" }.into(),

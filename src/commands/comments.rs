@@ -1,5 +1,5 @@
+use crate::output::OutputFormat;
 use crate::output::comments::{print_comment_detail, print_comments_table};
-use crate::output::{OutputFormat, print_json};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use polymarket_client_sdk::gamma::{
@@ -81,8 +81,15 @@ pub enum EntityType {
     Series,
 }
 
-
-super::enum_from!(EntityType => ParentEntityType { Event, Market, Series });
+impl From<EntityType> for ParentEntityType {
+    fn from(v: EntityType) -> Self {
+        match v {
+            EntityType::Event => ParentEntityType::Event,
+            EntityType::Market => ParentEntityType::Market,
+            EntityType::Series => ParentEntityType::Series,
+        }
+    }
+}
 
 pub async fn execute(
     client: &gamma::Client,
@@ -108,11 +115,7 @@ pub async fn execute(
                 .build();
 
             let comments = client.comments(&request).await?;
-
-            match output {
-                OutputFormat::Table => print_comments_table(&comments),
-                OutputFormat::Json => print_json(&comments)?,
-            }
+            print_comments_table(&comments, &output)?;
         }
 
         CommentsCommand::Get { id } => {
@@ -123,10 +126,7 @@ pub async fn execute(
                 anyhow::bail!("Comment not found");
             };
 
-            match output {
-                OutputFormat::Table => print_comment_detail(comment),
-                OutputFormat::Json => print_json(&comment)?,
-            }
+            print_comment_detail(comment, &output)?;
         }
 
         CommentsCommand::ByUser {
@@ -145,11 +145,7 @@ pub async fn execute(
                 .build();
 
             let comments = client.comments_by_user_address(&request).await?;
-
-            match output {
-                OutputFormat::Table => print_comments_table(&comments),
-                OutputFormat::Json => print_json(&comments)?,
-            }
+            print_comments_table(&comments, &output)?;
         }
     }
 

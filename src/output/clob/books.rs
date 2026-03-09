@@ -5,31 +5,7 @@ use serde_json::json;
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use crate::output::{OutputFormat, truncate};
-
-fn order_book_to_json(book: &OrderBookSummaryResponse) -> serde_json::Value {
-    let bids: Vec<_> = book
-        .bids
-        .iter()
-        .map(|o| json!({"price": o.price.to_string(), "size": o.size.to_string()}))
-        .collect();
-    let asks: Vec<_> = book
-        .asks
-        .iter()
-        .map(|o| json!({"price": o.price.to_string(), "size": o.size.to_string()}))
-        .collect();
-    json!({
-        "market": book.market.to_string(),
-        "asset_id": book.asset_id.to_string(),
-        "timestamp": book.timestamp.to_rfc3339(),
-        "bids": bids,
-        "asks": asks,
-        "min_order_size": book.min_order_size.to_string(),
-        "neg_risk": book.neg_risk,
-        "tick_size": book.tick_size.as_decimal().to_string(),
-        "last_trade_price": book.last_trade_price.map(|p| p.to_string()),
-    })
-}
+use crate::output::{NONE, OutputFormat, truncate};
 
 pub fn print_order_book(
     result: &OrderBookSummaryResponse,
@@ -43,7 +19,7 @@ pub fn print_order_book(
                 "Last Trade: {}",
                 result
                     .last_trade_price
-                    .map_or("—".into(), |p| p.to_string())
+                    .map_or(NONE.into(), |p| p.to_string())
             );
             println!();
 
@@ -90,7 +66,7 @@ pub fn print_order_book(
             }
         }
         OutputFormat::Json => {
-            crate::output::print_json(&order_book_to_json(result))?;
+            crate::output::print_json(result)?;
         }
     }
     Ok(())
@@ -114,8 +90,7 @@ pub fn print_order_books(
             }
         }
         OutputFormat::Json => {
-            let data: Vec<_> = result.iter().map(order_book_to_json).collect();
-            crate::output::print_json(&data)?;
+            crate::output::print_json(result)?;
         }
     }
     Ok(())

@@ -2,8 +2,8 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 use polymarket_client_sdk::gamma::{self, types::request::TeamsRequest};
 
+use crate::output::OutputFormat;
 use crate::output::sports::{print_sport_types, print_sports_table, print_teams_table};
-use crate::output::{OutputFormat, print_json};
 
 #[derive(Args)]
 pub struct SportsArgs {
@@ -47,20 +47,12 @@ pub async fn execute(client: &gamma::Client, args: SportsArgs, output: OutputFor
     match args.command {
         SportsCommand::List => {
             let sports = client.sports().await?;
-
-            match output {
-                OutputFormat::Table => print_sports_table(&sports),
-                OutputFormat::Json => print_json(&sports)?,
-            }
+            print_sports_table(&sports, &output)?;
         }
 
         SportsCommand::MarketTypes => {
             let types = client.sports_market_types().await?;
-
-            match output {
-                OutputFormat::Table => print_sport_types(&types),
-                OutputFormat::Json => print_json(&types)?,
-            }
+            print_sport_types(&types, &output)?;
         }
 
         SportsCommand::Teams {
@@ -79,11 +71,7 @@ pub async fn execute(client: &gamma::Client, args: SportsArgs, output: OutputFor
                 .build();
 
             let teams = client.teams(&request).await?;
-
-            match output {
-                OutputFormat::Table => print_teams_table(&teams),
-                OutputFormat::Json => print_json(&teams)?,
-            }
+            print_teams_table(&teams, &output)?;
         }
     }
 

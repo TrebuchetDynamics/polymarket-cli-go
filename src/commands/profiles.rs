@@ -1,5 +1,5 @@
+use crate::output::OutputFormat;
 use crate::output::profiles::print_profile_detail;
-use crate::output::{OutputFormat, print_json};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use polymarket_client_sdk::gamma::{self, types::request::PublicProfileRequest};
@@ -30,10 +30,7 @@ pub async fn execute(
             let req = PublicProfileRequest::builder().address(address).build();
             let profile = client.public_profile(&req).await?;
 
-            match output {
-                OutputFormat::Table => print_profile_detail(&profile),
-                OutputFormat::Json => print_json(&profile)?,
-            }
+            print_profile_detail(&profile, &output)?;
         }
     }
 

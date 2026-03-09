@@ -164,7 +164,16 @@ pub enum TimePeriod {
     All,
 }
 
-super::enum_from!(TimePeriod => polymarket_client_sdk::data::types::TimePeriod { Day, Week, Month, All });
+impl From<TimePeriod> for polymarket_client_sdk::data::types::TimePeriod {
+    fn from(v: TimePeriod) -> Self {
+        match v {
+            TimePeriod::Day => Self::Day,
+            TimePeriod::Week => Self::Week,
+            TimePeriod::Month => Self::Month,
+            TimePeriod::All => Self::All,
+        }
+    }
+}
 
 #[derive(Clone, Debug, clap::ValueEnum)]
 pub enum OrderBy {
@@ -172,38 +181,17 @@ pub enum OrderBy {
     Vol,
 }
 
-super::enum_from!(OrderBy => polymarket_client_sdk::data::types::LeaderboardOrderBy { Pnl, Vol });
-
-pub async fn execute(client: &data::Client, args: DataArgs, output: OutputFormat) -> Result<()> {
-    match args.command {
-        // User-focused queries (positions, trades, activity, value)
-        DataCommand::Positions { .. }
-        | DataCommand::ClosedPositions { .. }
-        | DataCommand::Value { .. }
-        | DataCommand::Traded { .. }
-        | DataCommand::Trades { .. }
-        | DataCommand::Activity { .. } => execute_user(client, args.command, &output).await,
-
-        // Market-focused queries (holders, open interest, volume)
-        DataCommand::Holders { .. }
-        | DataCommand::OpenInterest { .. }
-        | DataCommand::Volume { .. } => execute_market(client, args.command, &output).await,
-
-        // Leaderboard queries
-        DataCommand::Leaderboard { .. }
-        | DataCommand::BuilderLeaderboard { .. }
-        | DataCommand::BuilderVolume { .. } => {
-            execute_leaderboard(client, args.command, &output).await
+impl From<OrderBy> for polymarket_client_sdk::data::types::LeaderboardOrderBy {
+    fn from(v: OrderBy) -> Self {
+        match v {
+            OrderBy::Pnl => Self::Pnl,
+            OrderBy::Vol => Self::Vol,
         }
     }
 }
 
-async fn execute_user(
-    client: &data::Client,
-    command: DataCommand,
-    output: &OutputFormat,
-) -> Result<()> {
-    match command {
+pub async fn execute(client: &data::Client, args: DataArgs, output: OutputFormat) -> Result<()> {
+    match args.command {
         DataCommand::Positions {
             address,
             limit,
@@ -216,7 +204,7 @@ async fn execute_user(
                 .build();
 
             let positions = client.positions(&request).await?;
-            print_positions(&positions, output)?;
+            print_positions(&positions, &output)?;
         }
 
         DataCommand::ClosedPositions {
@@ -231,21 +219,21 @@ async fn execute_user(
                 .build();
 
             let positions = client.closed_positions(&request).await?;
-            print_closed_positions(&positions, output)?;
+            print_closed_positions(&positions, &output)?;
         }
 
         DataCommand::Value { address } => {
             let request = ValueRequest::builder().user(address).build();
 
             let values = client.value(&request).await?;
-            print_value(&values, output)?;
+            print_value(&values, &output)?;
         }
 
         DataCommand::Traded { address } => {
             let request = TradedRequest::builder().user(address).build();
 
             let traded = client.traded(&request).await?;
-            print_traded(&traded, output)?;
+            print_traded(&traded, &output)?;
         }
 
         DataCommand::Trades {
@@ -260,7 +248,7 @@ async fn execute_user(
                 .build();
 
             let trades = client.trades(&request).await?;
-            print_trades(&trades, output)?;
+            print_trades(&trades, &output)?;
         }
 
         DataCommand::Activity {
@@ -275,28 +263,9 @@ async fn execute_user(
                 .build();
 
             let activity = client.activity(&request).await?;
-            print_activity(&activity, output)?;
+            print_activity(&activity, &output)?;
         }
 
-        DataCommand::Holders { .. }
-        | DataCommand::OpenInterest { .. }
-        | DataCommand::Volume { .. }
-        | DataCommand::Leaderboard { .. }
-        | DataCommand::BuilderLeaderboard { .. }
-        | DataCommand::BuilderVolume { .. } => {
-            unreachable!("execute() routes market/leaderboard commands to other handlers")
-        }
-    }
-
-    Ok(())
-}
-
-async fn execute_market(
-    client: &data::Client,
-    command: DataCommand,
-    output: &OutputFormat,
-) -> Result<()> {
-    match command {
         DataCommand::Holders { market, limit } => {
             let request = HoldersRequest::builder()
                 .markets(vec![market])
@@ -304,44 +273,22 @@ async fn execute_market(
                 .build();
 
             let holders = client.holders(&request).await?;
-            print_holders(&holders, output)?;
+            print_holders(&holders, &output)?;
         }
 
         DataCommand::OpenInterest { market } => {
             let request = OpenInterestRequest::builder().markets(vec![market]).build();
 
             let oi = client.open_interest(&request).await?;
-            print_open_interest(&oi, output)?;
+            print_open_interest(&oi, &output)?;
         }
 
         DataCommand::Volume { id } => {
             let request = LiveVolumeRequest::builder().id(id).build();
             let volume = client.live_volume(&request).await?;
-            print_live_volume(&volume, output)?;
+            print_live_volume(&volume, &output)?;
         }
 
-        DataCommand::Positions { .. }
-        | DataCommand::ClosedPositions { .. }
-        | DataCommand::Value { .. }
-        | DataCommand::Traded { .. }
-        | DataCommand::Trades { .. }
-        | DataCommand::Activity { .. }
-        | DataCommand::Leaderboard { .. }
-        | DataCommand::BuilderLeaderboard { .. }
-        | DataCommand::BuilderVolume { .. } => {
-            unreachable!("execute() routes user/leaderboard commands to other handlers")
-        }
-    }
-
-    Ok(())
-}
-
-async fn execute_leaderboard(
-    client: &data::Client,
-    command: DataCommand,
-    output: &OutputFormat,
-) -> Result<()> {
-    match command {
         DataCommand::Leaderboard {
             period,
             order_by,
@@ -356,7 +303,7 @@ async fn execute_leaderboard(
                 .build();
 
             let entries = client.leaderboard(&request).await?;
-            print_leaderboard(&entries, output)?;
+            print_leaderboard(&entries, &output)?;
         }
 
         DataCommand::BuilderLeaderboard {
@@ -371,7 +318,7 @@ async fn execute_leaderboard(
                 .build();
 
             let entries = client.builder_leaderboard(&request).await?;
-            print_builder_leaderboard(&entries, output)?;
+            print_builder_leaderboard(&entries, &output)?;
         }
 
         DataCommand::BuilderVolume { period } => {
@@ -380,19 +327,7 @@ async fn execute_leaderboard(
                 .build();
 
             let entries = client.builder_volume(&request).await?;
-            print_builder_volume(&entries, output)?;
-        }
-
-        DataCommand::Positions { .. }
-        | DataCommand::ClosedPositions { .. }
-        | DataCommand::Value { .. }
-        | DataCommand::Traded { .. }
-        | DataCommand::Trades { .. }
-        | DataCommand::Activity { .. }
-        | DataCommand::Holders { .. }
-        | DataCommand::OpenInterest { .. }
-        | DataCommand::Volume { .. } => {
-            unreachable!("execute() routes user/market commands to other handlers")
+            print_builder_volume(&entries, &output)?;
         }
     }
 

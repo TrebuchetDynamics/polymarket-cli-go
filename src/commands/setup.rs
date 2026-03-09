@@ -84,7 +84,7 @@ pub fn execute() -> Result<()> {
     step_header(1, total, "Wallet");
 
     let address = if config::config_exists() {
-        let (key, source) = config::resolve_key(None);
+        let (key, source) = config::resolve_key(None)?;
         if let Some(k) = &key
             && let Ok(signer) = LocalSigner::from_str(k)
         {

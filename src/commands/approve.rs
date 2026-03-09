@@ -12,7 +12,7 @@ use crate::auth;
 use crate::output::OutputFormat;
 use crate::output::approve::{ApprovalStatus, print_approval_status, print_tx_result};
 
-/// Must match `USDC_ADDRESS_STR` in commands/mod.rs.
+/// Polygon USDC (same address as `USDC_ADDRESS_STR`; `address!` requires a literal).
 const USDC_ADDRESS: Address = address!("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174");
 
 sol! {

@@ -53,15 +53,12 @@ pub fn print_geoblock(result: &GeoblockResponse, output: &OutputFormat) -> anyho
     Ok(())
 }
 
-/// USDC uses 6 decimal places on-chain.
-const USDC_DECIMALS: u32 = 6;
-
 pub fn print_balance(
     result: &BalanceAllowanceResponse,
     is_collateral: bool,
     output: &OutputFormat,
 ) -> anyhow::Result<()> {
-    let divisor = Decimal::from(10u64.pow(USDC_DECIMALS));
+    let divisor = Decimal::from(10u64.pow(crate::commands::USDC_DECIMALS));
     let human_balance = result.balance / divisor;
     match output {
         OutputFormat::Table => {

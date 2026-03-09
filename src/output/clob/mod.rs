@@ -1,5 +1,3 @@
-#![allow(clippy::items_after_statements)]
-
 mod account;
 mod books;
 mod markets;
@@ -9,7 +7,6 @@ mod prices;
 /// Base64-encoded empty cursor returned by the CLOB API when there are no more pages.
 const END_CURSOR: &str = "LTE=";
 
-// Shared utility used by multiple submodules.
 pub(crate) use super::OutputFormat;
 
 pub use account::{

@@ -3,7 +3,8 @@ use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
 use super::{
-    NONE, active_status, detail_field, format_date, format_decimal, print_detail_table, truncate,
+    NONE, OutputFormat, active_status, detail_field, format_date, format_decimal,
+    print_detail_table, print_json, truncate,
 };
 
 #[derive(Tabled)]
@@ -36,18 +37,27 @@ fn event_to_row(e: &Event) -> EventRow {
     }
 }
 
-pub fn print_events_table(events: &[Event]) {
-    if events.is_empty() {
-        println!("No events found.");
-        return;
+pub fn print_events_table(events: &[Event], output: &OutputFormat) -> anyhow::Result<()> {
+    match output {
+        OutputFormat::Table => {
+            if events.is_empty() {
+                println!("No events found.");
+                return Ok(());
+            }
+            let rows: Vec<EventRow> = events.iter().map(event_to_row).collect();
+            let table = Table::new(rows).with(Style::rounded()).to_string();
+            println!("{table}");
+        }
+        OutputFormat::Json => print_json(events)?,
     }
-    let rows: Vec<EventRow> = events.iter().map(event_to_row).collect();
-    let table = Table::new(rows).with(Style::rounded()).to_string();
-    println!("{table}");
+    Ok(())
 }
 
 #[allow(clippy::too_many_lines)]
-pub fn print_event_detail(e: &Event) {
+pub fn print_event_detail(e: &Event, output: &OutputFormat) -> anyhow::Result<()> {
+    if matches!(output, OutputFormat::Json) {
+        return print_json(e);
+    }
     let mut rows: Vec<[String; 2]> = Vec::new();
 
     detail_field!(rows, "ID", e.id.clone());
@@ -159,6 +169,7 @@ pub fn print_event_detail(e: &Event) {
     );
 
     print_detail_table(rows);
+    Ok(())
 }
 
 #[cfg(test)]

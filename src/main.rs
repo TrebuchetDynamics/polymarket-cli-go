@@ -114,7 +114,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
         Commands::Data(args) => commands::data::execute(&data, args, cli.output).await,
         Commands::Bridge(args) => commands::bridge::execute(&bridge, args, cli.output).await,
         Commands::Wallet(args) => {
-            commands::wallet::execute(args, &cli.output, cli.private_key.as_deref())
+            commands::wallet::execute(args, cli.output, cli.private_key.as_deref())
         }
         Commands::Upgrade => commands::upgrade::execute(),
         Commands::Status => {

@@ -13,9 +13,7 @@ use crate::auth;
 use crate::output::OutputFormat;
 use crate::output::ctf as ctf_output;
 
-const USDC_DECIMALS: Decimal = Decimal::from_parts(1_000_000, 0, 0, false, 0);
-
-use super::USDC_ADDRESS_STR;
+use super::{USDC_ADDRESS_STR, USDC_DECIMALS};
 
 #[derive(Args)]
 pub struct CtfArgs {
@@ -121,7 +119,8 @@ pub enum CtfCommand {
 }
 
 fn usdc_to_raw(val: Decimal) -> Result<U256> {
-    let raw = val * USDC_DECIMALS;
+    let multiplier = Decimal::from(10u64.pow(USDC_DECIMALS));
+    let raw = val * multiplier;
     anyhow::ensure!(
         raw.fract().is_zero(),
         "Amount {val} exceeds USDC precision (max 6 decimal places)"

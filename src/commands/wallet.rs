@@ -53,7 +53,7 @@ pub enum WalletCommand {
 
 pub fn execute(
     args: WalletArgs,
-    output: &OutputFormat,
+    output: OutputFormat,
     private_key_flag: Option<&str>,
 ) -> Result<()> {
     match args.command {
@@ -82,7 +82,6 @@ fn guard_overwrite(force: bool) -> Result<()> {
     Ok(())
 }
 
-/// Extract the canonical 0x-prefixed hex private key from a signer.
 pub(crate) fn signer_key_hex(signer: &PrivateKeySigner) -> String {
     let bytes = signer.credential().to_bytes();
     let mut hex = String::with_capacity(2 + bytes.len() * 2);
@@ -93,7 +92,7 @@ pub(crate) fn signer_key_hex(signer: &PrivateKeySigner) -> String {
     hex
 }
 
-fn cmd_create(output: &OutputFormat, force: bool, signature_type: &str) -> Result<()> {
+fn cmd_create(output: OutputFormat, force: bool, signature_type: &str) -> Result<()> {
     guard_overwrite(force)?;
 
     let signer = LocalSigner::random().with_chain_id(Some(POLYGON));
@@ -132,7 +131,7 @@ fn cmd_create(output: &OutputFormat, force: bool, signature_type: &str) -> Resul
     Ok(())
 }
 
-fn cmd_import(key: &str, output: &OutputFormat, force: bool, signature_type: &str) -> Result<()> {
+fn cmd_import(key: &str, output: OutputFormat, force: bool, signature_type: &str) -> Result<()> {
     guard_overwrite(force)?;
 
     let signer = LocalSigner::from_str(key)
@@ -170,8 +169,8 @@ fn cmd_import(key: &str, output: &OutputFormat, force: bool, signature_type: &st
     Ok(())
 }
 
-fn cmd_address(output: &OutputFormat, private_key_flag: Option<&str>) -> Result<()> {
-    let (key, _) = config::resolve_key(private_key_flag);
+fn cmd_address(output: OutputFormat, private_key_flag: Option<&str>) -> Result<()> {
+    let (key, _) = config::resolve_key(private_key_flag)?;
     let key = key.ok_or_else(|| anyhow::anyhow!("{}", config::NO_WALLET_MSG))?;
 
     let signer = LocalSigner::from_str(&key).context("Invalid private key")?;
@@ -188,8 +187,8 @@ fn cmd_address(output: &OutputFormat, private_key_flag: Option<&str>) -> Result<
     Ok(())
 }
 
-fn cmd_show(output: &OutputFormat, private_key_flag: Option<&str>) -> Result<()> {
-    let (key, source) = config::resolve_key(private_key_flag);
+fn cmd_show(output: OutputFormat, private_key_flag: Option<&str>) -> Result<()> {
+    let (key, source) = config::resolve_key(private_key_flag)?;
     let signer = key.as_deref().and_then(|k| LocalSigner::from_str(k).ok());
     let address = signer.as_ref().map(|s| s.address().to_string());
     let proxy_addr = signer
@@ -197,7 +196,7 @@ fn cmd_show(output: &OutputFormat, private_key_flag: Option<&str>) -> Result<()>
         .and_then(|s| derive_proxy_wallet(s.address(), POLYGON))
         .map(|a| a.to_string());
 
-    let sig_type = config::resolve_signature_type(None);
+    let sig_type = config::resolve_signature_type(None)?;
     let config_path = config::config_path()?;
 
     match output {
@@ -230,7 +229,7 @@ fn cmd_show(output: &OutputFormat, private_key_flag: Option<&str>) -> Result<()>
     Ok(())
 }
 
-fn cmd_reset(output: &OutputFormat, force: bool) -> Result<()> {
+fn cmd_reset(output: OutputFormat, force: bool) -> Result<()> {
     if !config::config_exists() {
         match output {
             OutputFormat::Table => println!("Nothing to reset. No config found."),
