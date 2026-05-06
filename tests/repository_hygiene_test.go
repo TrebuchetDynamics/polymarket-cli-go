@@ -50,6 +50,28 @@ func TestRepositoryHygiene(t *testing.T) {
 	}
 }
 
+func TestRepositoryDoesNotPublishResolvedRemoteBlocker(t *testing.T) {
+	root := repositoryRoot(t)
+
+	todo, err := os.ReadFile(filepath.Join(root, "TODO.md"))
+	if os.IsNotExist(err) {
+		return
+	}
+	if err != nil {
+		t.Fatalf("could not inspect TODO.md: %v", err)
+	}
+
+	content := string(todo)
+	for _, stale := range []string{
+		"TrebuchetDynamics/polygolem.git",
+		"[BLOCKED] Push phase-1-tdd to origin",
+	} {
+		if strings.Contains(content, stale) {
+			t.Fatalf("TODO.md contains resolved remote blocker %q", stale)
+		}
+	}
+}
+
 func repositoryRoot(t *testing.T) string {
 	t.Helper()
 
