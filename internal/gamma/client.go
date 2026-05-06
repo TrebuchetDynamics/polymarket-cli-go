@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 type Client struct {
@@ -25,7 +26,7 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
-	return &Client{baseURL: baseURL, http: httpClient}
+	return &Client{baseURL: strings.TrimRight(baseURL, "/"), http: httpClient}
 }
 
 func (c *Client) ActiveMarkets(ctx context.Context) ([]Market, error) {

@@ -15,12 +15,15 @@ func TestOrderBookGetUsesReadOnlyEndpoint(t *testing.T) {
 		if r.URL.Path != "/book" {
 			t.Fatalf("path = %q, want /book", r.URL.Path)
 		}
+		if r.URL.Query().Get("token_id") != "token-1" {
+			t.Fatalf("token_id query = %q, want token-1", r.URL.Query().Get("token_id"))
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"market":"token-1","bids":[{"price":"0.40","size":"12"}],"asks":[{"price":"0.60","size":"8"}]}`))
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, server.Client())
+	client := NewClient(server.URL+"/", server.Client())
 	book, err := client.OrderBook(context.Background(), "token-1")
 	if err != nil {
 		t.Fatalf("OrderBook returned error: %v", err)
