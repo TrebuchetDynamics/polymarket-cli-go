@@ -77,9 +77,24 @@ func TestDocumentationSafety(t *testing.T) {
 		"Go protocol and automation stack with a CLI frontend",
 		"protocol clients -> application services -> thin Cobra CLI",
 		"Cobra command handlers must not contain protocol or trading business logic",
+		"Read-only mode permits public market data and forbids signing or mutations",
+		"Paper mode permits local simulation and forbids live endpoints",
+		"Live mode is disabled unless every gate passes",
 	} {
 		if !strings.Contains(architecture, required) {
 			t.Fatalf("docs/ARCHITECTURE.md must include architecture framing %q", required)
+		}
+	}
+
+	commands := readRepositoryFile(t, root, "docs/COMMANDS.md")
+	for _, required := range []string{
+		"--json",
+		"polymarket --json version",
+		"set -euo pipefail",
+		"jq",
+	} {
+		if !strings.Contains(commands, required) {
+			t.Fatalf("docs/COMMANDS.md must include command automation guidance %q", required)
 		}
 	}
 
@@ -92,6 +107,16 @@ func TestDocumentationSafety(t *testing.T) {
 	} {
 		if !strings.Contains(safety, gate) {
 			t.Fatalf("docs/SAFETY.md must document live gate %q", gate)
+		}
+	}
+	for _, required := range []string{
+		"Preflight checks config validity, wallet readiness, auth readiness, network consistency, API health, and chain consistency",
+		"Automation must treat any preflight failure as terminal",
+		"Dangerous operations include real order submission, payload signing, on-chain transactions, token approvals, private-key handling, and authenticated trading mutations",
+		"Phase 1 intentionally contains no code path for those operations",
+	} {
+		if !strings.Contains(safety, required) {
+			t.Fatalf("docs/SAFETY.md must include safety guidance %q", required)
 		}
 	}
 }

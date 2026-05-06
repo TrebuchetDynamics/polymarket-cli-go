@@ -46,6 +46,26 @@ Cobra command handlers must not contain protocol or trading business logic.
 That logic belongs in typed clients, application services, safety gates, and
 paper-state packages where it can be tested without executing the binary.
 
+## Mode System
+
+Mode selection starts in configuration and CLI flags, then flows through
+`internal/modes` before command handlers call protocol clients or paper state.
+Command handlers should pass the selected mode into application services rather
+than deciding safety policy inline.
+
+Read-only mode permits public market data and forbids signing or mutations. It
+is the default mode and may use `internal/gamma`, `internal/clob`, and
+`internal/output` for public data retrieval and rendering.
+
+Paper mode permits local simulation and forbids live endpoints. It may combine
+read-only reference data with `internal/paper` state, but simulated actions must
+remain local and must not reach authenticated mutation APIs.
+
+Live mode is disabled unless every gate passes. In Phase 1, live mode is a
+status and validation surface only: `internal/config`, `internal/modes`, and
+`internal/preflight` can explain gate state, but no package should execute real
+trading or on-chain operations.
+
 ## Phase 1 SDK Boundary
 
 There is no public Go SDK in Phase 1. Reusable behavior remains under

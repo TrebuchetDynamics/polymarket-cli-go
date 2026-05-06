@@ -8,16 +8,39 @@ safe read-only access, local paper state, and explicit status checks.
 - `polymarket version`: prints the CLI version.
 - `polymarket preflight`: reports local and remote readiness checks.
 
+Examples:
+
+```bash
+polymarket version
+polymarket --json version
+polymarket preflight
+```
+
 ## Markets
 
 - `polymarket markets search`: intended read-only market search.
 - `polymarket markets get`: intended read-only lookup for one market.
 - `polymarket markets active`: intended read-only active-market listing.
 
+Examples:
+
+```bash
+polymarket markets search "bitcoin"
+polymarket --json markets active
+polymarket --json markets get <market-id-or-slug>
+```
+
 ## Market Data
 
 - `polymarket orderbook get`: intended read-only order book lookup.
 - `polymarket prices get`: intended read-only price lookup.
+
+Examples:
+
+```bash
+polymarket --json orderbook get <token-id>
+polymarket --json prices get <token-id>
+```
 
 ## Paper
 
@@ -30,11 +53,48 @@ Paper commands operate on local persisted state. They may use read-only market
 data for reference pricing, but they must not send authenticated trading
 mutations.
 
+Examples:
+
+```bash
+polymarket --json paper buy --market <market-id> --outcome yes --size 10
+polymarket --json paper sell --market <market-id> --outcome yes --size 5
+polymarket --json paper positions
+polymarket paper reset
+```
+
 ## Status
 
 - `polymarket auth status`: reports authentication readiness without exposing
   credential material.
 - `polymarket live status`: reports live gate state without enabling execution.
+
+Examples:
+
+```bash
+polymarket --json auth status
+polymarket --json live status
+```
+
+## Automation Patterns
+
+Use `--json` for scripts and agents so output remains stable and parseable.
+Treat non-zero exits as failures and inspect structured error output.
+
+```bash
+set -euo pipefail
+
+status="$(polymarket --json preflight)"
+echo "$status" | jq .
+```
+
+For read-only market workflows:
+
+```bash
+set -euo pipefail
+
+markets="$(polymarket --json markets search "election")"
+echo "$markets" | jq .
+```
 
 ## Availability
 
