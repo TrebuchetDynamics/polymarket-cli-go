@@ -1,8 +1,9 @@
 # Architecture
 
-`polymarket-cli-go` is a Go Phase 1 CLI with a thin command layer over typed,
-testable internal packages. The Rust CLI is retained only as a behavioral
-reference in `docs/REFERENCE-RUST-CLI.md`.
+`polymarket-cli-go` is a Go protocol and automation stack with a CLI frontend.
+The Cobra command tree is a thin frontend over typed, testable internal
+packages. The Rust CLI is retained only as a behavioral reference in
+`docs/REFERENCE-RUST-CLI.md`.
 
 ## Package Boundaries
 
@@ -22,6 +23,12 @@ reference in `docs/REFERENCE-RUST-CLI.md`.
 The intended flow is:
 
 ```text
+protocol clients -> application services -> thin Cobra CLI
+```
+
+The package-level dependency direction is:
+
+```text
 cmd/polymarket-cli-go
         |
 internal/cli
@@ -34,6 +41,10 @@ gamma, clob, paper
 Command handlers parse flags, call package APIs, and render output. Protocol
 clients do not know about Cobra. Safety packages do not depend on command text.
 Paper state stays local and does not call live mutation endpoints.
+
+Cobra command handlers must not contain protocol or trading business logic.
+That logic belongs in typed clients, application services, safety gates, and
+paper-state packages where it can be tested without executing the binary.
 
 ## Phase 1 SDK Boundary
 

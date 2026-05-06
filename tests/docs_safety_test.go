@@ -72,6 +72,17 @@ func TestDocumentationSafety(t *testing.T) {
 		t.Fatalf("phase 1 plan must preserve expected wording %q", expectedPlanText)
 	}
 
+	architecture := readRepositoryFile(t, root, "docs/ARCHITECTURE.md")
+	for _, required := range []string{
+		"Go protocol and automation stack with a CLI frontend",
+		"protocol clients -> application services -> thin Cobra CLI",
+		"Cobra command handlers must not contain protocol or trading business logic",
+	} {
+		if !strings.Contains(architecture, required) {
+			t.Fatalf("docs/ARCHITECTURE.md must include architecture framing %q", required)
+		}
+	}
+
 	safety := readRepositoryFile(t, root, "docs/SAFETY.md")
 	for _, gate := range []string{
 		"POLYMARKET_LIVE_PROFILE=on",
