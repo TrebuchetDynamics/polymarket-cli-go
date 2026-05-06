@@ -47,6 +47,9 @@ func Load(opts Options) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	if timeout <= 0 {
+		return Config{}, errors.New("request_timeout must be positive")
+	}
 	cfg := Config{
 		Mode:               v.GetString("mode"),
 		GammaBaseURL:       v.GetString("gamma_base_url"),

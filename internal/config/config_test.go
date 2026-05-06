@@ -41,3 +41,16 @@ func TestLoadReadsExplicitConfigFile(t *testing.T) {
 		t.Fatalf("PaperStatePath = %q", cfg.PaperStatePath)
 	}
 }
+
+func TestLoadRejectsNonPositiveRequestTimeout(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("request_timeout: 0s\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(Options{ConfigPath: path})
+	if err == nil {
+		t.Fatal("Load returned nil error for non-positive request_timeout")
+	}
+}
