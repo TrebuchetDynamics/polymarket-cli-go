@@ -129,8 +129,7 @@ CLOB live mutation paths observed in `src/commands/clob.rs`:
 - `create-order`: builds, signs, and posts a limit order through `post_order`.
 - `post-orders`: builds, signs, and posts multiple limit orders through
   `post_orders`.
-- market buy/sell command: builds, signs, and posts an immediate-style order
-  through `post_order`.
+- `market-order`: builds, signs, and posts a market order through `post_order`.
 - `cancel`: cancels a single order through `cancel_order`.
 - `cancel-orders`: cancels multiple orders through `cancel_orders`.
 - `cancel-all`: cancels all open orders through `cancel_all_orders`.
