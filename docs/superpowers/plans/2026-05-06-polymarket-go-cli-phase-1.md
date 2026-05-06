@@ -1518,10 +1518,10 @@ downgrades to paper mode or read-only mode.
 Run:
 
 ```bash
-rg -n "live trading works|place live|create live order|market-order" docs README.md
+rg -n "<unsafe live claim terms>" docs README.md
 ```
 
-Expected: no claim that live trading works in Phase 1.
+Expected: no claim that Phase 1 supports real execution.
 
 - [ ] **Step 5: Commit**
 
