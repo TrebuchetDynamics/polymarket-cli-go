@@ -1,5 +1,10 @@
 # polygolem
 
+[![CI](https://github.com/TrebuchetDynamics/polygolem/actions/workflows/ci.yml/badge.svg)](https://github.com/TrebuchetDynamics/polygolem/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/TrebuchetDynamics/polygolem)](go.mod)
+[![Latest Release](https://img.shields.io/github/v/tag/TrebuchetDynamics/polygolem?label=release&sort=semver)](https://github.com/TrebuchetDynamics/polygolem/releases)
+
 Safe Polymarket SDK and CLI for Go. Read-only by default. No external SDKs —
 all types, signing, and protocol logic implemented from spec.
 
@@ -128,18 +133,12 @@ polygolem paper reset
 
 ## Status
 
-| Phase | Status |
-|-------|--------|
-| Phase 0 — Go-bot boundary cleanup | ✅ Done |
-| Phase A — Read-only SDK foundation | ✅ Done |
-| Phase B — Auth & readiness | ✅ Done |
-| Phase C — Orders & paper executor | ✅ Done |
-| Phase D — Streams | ✅ Done |
-| Phase E — Gated live execution | ✅ Done |
-| Deposit wallet migration (May 2026) | ✅ Done |
+`v0.1.0` — Phase 0 through Phase E plus the May 2026 deposit-wallet
+migration are shipped. See [`CHANGELOG.md`](CHANGELOG.md) for the full
+release log.
 
 ```bash
-go test ./...   # 25+ packages, all passing
+go test ./...
 ```
 
 ## Env Vars
