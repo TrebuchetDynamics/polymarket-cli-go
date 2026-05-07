@@ -15,6 +15,8 @@ opposite. Items marked `→ defer` are out of scope for this project.
 
 | Finding | Doc | Code reference | Direction | Resolution |
 |---|---|---|---|---|
+| ARCHITECTURE.md claimed no public SDK and "intentionally avoids `pkg/`" | docs/ARCHITECTURE.md | `pkg/{bookreader,bridge,gamma,marketresolver,pagination}` exist | → docs | Rewritten in Task 4 |
+| ARCHITECTURE.md missed 13+ internal packages | docs/ARCHITECTURE.md | `internal/{auth,clob,dataapi,errors,execution,marketdiscovery,orders,polytypes,relayer,risk,rpc,stream,transport,wallet}` | → docs | Rewritten in Task 4 |
 
 ## Track 1 — Code-side drift surfaced incidentally
 

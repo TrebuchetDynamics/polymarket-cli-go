@@ -1,80 +1,122 @@
 # Architecture
 
-`polygolem` is a Go protocol and automation stack with a CLI frontend.
-The Cobra command tree is a thin frontend over typed, testable internal
-packages. The Rust CLI is retained only as a behavioral reference in
-`docs/REFERENCE-RUST-CLI.md`.
+`polygolem` is a Go protocol and automation stack for Polymarket with a
+Cobra-based CLI frontend. The CLI is a thin shell over typed, testable
+internal packages and a small public SDK in `pkg/`.
 
-## Package Boundaries
+## Surface map
 
-- `cmd/polygolem`: binary entry point and process exit handling.
-- `internal/cli`: Cobra command construction and dependency wiring.
-- `internal/config`: explicit Viper-backed config loading, defaults,
-  environment binding, validation, and redaction.
-- `internal/modes`: read-only, paper, and live-mode parsing and gate checks.
-- `internal/preflight`: local and remote readiness checks.
-- `internal/output`: stable table and JSON rendering plus structured errors.
-- `internal/gamma`: typed read-only Gamma HTTP client.
-- `internal/clob`: typed read-only CLOB HTTP client.
-- `internal/paper`: local-only paper positions, fills, and persisted state.
+### Public SDK (`pkg/`)
 
-## Dependency Flow
+Stable interfaces for downstream Go consumers (e.g., `go-bot`).
 
-The intended flow is:
+| Package | Purpose |
+|---|---|
+| `pkg/bookreader` | Read-only CLOB order-book reader. |
+| `pkg/bridge` | Bridge API client — supported assets, deposit addresses, quotes. |
+| `pkg/gamma` | Read-only Gamma API surface for embedded use. |
+| `pkg/marketresolver` | Resolve market identifiers (ID, slug, token-id) to a canonical view. |
+| `pkg/pagination` | Cursor and offset pagination with concurrent batching. |
 
-```text
-protocol clients -> application services -> thin Cobra CLI
-```
+### Internal packages (`internal/`)
 
-The package-level dependency direction is:
+Implementation. Not part of the public SDK contract.
+
+| Package | Purpose |
+|---|---|
+| `internal/auth` | L0/L1/L2 auth, EIP-712, deposit-wallet CREATE2 derivation, builder attribution, signers. |
+| `internal/cli` | Cobra command construction and dependency wiring. |
+| `internal/clob` | CLOB API client — full read + authenticated surface, EIP-712, POLY_1271, ERC-7739. |
+| `internal/config` | Viper-backed config loading, defaults, environment binding, validation, redaction. |
+| `internal/dataapi` | Data API client — positions, volume, leaderboards. |
+| `internal/errors` | Structured error types and code helpers. |
+| `internal/execution` | Paper executor today; live executor surface for future use. |
+| `internal/gamma` | Typed Gamma HTTP client — markets, events, search, tags, series, sports, comments, profiles. |
+| `internal/marketdiscovery` | High-level market discovery service that combines Gamma and CLOB. |
+| `internal/modes` | Read-only / paper / live mode parsing and gate checks. |
+| `internal/orders` | OrderIntent, fluent builder, validation, lifecycle states. |
+| `internal/output` | Stable table and JSON rendering plus structured errors. |
+| `internal/paper` | Local-only paper positions, fills, and persisted state. |
+| `internal/polytypes` | Polymarket protocol-level types shared across clients. |
+| `internal/preflight` | Local and remote readiness checks. |
+| `internal/relayer` | Builder relayer client — WALLET-CREATE, WALLET batch, nonce, polling. |
+| `internal/risk` | Per-trade caps, daily loss limits, circuit breaker. |
+| `internal/rpc` | Direct on-chain transfers (e.g., ERC-20 pUSD from EOA). |
+| `internal/stream` | WebSocket market client with reconnect and dedup. |
+| `internal/transport` | HTTP retry, rate limiter, circuit breaker, redaction. |
+| `internal/wallet` | Deposit-wallet primitives — derive, deploy, status, batch signing. |
+
+## Dependency direction
 
 ```text
 cmd/polygolem
         |
 internal/cli
         |
-config, modes, preflight, output
+internal/{config, modes, preflight, output, errors}
         |
-gamma, clob, paper
+internal/{gamma, clob, dataapi, stream, relayer, rpc}   ← protocol clients
+        |
+internal/{auth, transport, polytypes}                   ← cross-cutting primitives
+        |
+internal/{wallet, orders, execution, risk, paper, marketdiscovery}
+        |
+pkg/{bookreader, bridge, gamma, marketresolver, pagination}   ← public re-exposed surface
 ```
 
-Command handlers parse flags, call package APIs, and render output. Protocol
-clients do not know about Cobra. Safety packages do not depend on command text.
-Paper state stays local and does not call live mutation endpoints.
+Command handlers parse flags, call package APIs, and render output via
+`internal/output`. Protocol clients do not know about Cobra. Safety packages
+do not depend on command text. Paper state stays local and never reaches
+authenticated mutation endpoints.
 
 Cobra command handlers must not contain protocol or trading business logic.
 That logic belongs in typed clients, application services, safety gates, and
-paper-state packages where it can be tested without executing the binary.
+paper-state packages where it is testable without executing the binary.
 
-## Mode System
+## Mode system
 
 Mode selection starts in configuration and CLI flags, then flows through
-`internal/modes` before command handlers call protocol clients or paper state.
-Command handlers should pass the selected mode into application services rather
-than deciding safety policy inline.
+`internal/modes` before command handlers call protocol clients or paper
+state.
 
-Read-only mode permits public market data and forbids signing or mutations. It
-is the default mode and may use `internal/gamma`, `internal/clob`, and
-`internal/output` for public data retrieval and rendering.
+- **Read-only** (default): public market data only. May use
+  `internal/gamma`, `internal/clob` (read endpoints), `internal/dataapi`,
+  `internal/marketdiscovery`, and `internal/output`. Forbids signing or
+  any mutation.
+- **Paper**: local simulation. Combines read-only reference data with
+  `internal/paper` state. Simulated actions stay local. Authenticated
+  mutation APIs remain off-limits.
+- **Live**: gated. Requires preflight + risk + funding gates to pass.
+  Live execution operates through `internal/execution`, `internal/orders`,
+  `internal/clob` (write endpoints), `internal/relayer`, `internal/rpc`,
+  and `internal/wallet`. The default `polygolem` invocation does not enter
+  live mode.
 
-Paper mode permits local simulation and forbids live endpoints. It may combine
-read-only reference data with `internal/paper` state, but simulated actions must
-remain local and must not reach authenticated mutation APIs.
+## Signature types
 
-Live mode is disabled unless every gate passes. In Phase 1, live mode is a
-status and validation surface only: `internal/config`, `internal/modes`, and
-`internal/preflight` can explain gate state, but no package should execute real
-trading or on-chain operations.
+Live commands accept a `--signature-type` flag. Supported values:
 
-## Phase 1 SDK Boundary
+| Value | Description |
+|---|---|
+| `eoa` | Plain externally-owned account; rejected by Polymarket for new accounts after May 2026. Retained for legacy keys. |
+| `proxy` | Proxy-wallet signing. |
+| `gnosis-safe` | Gnosis Safe signing. |
+| `deposit` | Deposit wallet (POLY_1271). The supported path for new accounts after May 2026. See `docs/DEPOSIT-WALLET-MIGRATION.md`. |
 
-There is no public Go SDK in Phase 1. Reusable behavior remains under
-`internal/` until the stable package surface is proven by CLI use and tests.
-The repository intentionally avoids a `pkg/` API until a future phase defines a
-supported SDK contract.
+Builder attribution for orders is handled in `internal/auth` and is
+orthogonal to the signature type.
 
-## Safety Boundaries
+## Public SDK boundary
 
-Read-only market data and local paper state are the only operational surfaces in
-Phase 1. Live-capable execution is represented by status and gate validation,
-not by order submission or on-chain mutation code.
+`pkg/` exists. It is small by design and grows when an internal capability
+proves stable enough to expose. Do not move code into `pkg/` without an
+SDK-level commitment to keep its API stable across minor versions.
+
+## Safety boundaries
+
+- Read-only is the default mode and is exercised by every public command.
+- Paper mode never calls authenticated endpoints.
+- Live commands require explicit signature-type, gates passing, and
+  builder credentials where applicable.
+- Builder credentials and private keys are redacted by `internal/config`
+  on every load.
