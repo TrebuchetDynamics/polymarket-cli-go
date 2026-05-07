@@ -67,6 +67,19 @@ func (s *PrivateKeySigner) SignTypedData(hash [32]byte, _ [32]byte) ([32]byte, e
 	return result, nil
 }
 
+// SignRaw signs an arbitrary 32-byte hash with the EOA private key.
+// Required by wrapPOLY1271Signature for the ERC-7739 envelope.
+func (s *PrivateKeySigner) SignRaw(hash [32]byte) ([]byte, error) {
+	sig, err := ethcrypto.Sign(hash[:], s.key)
+	if err != nil {
+		return nil, errors.Wrap(errors.CodeInvalidSignature, "sign raw", err)
+	}
+	if sig[64] < 27 {
+		sig[64] += 27
+	}
+	return sig, nil
+}
+
 // SignEIP712 signs canonical EIP-712 typed data and returns the full 65-byte
 // Ethereum signature with a 27/28 recovery byte.
 func (s *PrivateKeySigner) SignEIP712(typed apitypes.TypedData) ([]byte, error) {

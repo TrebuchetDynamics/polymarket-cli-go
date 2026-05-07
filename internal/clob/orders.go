@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -15,6 +16,7 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 	"github.com/ethereum/go-ethereum/common"
 	gethmath "github.com/ethereum/go-ethereum/common/math"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
 
@@ -435,6 +437,17 @@ func signCLOBOrder(signer *auth.PrivateKeySigner, order signedOrderPayload) (str
 }
 
 func signCLOBOrderV2(signer *auth.PrivateKeySigner, order signedOrderPayloadV2, negRisk bool) (string, error) {
+	typed := buildOrderTypedDataV2(order, negRisk)
+	sig, err := signer.SignEIP712(typed)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("0x%x", sig), nil
+}
+
+// buildOrderTypedDataV2 builds the apitypes.TypedData for a V2 order.
+// Shared by signCLOBOrderV2 and wrapPOLY1271Signature.
+func buildOrderTypedDataV2(order signedOrderPayloadV2, negRisk bool) apitypes.TypedData {
 	sideInt := int64(0)
 	if order.Side == "SELL" {
 		sideInt = 1
@@ -447,7 +460,7 @@ func signCLOBOrderV2(signer *auth.PrivateKeySigner, order signedOrderPayloadV2, 
 	makerAmount, _ := new(big.Int).SetString(order.MakerAmount, 10)
 	takerAmount, _ := new(big.Int).SetString(order.TakerAmount, 10)
 	timestamp, _ := new(big.Int).SetString(order.Timestamp, 10)
-	typed := apitypes.TypedData{
+	return apitypes.TypedData{
 		Types: apitypes.Types{
 			"EIP712Domain": {
 				{Name: "name", Type: "string"},
@@ -490,11 +503,92 @@ func signCLOBOrderV2(signer *auth.PrivateKeySigner, order signedOrderPayloadV2, 
 			"builder":       common.HexToHash(order.Builder).Hex(),
 		},
 	}
-	sig, err := signer.SignEIP712(typed)
-	if err != nil {
-		return "", err
+}
+
+// wrapPOLY1271Signature produces the 636-char ERC-7739 TypedDataSign wrapped
+// signature used when signatureType=3 for Polymarket V2 orders.
+//
+// Layout: innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186)
+// = 317 bytes = 634 hex chars + "0x" = 636 chars total.
+func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, orderTypedData apitypes.TypedData) (string, error) {
+	// contentsType is the V2 Order type string — must be exactly 186 bytes.
+	const contentsType = "Order(uint256 salt,address maker,address signer,uint256 tokenId,uint256 makerAmount,uint256 takerAmount,uint8 side,uint8 signatureType,uint256 timestamp,bytes32 metadata,bytes32 builder)"
+	if len(contentsType) != 186 {
+		return "", fmt.Errorf("internal: contentsType length %d != 186", len(contentsType))
 	}
-	return fmt.Sprintf("0x%x", sig), nil
+
+	// 1. Extract appDomainSep and contents from the V2 order typed data.
+	//    TypedDataAndHash returns (hash, rawData, err) where rawData is a string:
+	//    \x19\x01 (2B) || domainSep (32B) || structHash (32B).
+	_, rawDataStr, err := apitypes.TypedDataAndHash(orderTypedData)
+	if err != nil {
+		return "", fmt.Errorf("hash order typed data: %w", err)
+	}
+	rawData := []byte(rawDataStr)
+	if len(rawData) != 66 {
+		return "", fmt.Errorf("unexpected rawData length %d", len(rawData))
+	}
+	appDomainSep := rawData[2:34]  // CTF Exchange V2 domain separator
+	contents := rawData[34:66]     // hashStruct(Order)
+
+	// 2. Compute the DepositWallet domain separator (5-field, salt=0).
+	domainTypeHash := ethcrypto.Keccak256([]byte(
+		"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)"))
+	nameHash := ethcrypto.Keccak256([]byte("DepositWallet"))
+	versionHash := ethcrypto.Keccak256([]byte("1"))
+	chainIDBytes := common.LeftPadBytes(big.NewInt(polygonChainID).Bytes(), 32)
+	addrBytes := common.LeftPadBytes(common.HexToAddress(depositWallet).Bytes(), 32)
+	saltBytes := make([]byte, 32) // all zeros
+
+	dwDomainSep := ethcrypto.Keccak256(
+		domainTypeHash,
+		nameHash,
+		versionHash,
+		chainIDBytes,
+		addrBytes,
+		saltBytes,
+	)
+
+	// 3. TypedDataSign typehash.
+	typeHashStr := "TypedDataSign(Order contents,string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)" + contentsType
+	typedDataSignTypehash := ethcrypto.Keccak256([]byte(typeHashStr))
+
+	// 4. hashStruct(TypedDataSign{contents, name, version, chainId, verifyingContract, salt}).
+	tdsStruct := ethcrypto.Keccak256(
+		typedDataSignTypehash,
+		contents,
+		nameHash,
+		versionHash,
+		chainIDBytes,
+		addrBytes,
+		saltBytes,
+	)
+
+	// 5. finalHash = keccak256(0x1901 || dwDomainSep || tdsStruct).
+	finalHashInput := make([]byte, 0, 66)
+	finalHashInput = append(finalHashInput, 0x19, 0x01)
+	finalHashInput = append(finalHashInput, dwDomainSep...)
+	finalHashInput = append(finalHashInput, tdsStruct...)
+	finalHashSum := ethcrypto.Keccak256(finalHashInput)
+	var finalHash [32]byte
+	copy(finalHash[:], finalHashSum)
+
+	// 6. ECDSA-sign the finalHash with the EOA private key.
+	innerSig, err := signer.SignRaw(finalHash)
+	if err != nil {
+		return "", fmt.Errorf("sign inner: %w", err)
+	}
+
+	// 7. Assemble: innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186).
+	var lenBuf [2]byte
+	binary.BigEndian.PutUint16(lenBuf[:], uint16(len(contentsType)))
+	sig := make([]byte, 0, 317)
+	sig = append(sig, innerSig...)
+	sig = append(sig, appDomainSep...)
+	sig = append(sig, contents...)
+	sig = append(sig, []byte(contentsType)...)
+	sig = append(sig, lenBuf[:]...)
+	return "0x" + hex.EncodeToString(sig), nil
 }
 
 // buildSignedOrderPayload constructs a V2 order payload from a draft.
@@ -508,10 +602,14 @@ func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, cl
 		return nil, err
 	}
 	if clobVersion >= 2 {
+		orderSigner := signer.Address()
+		if draft.signatureType == signatureTypePoly1271 {
+			orderSigner = maker
+		}
 		payload := signedOrderPayloadV2{
 			Salt:          salt,
 			Maker:         maker,
-			Signer:        signer.Address(),
+			Signer:        orderSigner,
 			TokenID:       draft.tokenID.String(),
 			MakerAmount:   draft.makerAmount,
 			TakerAmount:   draft.takerAmount,
@@ -525,6 +623,13 @@ func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, cl
 		sig, err := signCLOBOrderV2(signer, payload, negRisk)
 		if err != nil {
 			return nil, err
+		}
+		if draft.signatureType == signatureTypePoly1271 {
+			typedData := buildOrderTypedDataV2(payload, negRisk)
+			sig, err = wrapPOLY1271Signature(signer, maker, typedData)
+			if err != nil {
+				return nil, err
+			}
 		}
 		payload.Signature = sig
 		return payload, nil
