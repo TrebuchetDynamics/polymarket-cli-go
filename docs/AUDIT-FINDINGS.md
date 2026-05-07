@@ -17,6 +17,7 @@ opposite. Items marked `→ defer` are out of scope for this project.
 |---|---|---|---|---|
 | ARCHITECTURE.md claimed no public SDK and "intentionally avoids `pkg/`" | docs/ARCHITECTURE.md | `pkg/{bookreader,bridge,gamma,marketresolver,pagination}` exist | → docs | Rewritten in Task 4 |
 | ARCHITECTURE.md missed 13+ internal packages | docs/ARCHITECTURE.md | `internal/{auth,clob,dataapi,errors,execution,marketdiscovery,orders,polytypes,relayer,risk,rpc,stream,transport,wallet}` | → docs | Rewritten in Task 4 |
+| COMMANDS.md missing 28 of 50 command paths from binary (auth, bridge, bridge assets, bridge deposit, clob, clob market, clob price-history, clob tick-size, deposit-wallet, deposit-wallet approve, deposit-wallet batch, deposit-wallet fund, deposit-wallet onboard, discover, discover enrich, discover market, discover search, events, events list, health, live, orderbook, orderbook fee-rate, orderbook last-trade, orderbook midpoint, orderbook price, orderbook spread, orderbook tick-size) | docs/COMMANDS.md | `polygolem --help` walked recursively shows 50 paths | → docs | Regenerated in Task 5 |
 
 ## Track 1 — Code-side drift surfaced incidentally
 
@@ -25,6 +26,8 @@ later.)
 
 | Finding | File:line | Notes |
 |---|---|---|
+| Prior COMMANDS.md documented `markets search` / `markets get` / `markets active` but no `markets` group exists in the binary | docs/COMMANDS.md (pre-Task 5) | Binary exposes market discovery via `discover search`, `discover market`, and `discover enrich` instead. Doc-side stale; no code change needed. |
+| Prior COMMANDS.md documented `prices get` but no `prices` command exists in the binary | docs/COMMANDS.md (pre-Task 5) | Closest equivalent is `clob price-history` and `orderbook price`. Doc-side stale; no code change needed. |
 
 ## Track 3 — JSON envelope drift
 
