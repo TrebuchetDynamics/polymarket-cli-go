@@ -381,14 +381,25 @@ func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, 
 	typedDataSignTypehash := ethcrypto.Keccak256([]byte(typeHashStr))
 
 	// 4. hashStruct(TypedDataSign{contents, name, version, chainId, verifyingContract, salt}).
+	//    Per ERC-7739 the inner struct's domain fields describe the APP domain the user
+	//    is authorizing (CTF Exchange V2), NOT the DepositWallet (account) domain.
+	//    Read the app domain directly from the order's TypedData so that the regular vs
+	//    neg-risk exchange address is handled implicitly.
+	appNameHash := ethcrypto.Keccak256([]byte(orderTypedData.Domain.Name))
+	appVerHash := ethcrypto.Keccak256([]byte(orderTypedData.Domain.Version))
+	appChainIDBigInt := (*big.Int)(orderTypedData.Domain.ChainId)
+	appChainIDBytes := common.LeftPadBytes(appChainIDBigInt.Bytes(), 32)
+	appAddrBytes := common.LeftPadBytes(common.HexToAddress(orderTypedData.Domain.VerifyingContract).Bytes(), 32)
+	appSaltBytes := make([]byte, 32) // zeros
+
 	tdsStruct := ethcrypto.Keccak256(
 		typedDataSignTypehash,
 		contents,
-		nameHash,
-		versionHash,
-		chainIDBytes,
-		addrBytes,
-		saltBytes,
+		appNameHash,
+		appVerHash,
+		appChainIDBytes,
+		appAddrBytes,
+		appSaltBytes,
 	)
 
 	// 5. finalHash = keccak256(0x1901 || dwDomainSep || tdsStruct).
