@@ -30,7 +30,7 @@ func TestBuildSignedOrderPayloadV2UsesCurrentCLOBShape(t *testing.T) {
 		feeRateBps:    "0",
 		signatureType: 0,
 		orderType:     "FOK",
-	}, 2, time.UnixMilli(1778125000123))
+	}, 2, time.UnixMilli(1778125000123), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestBuildSignedOrderPayloadV2DepositWalletUsesEOASignerWithDepositMaker(t *
 		feeRateBps:    "0",
 		signatureType: signatureTypePoly1271,
 		orderType:     "FOK",
-	}, 2, time.UnixMilli(1778125000123))
+	}, 2, time.UnixMilli(1778125000123), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,6 +101,8 @@ func TestCreateMarketOrderPostsV2PayloadWhenCLOBVersionIsTwo(t *testing.T) {
 			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.001"}`))
 		case "/fee-rate":
 			_, _ = w.Write([]byte(`{"fee_rate_bps":0}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
 		case "/auth/derive-api-key":
 			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
 		case "/order":
@@ -150,5 +152,36 @@ func TestCreateMarketOrderPostsV2PayloadWhenCLOBVersionIsTwo(t *testing.T) {
 	}
 	if posted["postOnly"] != false || posted["deferExec"] != false {
 		t.Fatalf("post flags not explicit false: %#v", posted)
+	}
+}
+
+func TestSignCLOBOrderV2UsesNegRiskExchangeAddressWhenFlagged(t *testing.T) {
+	signer, err := auth.NewPrivateKeySigner(testOrderPrivateKey, polygonChainID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := signedOrderPayloadV2{
+		Salt:          1,
+		Maker:         signer.Address(),
+		Signer:        signer.Address(),
+		TokenID:       "12345",
+		MakerAmount:   "700000",
+		TakerAmount:   "1400000",
+		Side:          "BUY",
+		SignatureType: 0,
+		Timestamp:     "1778125000123",
+		Metadata:      bytes32Zero,
+		Builder:       bytes32Zero,
+	}
+	sigRegular, err := signCLOBOrderV2(signer, payload, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sigNegRisk, err := signCLOBOrderV2(signer, payload, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sigRegular == sigNegRisk {
+		t.Fatalf("regular and neg-risk signatures must differ; both = %q", sigRegular)
 	}
 }
