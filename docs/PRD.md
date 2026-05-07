@@ -1,5 +1,17 @@
 # Polygolem SDK Requirements PRD
 
+> **Audit status (2026-05-07):** This PRD predates the current codebase.
+> Each requirement is annotated with one of:
+>
+> - ✅ **Fulfilled** — implemented and shipping.
+> - ⚠️ **Partial / drifted** — implementation differs in scope or shape.
+> - 🗒️ **Historical** — preserved for context; superseded by a later
+>   decision documented in `docs/ARCHITECTURE.md` or
+>   `docs/DEPOSIT-WALLET-MIGRATION.md`.
+>
+> The status reflects code reality at the audit date. The "why" prose is
+> preserved unchanged.
+
 Status: draft
 Date: 2026-05-06
 Scope: requirements for the future Polygolem SDK architecture and go-bot
@@ -196,10 +208,74 @@ Observed live-mode issues:
   Polygolem command must fail loudly on invalid order inputs or insufficient
   FOK liquidity instead of silently downgrading to paper mode or changing order
   type.
+- Live run blocker observed on 2026-05-07 after validation/funding passed:
+  `go-bot` returned `no_market` for every live decision even though current
+  Polymarket crypto up/down markets existed. Root cause: the go-bot fallback
+  passed an empty Gamma base URL into Polygolem, and the resolver only knew
+  BTC/ETH/SOL/XRP deterministic slugs. Polygolem must default empty Gamma URLs
+  to `https://gamma-api.polymarket.com` and support all live bot assets
+  (`BTC`, `ETH`, `SOL`, `XRP`, `DOGE`, `BNB`) in slug generation and search
+  aliases.
+- Live run blocker observed on 2026-05-07 after market discovery was fixed:
+  CLOB `/tick-size` can return only `minimum_tick_size`, omitting
+  `tick_size` and `minimum_order_size`; CLOB `/markets/{condition_id}` can
+  return token prices as numbers. Polygolem must preserve omitted fields as
+  empty strings, never stringify missing JSON fields as `"<nil>"`, and decode
+  numeric/string CLOB prices into stable string fields before CLI output or
+  order construction.
+- Live run blocker observed on 2026-05-07 after metadata parsing was fixed:
+  CLOB `/order` rejected signed orders with
+  `{"error":"order_version_mismatch"}`. Root cause: Polygolem was signing the
+  old V1 CTF Exchange EIP-712 order (`domain.version = "1"`, exchange
+  `0x4bFb...`) while production CLOB `/version` returns `{"version":2}`.
+  Polygolem live order placement must query `/version` before signing, build
+  V2 order payloads for version 2, sign domain version `"2"` against
+  `0xE111180000d2663C0091e4f400237545B87B996B`, include V2 post fields
+  `timestamp`, `metadata`, `builder`, and `expiration`, omit V1-only signed
+  fields `taker`, `nonce`, and `feeRateBps`, and send explicit
+  `deferExec:false` and `postOnly:false`.
+- Live run blocker observed on 2026-05-07 after V2 signing was fixed:
+  CLOB `/order` rejected proxy-maker submissions with
+  `{"error":"maker address not allowed, please use the deposit wallet flow"}`.
+  Root cause: current production CLOB requires new API users to trade through
+  the deposit-wallet flow. This still uses the configured EOA private key for
+  L1/L2 auth and order signing, but `signatureType = 3` (`POLY_1271`) and the
+  CLOB order `maker` and `signer` fields must both be the deterministic deposit
+  wallet address.
+  See [DEPOSIT-WALLET-MIGRATION.md](./DEPOSIT-WALLET-MIGRATION.md) for the
+  full migration survival guide, common pitfalls, and implementation status.
+- Live run blocker observed on 2026-05-07 after deposit-wallet order signing
+  was added: `polygolem clob balance --asset-type collateral --signature-type
+  deposit` returned CLOB pUSD balance `0.000000` and zero allowances, while the
+  owner EOA still holds `0.709708` pUSD. Polymarket's migration guide is
+  explicit that pUSD held by the EOA does not fund deposit-wallet orders.
+  go-bot now blocks before submitting orders instead of generating more lost
+  rows. Remaining live requirements for this account:
+  - Polygolem must expose deposit-wallet onboarding primitives, not leave them
+    in go-bot: derive expected wallet, deploy through relayer `WALLET-CREATE`,
+    submit signed deposit-wallet `WALLET` batches, poll relayer transaction
+    state, and refresh CLOB `balance-allowance` with `signature_type = 3`.
+  - The relayer requires builder authorization in this environment. A raw
+    unauthenticated `POST https://relayer-v2.polymarket.com/submit` with
+    `WALLET-CREATE` returned `{"error":"invalid authorization"}`. Polygolem
+    must support builder auth headers from configured builder credentials
+    (`BUILDER_API_KEY`, `BUILDER_SECRET`, `BUILDER_PASS_PHRASE` or the chosen
+    project env names) and keep these credentials separate from CLOB L2 creds.
+  - Funding must move pUSD to the deposit wallet, not merely to the owner EOA.
+    Approvals must be made from the deposit wallet through a relayer `WALLET`
+    batch. Existing go-bot EOA auto-approval code is not sufficient for deposit
+    wallet orders.
+  - go-bot should continue treating the EOA as the signer identity, but live
+    funding diagnostics and order audit payloads must distinguish
+    `signer_eoa` from `funder/deposit_wallet`.
 
 ## Functional Requirements
 
-### R1. Market Discovery
+### R1. Market Discovery ✅
+
+> **Status:** Fulfilled. Implemented in `internal/marketdiscovery` and
+> `internal/gamma`, exposed via `polygolem discover search|market|enrich`.
+> Identifier normalization and Gamma+CLOB enrichment are covered by tests.
 
 The SDK must provide a `MarketDiscovery` service over Gamma and CLOB metadata.
 
@@ -233,7 +309,12 @@ Acceptance criteria:
 - A caller can distinguish "market exists" from "market cannot accept orders".
 - No market discovery path requires credentials.
 
-### R2. Public CLOB Market Data
+### R2. Public CLOB Market Data ✅
+
+> **Status:** Fulfilled. Implemented in `internal/clob` and re-exposed via
+> `pkg/bookreader`; surfaced through `polygolem clob book|market|tick-size|
+> price-history` and the `polygolem orderbook` group. Bid/ask normalization
+> (high-to-low / low-to-high) ships behind `BookReader`.
 
 The SDK must provide typed public CLOB data clients.
 
@@ -258,7 +339,12 @@ Acceptance criteria:
 - Request builders validate required token IDs, market IDs, side values, and
   batch-size limits before sending network requests.
 
-### R3. Authentication Model
+### R3. Authentication Model ✅
+
+> **Status:** Fulfilled. `internal/auth` covers L0/L1/L2, EIP-712 CLOB auth,
+> POLY_1271/ERC-7739 deposit-wallet signing, builder attribution, and
+> redaction; signer abstraction lives behind injectable interfaces. See
+> `polygolem auth status` and `polygolem clob create-api-key`.
 
 The SDK must model Polymarket authentication as explicit access levels.
 
@@ -270,8 +356,14 @@ Requirements:
   CLOB endpoints.
 - Builder attribution: optional separate builder headers for attributed order
   flow. Builder credentials must not be confused with user L2 credentials.
-- Signature types: EOA, Polymarket proxy/Magic wallet, and Gnosis Safe.
+- Signature types: EOA, Polymarket proxy/Magic wallet, Gnosis Safe, and
+  deposit wallet / `POLY_1271`. go-bot live execution must keep the EOA as the
+  owner/signer identity while using deposit-wallet maker/funder semantics when
+  CLOB requires the deposit flow.
 - Funder, signer, and maker addresses must be represented separately.
+- Builder relayer auth must be a first-class, separate credential set for
+  deposit-wallet `WALLET-CREATE` and `WALLET` batch flows; never reuse CLOB L2
+  credentials for relayer authorization.
 - Signer abstraction must support local private key signing, and leave room for
   KMS, hardware wallet, Turnkey, or remote signing implementations.
 - Auth status must report readiness without printing private keys, API secrets,
@@ -288,7 +380,12 @@ Acceptance criteria:
 - Redaction tests prove credential values never appear in status output,
   structured errors, logs, or JSON output.
 
-### R4. Wallet And Account Readiness
+### R4. Wallet And Account Readiness ✅
+
+> **Status:** Fulfilled. `internal/wallet`, `internal/preflight`, and
+> `internal/auth` separate signer-EOA from funder/deposit-wallet, expose
+> CREATE2 derivation, and surface readiness via `polygolem auth status`,
+> `polygolem deposit-wallet onboard`, and `polygolem health`.
 
 The SDK must separate wallet readiness from trading execution.
 
@@ -296,7 +393,11 @@ Requirements:
 
 - Report chain ID, expected network, signer address, configured signature type,
   funder/profile address, and API key readiness.
-- Support proxy and Safe address derivation checks where implemented.
+- Support proxy, Safe, and deposit wallet address derivation checks where
+  implemented.
+- Readiness output must distinguish `signer_eoa` from `funder_address` /
+  `deposit_wallet_address`; pUSD held by one must not be reported as buying
+  power for the other.
 - Support close-only/ban-status checks for authenticated accounts.
 - Support geoblock/readiness checks as terminal preflight inputs.
 - Do not deploy wallets, approve tokens, bridge funds, or mutate on-chain state
@@ -307,7 +408,12 @@ Acceptance criteria:
 - `auth status`, `live status`, and `preflight` can explain which dependency is
   missing without exposing secrets or attempting a mutation.
 
-### R5. Order Builder
+### R5. Order Builder ✅
+
+> **Status:** Fulfilled. `internal/orders` exposes `OrderIntent`, a fluent
+> builder, validation, and lifecycle states; V2 deposit-wallet
+> (`signatureType=3`) signing is in `internal/auth` + `internal/clob`.
+> Surfaced via `polygolem clob create-order` and `polygolem clob market-order`.
 
 The SDK must provide an order builder that can build signable orders without
 posting them.
@@ -319,6 +425,9 @@ Requirements:
 - Required order inputs: token ID, side, price or market-order guard price,
   size or USDC amount, order type, signature type, tick size, negative-risk
   flag, fee rate, nonce, expiration where required, signer, and funder.
+- V2 deposit-wallet orders must use `signatureType = 3`, `maker =
+  deposit_wallet`, `signer = deposit_wallet`, and an ERC-7739-wrapped
+  `TypedDataSign` signature signed by the owner EOA or approved session signer.
 - Validate price range, tick-size multiple, minimum order size, side, order
   type, expiration for GTD, decimal precision, fee-rate consistency, and
   negative-risk exchange selection.
@@ -335,7 +444,12 @@ Acceptance criteria:
 - Invalid tick size, invalid price, missing negative-risk metadata, and missing
   signer fail before network I/O.
 
-### R6. Order Execution And Lifecycle
+### R6. Order Execution And Lifecycle ✅
+
+> **Status:** Fulfilled. `internal/execution` separates paper from live
+> executors and enforces gates; `internal/clob` covers place/cancel/query
+> with batch validation. Live commands (`polygolem live ...` and the
+> `polygolem clob create-order|orders|trades`) ship behind preflight gates.
 
 The SDK must expose execution as a separate service from order building.
 
@@ -365,7 +479,13 @@ Acceptance criteria:
   gates pass.
 - Order and trade response types are not lossy wrappers around the API.
 
-### R7. Balances, Allowances, Positions, And Rewards
+### R7. Balances, Allowances, Positions, And Rewards ✅
+
+> **Status:** Fulfilled. `internal/clob` exposes `balance`/`update-balance`
+> with `signature_type=3` deposit-wallet support and human/raw decimal
+> normalization; `internal/dataapi` covers positions, trades, activity,
+> top holders, leaderboards, and live volume. Surfaced via
+> `polygolem clob balance|orders|trades`.
 
 The SDK must expose read-oriented account state before any live trading path is
 enabled.
@@ -375,6 +495,9 @@ Requirements:
 - Balance/allowance lookup for USDC collateral and conditional token assets.
 - Explicit asset type handling: collateral vs conditional token.
 - Signature type must be included where the API requires it.
+- Deposit wallet balance and allowance checks must call CLOB with
+  `signature_type = 3`; EOA pUSD balance is not valid buying power for
+  deposit-wallet orders.
 - Allowance refresh/update calls must be classified carefully. If a call can
   cause mutation or trigger on-chain behavior, it is gated as dangerous.
 - Data API support for current positions, closed positions, trades, activity,
@@ -390,7 +513,12 @@ Acceptance criteria:
 - Account state output redacts sensitive auth material and preserves enough
   fields for operator diagnostics.
 
-### R8. WebSocket And Streaming
+### R8. WebSocket And Streaming ⚠️
+
+> **Status:** Partial. `internal/stream` ships a public `MarketClient`
+> with reconnect, ping/pong, dedup, and `SubscribeAssets`, exposed via
+> `polygolem events list`. The authenticated user stream and RTDS-channel
+> isolation described here are not yet implemented.
 
 The SDK must provide resilient typed streaming clients.
 
@@ -417,7 +545,12 @@ Acceptance criteria:
 - User streams require L2 credentials and fail clearly when credentials are
   missing.
 
-### R9. Paper Trading
+### R9. Paper Trading ✅
+
+> **Status:** Fulfilled. `internal/paper` plus `internal/execution`'s paper
+> executor share the order-intent model with live; persisted JSON state
+> sits behind a storage boundary. Surfaced via the `polygolem paper`
+> command group with explicit "simulated" markers.
 
 Paper execution must remain local-only.
 
@@ -438,7 +571,13 @@ Acceptance criteria:
 - Tests prove paper operations do not call authenticated mutation endpoints.
 - Paper positions can be replayed from persisted state.
 
-### R10. Safety Gates And Preflight
+### R10. Safety Gates And Preflight ✅
+
+> **Status:** Fulfilled. `internal/modes`, `internal/preflight`, and
+> `internal/risk` enforce read-only/paper/live gates and structured
+> blocked-error paths. Surfaced via `polygolem preflight`, `polygolem
+> health`, and the `--confirm-live` + `POLYMARKET_LIVE_PROFILE` gates on
+> live commands.
 
 Safety is an SDK requirement, not only a CLI requirement.
 
@@ -467,7 +606,12 @@ Acceptance criteria:
   bot must still block before command invocation unless validation, funding,
   wallet, risk, safe-pause, and operator gates pass.
 
-### R11. Transport, Errors, And Observability
+### R11. Transport, Errors, And Observability ✅
+
+> **Status:** Fulfilled. `internal/transport` centralizes HTTP retry,
+> rate limiting, circuit breaking, and redaction; `internal/errors`
+> provides structured categories. All clients accept `context.Context`
+> and load base URLs from `internal/config`.
 
 The SDK must centralize network behavior.
 
@@ -491,7 +635,13 @@ Acceptance criteria:
 - Mock HTTP tests can assert headers, paths, query parameters, body shapes,
   status-code handling, retries, and redaction.
 
-### R12. Public SDK Boundary
+### R12. Public SDK Boundary ⚠️
+
+> **Status:** Partial / drifted. The "keep everything in `internal/`"
+> stance shifted: `pkg/{bookreader,bridge,gamma,marketresolver,pagination}`
+> are now exposed as a small stable surface. The remaining requirements
+> (thin Cobra handlers, application services above protocol clients) hold;
+> see `docs/ARCHITECTURE.md` for the current package map.
 
 The SDK surface should remain internal until stable.
 
@@ -514,7 +664,14 @@ Acceptance criteria:
   signing logic, order math, retry policy, or safety policy.
 - SDK modules can be tested without executing the CLI binary.
 
-### R13. Go-Bot Consumer Boundary
+### R13. Go-Bot Consumer Boundary ⚠️
+
+> **Status:** Partial. Polygolem-side primitives exist (`pkg/bookreader`,
+> `pkg/marketresolver`, `pkg/bridge`, `internal/clob`, `internal/dataapi`,
+> `internal/stream`, `internal/execution`) and CLI JSON output is
+> regenerated in `docs/COMMANDS.md`. Go-bot-side adoption (full removal of
+> direct `internal/polymarket` clients, repository guard) is tracked
+> outside this repo and is not verifiable here.
 
 Polygolem must expose the capabilities `go-bot` needs without making the bot
 know Polymarket protocol details.
@@ -721,6 +878,8 @@ Recommended `go-bot` integration modules:
 - Add signer interfaces, L1/L2 auth header builders, API key readiness checks,
   builder attribution model, and redaction tests.
 - Add non-mutating wallet/account readiness and close-only/geoblock checks.
+- Add deposit-wallet address derivation and status reporting that separates
+  signer EOA, funder wallet, CLOB balance, and on-chain balance.
 
 ### Phase C - Order Domain And Paper Executor
 
@@ -740,6 +899,9 @@ Recommended `go-bot` integration modules:
 - Require all live gates, preflight, risk caps, balance/allowance checks,
   structured errors, and non-idempotent retry rules before enabling any real
   order placement or cancellation.
+- For deposit-wallet accounts, require relayer deployment, pUSD funding to the
+  deposit wallet, relayer-batch approvals from the deposit wallet, and CLOB
+  `signature_type = 3` balance refresh before live order placement can start.
 
 ## Open Questions
 
