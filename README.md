@@ -1,148 +1,121 @@
 # polygolem
 
-Safe Polymarket SDK and CLI for Go. Read-only by default, no credentials needed.
-All types stolen from the ecosystem's best open-source projects — no external Polymarket SDKs.
+Safe Polymarket SDK and CLI for Go. Read-only by default. No external SDKs —
+all types, signing, and protocol logic implemented from spec.
+
+**Solves the May 2026 Polymarket deposit wallet migration** — the breaking change
+that rejected EOA orders for new API users. Full tooling: derive, deploy via
+relayer, WALLET batch signing, approvals, on-chain funding, and POLY_1271 order
+placement.
+
+## One Command to Onboard a New Polymarket Account
+
+```bash
+# Creates builder profile (free at polymarket.com/settings?tab=builder), then:
+POLYMARKET_PRIVATE_KEY="0x..." \
+POLYMARKET_BUILDER_API_KEY="..." \
+POLYMARKET_BUILDER_SECRET="..." \
+POLYMARKET_BUILDER_PASSPHRASE="..." \
+  polygolem deposit-wallet onboard --fund-amount 0.71 --json
+```
+
+That's it. Deploys the wallet, approves 6 trading contracts via WALLET batch, and
+transfers 0.71 pUSD from EOA. Then sync:
+
+```bash
+POLYMARKET_PRIVATE_KEY="0x..." \
+  polygolem clob update-balance --asset-type collateral --signature-type deposit
+```
+
+Ready to trade. See [Deposit Wallet Migration Guide](docs/DEPOSIT-WALLET-MIGRATION.md).
+
+## How It Works (Two Tiers)
+
+**Tier 1 — Your own bot** (you hold the key):
+Every command is a standalone CLI tool. Deploy wallets, sign batches, place
+POLY_1271 orders directly from your infrastructure.
+
+**Tier 2 — Your users' app** (they hold their keys, you hold one builder account):
+Arenaton's server calls polygolem as a subprocess. Users never see a CLI.
+One builder account deploys wallets for all users. Builder creds are in the
+server environment, never exposed to Flutter.
+
+| User action | Server calls |
+|-------------|-------------|
+| Enable trading | `deposit-wallet onboard --fund-amount X` |
+| Check status | `deposit-wallet status` |
+| Place order | `clob create-order --signature-type deposit` |
+| Check balance | `clob balance --signature-type deposit` |
 
 ## Install
 
-```bash
-go install github.com/TrebuchetDynamics/polygolem/cmd/polygolem@latest
-```
-
-Or build from source:
 ```bash
 git clone https://github.com/TrebuchetDynamics/polygolem
 cd polygolem && go build -o polygolem ./cmd/polygolem
 ```
 
-## What can you do with it?
+## Command Inventory
 
-### 1. Search markets and check odds — no wallet, no API key
-
+### Public (no credentials needed)
 ```bash
-# Find active BTC markets
 polygolem discover search --query "btc 5m" --limit 5
-
-# Get details for a specific market
 polygolem discover market --id "0xbd31dc8..."
-
-# Get everything at once — Gamma metadata + CLOB tick size, fee, orderbook
 polygolem discover enrich --id "0xbd31dc8..."
-```
-
-Output is always JSON:
-```json
-{
-  "market": {"question": "Bitcoin up in 5 minutes?", "lastTradePrice": 0.52, ...},
-  "tick_size": {"minimum_tick_size": "0.01", "minimum_order_size": "5"},
-  "neg_risk": false,
-  "fee_rate_bps": 0,
-  "order_book": {"bids": [...], "asks": [...]}
-}
-```
-
-### 2. Read order books and prices in real time
-
-```bash
-# Get L2 order book depth
-polygolem orderbook get --token-id "123456789..."
-
-# Check best bid/ask, midpoint, spread, tick size
+polygolem orderbook get --token-id "123..."
 polygolem orderbook price --token-id "123..."
-polygolem orderbook midpoint --token-id "123..."
 polygolem orderbook spread --token-id "123..."
-polygolem orderbook tick-size --token-id "123..."
-polygolem orderbook fee-rate --token-id "123..."
-```
-
-### 3. Check API health
-
-```bash
 polygolem health
-# {"gamma": "ok", "clob": "ok"}
+polygolem version
 ```
 
-### 4. Bridge: check supported assets and get deposit quotes
-
+### Deposit Wallet (builder creds required for deploy/batch/onboard)
 ```bash
-# No CLI yet — use as Go library:
+polygolem deposit-wallet derive                    # no creds needed
+polygolem deposit-wallet deploy --wait             # needs builder
+polygolem deposit-wallet nonce                     # needs builder
+polygolem deposit-wallet status                    # needs builder
+polygolem deposit-wallet batch --calls-json '...'  # EIP-712 sign + submit
+polygolem deposit-wallet approve                   # review calldata
+polygolem deposit-wallet approve --submit          # sign + send 6-call batch
+polygolem deposit-wallet fund --amount 0.71        # ERC-20 transfer EOA→wallet
+polygolem deposit-wallet onboard --fund-amount 0.71 # deploy + approve + fund
 ```
 
-```go
-import "github.com/TrebuchetDynamics/polygolem/pkg/bridge"
-
-bridge := bridge.NewClient("", nil)
-assets, _ := bridge.GetSupportedAssets(ctx)
-// [{ChainID: "137", ChainName: "Polygon", Token: {Symbol: "POL", Decimals: 18}, ...}]
-
-quote, _ := bridge.GetQuote(ctx, bridge.QuoteRequest{
-    FromAmountBaseUnit: "1000000000000000000", // 1 POL
-    FromChainID: "137", FromTokenAddress: "0x...",
-    RecipientAddress: "0xYourWallet", ToChainID: "137",
-    ToTokenAddress: "0xUSDC...",
-})
-// {EstOutputUsd: 0.23, EstFeeBreakdown: {GasUsd: 0.02, ...}}
+### CLOB Trading (private key required)
+```bash
+polygolem clob book <token-id>
+polygolem clob balance --asset-type collateral --signature-type deposit
+polygolem clob update-balance --asset-type collateral --signature-type deposit
+polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --signature-type deposit
+polygolem clob market-order --token ID --side buy --amount 5 --signature-type deposit
+polygolem clob orders
+polygolem clob trades
+polygolem clob create-api-key
 ```
 
-### 5. Use as a Go SDK in your own bot
-
-```go
-import (
-    "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
-    "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
-    "github.com/TrebuchetDynamics/polygolem/pkg/pagination"
-)
-
-// Resolve active token IDs for BTC 5m markets
-resolver := marketresolver.NewResolver("")
-result := resolver.ResolveTokenIDs(ctx, "BTC", "5m")
-// {Status: "available", UpTokenID: "...", DownTokenID: "...", ConditionID: "0x..."}
-
-// Fetch order books through polygolem (never construct your own CLOB client)
-reader := bookreader.NewReader("")
-book, _ := reader.OrderBook(ctx, result.UpTokenID)
-// {Bids: [{Price: 0.48, Size: 100}, ...], Asks: [{Price: 0.52, Size: 50}, ...]}
-
-// Build orders with the fluent builder
-intent, _ := orders.NewBuilder(result.UpTokenID, polytypes.SideBuy).
-    Price("0.49").Size("10").
-    TickSize("0.01").FeeRateBps(0).
-    Build()
-
-// Auto-paginate through all markets
-all, _ := pagination.CollectAll(ctx, func(ctx context.Context, cursor string) ([]CLOBMarket, string, error) {
-    resp, _ := clob.Markets(ctx, cursor)
-    return resp.Data, resp.NextCursor, nil
-})
+### Bridge
+```bash
+polygolem bridge assets
+polygolem bridge deposit <wallet-address>
 ```
 
-### 6. Paper trade locally against real market data
-
-```go
-executor := execution.NewPaperExecutor("1000") // $1000 starting cash
-resp, _ := executor.Place(ctx, &intent)
-// {Success: true, OrderID: "paper-1", Status: "matched"}
+### Paper (local simulation)
+```bash
+polygolem paper buy
+polygolem paper positions
+polygolem paper reset
 ```
-
-## Safety
-
-| Mode | Credentials | Can Sign | Can Post | Can Mutate |
-|------|-------------|----------|----------|------------|
-| Read-only | None | No | No | No |
-| Paper | None | No | No (local only) | No |
-| Live (future) | Private key + API key | Yes | Yes | Gated |
-
-Read-only is the default. No API keys, no wallet, no risk. Live execution is hard-disabled until all gates pass: `POLYMARKET_LIVE_PROFILE=on`, `--confirm-live`, successful preflight.
 
 ## Packages
 
 | Package | What it does |
 |---------|-------------|
+| `internal/relayer` | Builder relayer client — WALLET-CREATE, WALLET batch, nonce, polling |
+| `internal/rpc` | Direct on-chain transfers (ERC-20 pUSD from EOA) |
+| `internal/clob` | CLOB API client — 17 methods + EIP-712 + POLY_1271 + ERC-7739 signing |
+| `internal/auth` | L0/L1/L2 auth, EIP-712, deposit wallet CREATE2 derivation, builder attribution |
 | `internal/gamma` | Gamma API client — 18 methods (markets, events, search, tags, series) |
-| `internal/clob` | CLOB API client — 17 methods (orderbook, price, midpoint, tick, fee, history) |
 | `internal/dataapi` | Data API client — 11 methods (positions, volume, leaderboards) |
-| `internal/auth` | L0/L1/L2 auth model, EIP-712 signing, HMAC, builder attribution |
-| `internal/wallet` | CREATE2 proxy/Safe address derivation |
 | `internal/orders` | OrderIntent, fluent builder, validation, lifecycle states |
 | `internal/execution` | PaperExecutor (local-only), future live executor |
 | `internal/stream` | WebSocket market client with reconnect + dedup |
@@ -153,33 +126,38 @@ Read-only is the default. No API keys, no wallet, no risk. Live execution is har
 | `pkg/bridge` | Public Bridge API — supported assets, deposit addresses, quotes |
 | `pkg/pagination` | Cursor and offset pagination with concurrent batching |
 
-## Dependencies
-
-```
-github.com/spf13/cobra          CLI
-github.com/spf13/viper          Config
-github.com/ethereum/go-ethereum Secp256k1 (auth only)
-github.com/gorilla/websocket    WebSocket (stream only)
-golang.org/x/crypto             Keccak256
-```
-
 ## Status
 
 | Phase | Status |
 |-------|--------|
-| 0 — Go-bot boundary cleanup | Done |
-| A — Read-only SDK foundation | Done |
-| B — Auth & readiness | Done |
-| C — Orders & paper executor | Done |
-| D — Streams | Done |
-| E — Gated live execution | Blocked (requires separate plan) |
+| Phase 0 — Go-bot boundary cleanup | ✅ Done |
+| Phase A — Read-only SDK foundation | ✅ Done |
+| Phase B — Auth & readiness | ✅ Done |
+| Phase C — Orders & paper executor | ✅ Done |
+| Phase D — Streams | ✅ Done |
+| Phase E — Gated live execution | ✅ Done |
+| Deposit wallet migration (May 2026) | ✅ Done |
 
 ```bash
-go test ./... -count=1   # 10 packages, all passing
+go test ./...   # 25+ packages, all passing
 ```
+
+## Env Vars
+
+| Variable | Required for |
+|----------|-------------|
+| `POLYMARKET_PRIVATE_KEY` | All authenticated commands |
+| `POLYMARKET_BUILDER_API_KEY` | Deposit wallet deploy/batch/onboard |
+| `POLYMARKET_BUILDER_SECRET` | Deposit wallet deploy/batch/onboard |
+| `POLYMARKET_BUILDER_PASSPHRASE` | Deposit wallet deploy/batch/onboard |
+| `POLYMARKET_RELAYER_URL` | Override relayer URL (default: relayer-v2.polymarket.com) |
+
+Short-form `BUILDER_API_KEY` / `BUILDER_SECRET` / `BUILDER_PASS_PHRASE` also accepted.
 
 ## Docs
 
+- [Deposit Wallet Migration Guide](docs/DEPOSIT-WALLET-MIGRATION.md) — bot killer survival guide
 - [PRD](docs/PRD.md) — full requirements
-- [Implementation Plan](docs/IMPLEMENTATION-PLAN.md) — architecture decisions
-- [Phase 0 Migration](docs/PHASE0-GOBOT-MIGRATION.md) — go-bot integration
+- [Safety](docs/SAFETY.md) — read-only default, deposit wallet safety rules
+- [Commands](docs/COMMANDS.md) — full command reference
+- [Architecture](docs/ARCHITECTURE.md) — package boundaries
