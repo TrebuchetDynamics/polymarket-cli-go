@@ -1,0 +1,55 @@
+---
+title: Polymarket API Overview
+---
+
+Understanding the Polymarket ecosystem APIs that polygolem wraps.
+
+## Gamma API (`gamma-api.polymarket.com`)
+
+**Read-only. No authentication.**
+
+Market metadata, events, search, tags, series, sports, comments, profiles.
+
+| Category | Endpoints |
+|----------|-----------|
+| Markets | List, by ID, by slug, by token |
+| Events | List, by ID, by slug, keyset pagination |
+| Search | Cross-entity (markets, events, profiles, tags) |
+| Tags | List, by ID, by slug, related |
+| Series | List, by ID |
+| Sports | Teams, sports metadata, market types |
+| Comments | List, by ID, by user |
+| Profiles | Public profile by wallet |
+
+## CLOB API (`clob.polymarket.com`)
+
+**Public endpoints (L0): no auth. Authenticated endpoints (L1/L2): require wallet + API key.**
+
+Order book, pricing, market data, orders, trades, rewards.
+
+| Category | Auth | Endpoints |
+|----------|------|-----------|
+| Market Data | L0 | Order book, price, midpoint, spread, tick size, fee rate, neg risk, last trade |
+| Markets | L0 | List, by condition ID, simplified, sampling |
+| Orders | L2 | Place, cancel, query, heartbeat |
+| Trades | L2 | Get trades, builder trades |
+| Rewards | L2 | Config, earnings, percentages, rebates |
+| Scoring | L2 | Order scoring status |
+
+## Data API (`data-api.polymarket.com`)
+
+**Read-only analytics. No auth for most endpoints.**
+
+Positions, volume, leaderboards, open interest.
+
+## Bridge API (`bridge.polymarket.com`)
+
+**Read-only. No auth.**
+
+Supported assets, deposit addresses, quotes, transaction status.
+
+## WebSocket (`ws-subscriptions-clob.polymarket.com`)
+
+**Market channel: no auth. User channel: L2 auth.**
+
+Real-time stream for order books, prices, trades, order events.

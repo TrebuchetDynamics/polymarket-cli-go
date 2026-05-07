@@ -27,7 +27,7 @@ func BuildL2Headers(apiKey *APIKey, timestamp int64, method, path string, body *
 
 // SignHMAC computes a Polymarket-compatible HMAC signature.
 func SignHMAC(secret string, timestamp int64, method, path string, body *string) string {
-	key, err := base64.StdEncoding.DecodeString(secret)
+	key, err := decodeHMACSecret(secret)
 	if err != nil {
 		// Fallback: use raw secret bytes
 		key = []byte(secret)
@@ -43,6 +43,21 @@ func SignHMAC(secret string, timestamp int64, method, path string, body *string)
 	sig = strings.ReplaceAll(sig, "+", "-")
 	sig = strings.ReplaceAll(sig, "/", "_")
 	return sig
+}
+
+func decodeHMACSecret(secret string) ([]byte, error) {
+	for _, enc := range []*base64.Encoding{
+		base64.URLEncoding,
+		base64.RawURLEncoding,
+		base64.StdEncoding,
+		base64.RawStdEncoding,
+	} {
+		key, err := enc.DecodeString(secret)
+		if err == nil {
+			return key, nil
+		}
+	}
+	return nil, fmt.Errorf("invalid base64 secret")
 }
 
 // BuildBuilderHeaders builds builder attribution headers.

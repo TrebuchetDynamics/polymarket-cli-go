@@ -1,0 +1,46 @@
+---
+title: Polygolem
+description: Safe Polymarket SDK and CLI for Go
+---
+
+Polygolem is the single source of truth for **Polymarket protocol access** in Go.
+Read-only by default. No credentials needed to start.
+
+```bash
+polygolem discover search --query "btc 5m" --limit 5
+```
+
+## What can you do?
+
+- **Search markets** — find active prediction markets by keyword, tag, or sport
+- **Read order books** — get real-time bid/ask depth, midpoints, spreads
+- **Check market readiness** — tick sizes, fee rates, neg risk status
+- **Bridge assets** — check supported chains, get deposit quotes
+- **Paper trade** — simulate orders against live market data
+- **Build bots** — use the Go SDK to create automated strategies
+
+## No credentials needed
+
+Everything is read-only by default. No API keys, no wallet, no risk. Just market data.
+
+```bash
+# Check API health
+polygolem health
+
+# Search markets
+polygolem discover search --query "btc 5m"
+
+# Get enriched market data (Gamma + CLOB merged)
+polygolem discover enrich --id "0x..."
+```
+
+## Ready to go deeper?
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid>
+  <Card title="Installation" href="/getting-started/installation" />
+  <Card title="Quick Start" href="/getting-started/quickstart" />
+  <Card title="Market Discovery" href="/guides/market-discovery" />
+  <Card title="Go-Bot Integration" href="/guides/go-bot-integration" />
+</CardGrid>

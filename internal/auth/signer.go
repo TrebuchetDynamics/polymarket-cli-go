@@ -3,9 +3,15 @@ package auth
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
+	"math/big"
+	"strings"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/errors"
+	"github.com/ethereum/go-ethereum/common"
+	gethmath "github.com/ethereum/go-ethereum/common/math"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
 
 // PrivateKeySigner implements Signer using go-ethereum/secp256k1.
@@ -20,6 +26,7 @@ func NewPrivateKeySigner(privateKeyHex string, chainID int64) (*PrivateKeySigner
 	if privateKeyHex == "" {
 		return nil, errors.New(errors.CodeMissingSigner, "private key is empty")
 	}
+	privateKeyHex = strings.TrimPrefix(privateKeyHex, "0x")
 	key, err := ethcrypto.HexToECDSA(privateKeyHex)
 	if err != nil {
 		return nil, errors.Wrap(errors.CodeInvalidValue, "invalid private key", err)
@@ -57,6 +64,76 @@ func (s *PrivateKeySigner) SignTypedData(hash [32]byte, _ [32]byte) ([32]byte, e
 	var result [32]byte
 	copy(result[:], sig[:32])
 	return result, nil
+}
+
+// SignEIP712 signs canonical EIP-712 typed data and returns the full 65-byte
+// Ethereum signature with a 27/28 recovery byte.
+func (s *PrivateKeySigner) SignEIP712(typed apitypes.TypedData) ([]byte, error) {
+	hash, _, err := apitypes.TypedDataAndHash(typed)
+	if err != nil {
+		return nil, errors.Wrap(errors.CodeInvalidValue, "hash typed data", err)
+	}
+	sig, err := ethcrypto.Sign(hash, s.key)
+	if err != nil {
+		return nil, errors.Wrap(errors.CodeInvalidSignature, "signing failed", err)
+	}
+	if sig[64] < 27 {
+		sig[64] += 27
+	}
+	return sig, nil
+}
+
+const (
+	proxyFactoryAddress = "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052"
+	safeFactoryAddress  = "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b"
+	proxyInitCodeHash   = "0xd21df8dc65880a8606f09fe0ce3df9b8869287ab0b058be05aa9e8af6330a00b"
+	safeInitCodeHash    = "0x2bce2127ff07fb632d16c8347c4ebf501f4841168bed00d9e6ef715ddb6fcecf"
+)
+
+// MakerAddressForSignatureType returns the CLOB maker/funder address for the
+// configured signature type. EOA orders use the signer directly; proxy and Safe
+// modes use Polymarket's deterministic CREATE2 wallet addresses on Polygon.
+func MakerAddressForSignatureType(signerAddress string, chainID int64, signatureType int) (string, error) {
+	signer := common.HexToAddress(signerAddress)
+	switch signatureType {
+	case 0:
+		return signer.Hex(), nil
+	case 1:
+		if chainID != 137 {
+			return "", fmt.Errorf("proxy wallet derivation only supports Polygon chain 137")
+		}
+		hash, err := decodeHexBytes(proxyInitCodeHash)
+		if err != nil {
+			return "", err
+		}
+		salt := ethcrypto.Keccak256(signer.Bytes())
+		return ethcrypto.CreateAddress2(common.HexToAddress(proxyFactoryAddress), common.BytesToHash(salt), hash).Hex(), nil
+	case 2:
+		if chainID != 137 && chainID != 80002 {
+			return "", fmt.Errorf("safe wallet derivation only supports Polygon chain 137 or Amoy chain 80002")
+		}
+		hash, err := decodeHexBytes(safeInitCodeHash)
+		if err != nil {
+			return "", err
+		}
+		salt := ethcrypto.Keccak256(common.LeftPadBytes(signer.Bytes(), 32))
+		return ethcrypto.CreateAddress2(common.HexToAddress(safeFactoryAddress), common.BytesToHash(salt), hash).Hex(), nil
+	default:
+		return "", fmt.Errorf("unsupported signature type %d", signatureType)
+	}
+}
+
+func EIP712ChainID(chainID int64) *gethmath.HexOrDecimal256 {
+	return (*gethmath.HexOrDecimal256)(big.NewInt(chainID))
+}
+
+func decodeHexBytes(value string) ([]byte, error) {
+	value = strings.TrimPrefix(value, "0x")
+	out, err := hex.DecodeString(value)
+	if err != nil {
+		return nil, fmt.Errorf("invalid init code hash: %w", err)
+	}
+	return out, nil
 }
 
 // GeneratePrivateKey creates a new random secp256k1 key.

@@ -17,11 +17,11 @@ import (
 
 // Config holds transport configuration.
 type Config struct {
-	BaseURL     string
-	Timeout     time.Duration
-	UserAgent   string
-	RetryMax    int
-	RetryDelay  time.Duration
+	BaseURL        string
+	Timeout        time.Duration
+	UserAgent      string
+	RetryMax       int
+	RetryDelay     time.Duration
 	RateLimiter    *RateLimiter
 	CircuitBreaker *CircuitBreaker
 }
@@ -54,13 +54,18 @@ func New(httpClient *http.Client, config Config) *Client {
 
 // Get performs a GET request with retry for idempotent reads.
 func (c *Client) Get(ctx context.Context, path string, result interface{}) error {
-	return c.do(ctx, http.MethodGet, path, nil, result)
+	return c.doWithHeaders(ctx, http.MethodGet, path, nil, result, nil)
+}
+
+// GetWithHeaders performs a GET request with caller-supplied headers.
+func (c *Client) GetWithHeaders(ctx context.Context, path string, headers map[string]string, result interface{}) error {
+	return c.doWithHeaders(ctx, http.MethodGet, path, nil, result, headers)
 }
 
 // GetRaw performs a GET request and returns raw bytes.
 func (c *Client) GetRaw(ctx context.Context, path string) ([]byte, error) {
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
+	if err := c.doWithHeaders(ctx, http.MethodGet, path, nil, &raw, nil); err != nil {
 		return nil, err
 	}
 	return []byte(raw), nil
@@ -68,15 +73,20 @@ func (c *Client) GetRaw(ctx context.Context, path string) ([]byte, error) {
 
 // Post performs a POST request. POSTs are never retried.
 func (c *Client) Post(ctx context.Context, path string, body interface{}, result interface{}) error {
-	return c.do(ctx, http.MethodPost, path, body, result)
+	return c.doWithHeaders(ctx, http.MethodPost, path, body, result, nil)
+}
+
+// PostWithHeaders performs a POST request with caller-supplied headers.
+func (c *Client) PostWithHeaders(ctx context.Context, path string, body interface{}, headers map[string]string, result interface{}) error {
+	return c.doWithHeaders(ctx, http.MethodPost, path, body, result, headers)
 }
 
 // Delete performs a DELETE request.
 func (c *Client) Delete(ctx context.Context, path string) error {
-	return c.do(ctx, http.MethodDelete, path, nil, nil)
+	return c.doWithHeaders(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *Client) do(ctx context.Context, method, path string, body interface{}, result interface{}) (err error) {
+func (c *Client) doWithHeaders(ctx context.Context, method, path string, body interface{}, result interface{}, headers map[string]string) (err error) {
 	if c.config.CircuitBreaker != nil {
 		defer func() {
 			c.config.CircuitBreaker.RecordResult(err)
@@ -96,13 +106,13 @@ func (c *Client) do(ctx context.Context, method, path string, body interface{}, 
 
 	url := c.config.BaseURL + path
 
-	var bodyReader io.Reader
+	var bodyBytes []byte
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
 			return errors.Wrap(errors.CodeInvalidValue, "failed to marshal request body", err)
 		}
-		bodyReader = strings.NewReader(string(b))
+		bodyBytes = b
 	}
 
 	var lastErr error
@@ -116,6 +126,10 @@ func (c *Client) do(ctx context.Context, method, path string, body interface{}, 
 			}
 		}
 
+		var bodyReader io.Reader
+		if bodyBytes != nil {
+			bodyReader = strings.NewReader(string(bodyBytes))
+		}
 		req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
 		if err != nil {
 			return errors.Wrap(errors.CodeConnectionFailed, "failed to create request", err)
@@ -124,6 +138,9 @@ func (c *Client) do(ctx context.Context, method, path string, body interface{}, 
 		req.Header.Set("User-Agent", c.config.UserAgent)
 		if body != nil {
 			req.Header.Set("Content-Type", "application/json")
+		}
+		for k, v := range headers {
+			req.Header.Set(k, v)
 		}
 
 		resp, err := c.http.Do(req)
@@ -182,15 +199,15 @@ func RedactSecret(v string) string {
 func RedactMap(m map[string]string) map[string]string {
 	out := make(map[string]string, len(m))
 	sensitive := map[string]bool{
-		"POLY_PRIVATE_KEY":         true,
-		"POLY_API_KEY":             true,
-		"POLY_SECRET":              true,
-		"POLY_PASSPHRASE":          true,
-		"POLY_SIGNATURE":           true,
-		"POLY_BUILDER_API_KEY":     true,
-		"POLY_BUILDER_SECRET":      true,
-		"POLY_BUILDER_PASSPHRASE":  true,
-		"POLY_BUILDER_SIGNATURE":   true,
+		"POLY_PRIVATE_KEY":        true,
+		"POLY_API_KEY":            true,
+		"POLY_SECRET":             true,
+		"POLY_PASSPHRASE":         true,
+		"POLY_SIGNATURE":          true,
+		"POLY_BUILDER_API_KEY":    true,
+		"POLY_BUILDER_SECRET":     true,
+		"POLY_BUILDER_PASSPHRASE": true,
+		"POLY_BUILDER_SIGNATURE":  true,
 	}
 	for k, v := range m {
 		if sensitive[strings.ToUpper(k)] {

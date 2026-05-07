@@ -1,0 +1,89 @@
+---
+title: CLI Commands
+---
+
+## Command tree
+
+```
+polygolem
+├── discover           Market discovery (Gamma API)
+│   ├── search         Search markets by query
+│   ├── market         Get market by ID or slug
+│   └── enrich         Gamma + CLOB merged data
+├── orderbook          CLOB market data
+│   ├── get            L2 order book depth
+│   ├── price          Best bid/ask
+│   ├── midpoint       Calculated midpoint
+│   ├── spread         Bid-ask spread
+│   ├── tick-size      Minimum tick size
+│   └── fee-rate       Fee in basis points
+├── health             Gamma + CLOB reachability
+├── preflight          Safety gate checks
+└── version            Print version
+```
+
+## discover
+
+### search
+```bash
+polygolem discover search --query "btc 5m" --limit 10
+```
+Flags: `--query` (required), `--limit` (default 10)
+
+### market
+```bash
+polygolem discover market --id "0xbd31dc8a..."
+polygolem discover market --slug "will-btc-be-above"
+```
+Flags: `--id`, `--slug`
+
+### enrich
+```bash
+polygolem discover enrich --id "0xbd31dc8a..."
+```
+Flags: `--id` (required)
+
+## orderbook
+
+### get
+```bash
+polygolem orderbook get --token-id "123456789..."
+```
+Flags: `--token-id` (required)
+
+### price
+```bash
+polygolem orderbook price --token-id "123..."
+```
+Flags: `--token-id` (required)
+
+### midpoint
+```bash
+polygolem orderbook midpoint --token-id "123..."
+```
+Flags: `--token-id` (required)
+
+### spread
+```bash
+polygolem orderbook spread --token-id "123..."
+```
+Flags: `--token-id` (required)
+
+### tick-size
+```bash
+polygolem orderbook tick-size --token-id "123..."
+```
+Flags: `--token-id` (required)
+
+### fee-rate
+```bash
+polygolem orderbook fee-rate --token-id "123..."
+```
+Flags: `--token-id` (required)
+
+## Global flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Emit JSON output (default) |
+| `--help` | Show help |

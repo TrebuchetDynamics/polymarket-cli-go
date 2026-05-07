@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/TrebuchetDynamics/polygolem/internal/clob"
 )
 
 func TestVersionCommandPrintsVersion(t *testing.T) {
@@ -216,5 +218,28 @@ func TestDocumentedSubcommandArgsAreNotHandledByParentOnly(t *testing.T) {
 
 	if !strings.Contains(stdout.String(), "polygolem discover search") {
 		t.Fatalf("discover search was not handled by its own command:\n%s", stdout.String())
+	}
+}
+
+func TestBalanceAllowanceOutputNormalizesCollateralBaseUnits(t *testing.T) {
+	out, err := balanceAllowanceOutput(&clob.BalanceAllowanceResponse{
+		Balance:    "14000000",
+		Allowances: map[string]string{"0xspender": "1000000"},
+	}, "COLLATERAL")
+	if err != nil {
+		t.Fatalf("balanceAllowanceOutput returned error: %v", err)
+	}
+
+	if out.Balance != "14" {
+		t.Fatalf("balance=%q, want human pUSD units", out.Balance)
+	}
+	if out.BalanceRaw != "14000000" {
+		t.Fatalf("balance_raw=%q", out.BalanceRaw)
+	}
+	if out.BalanceDecimals != 6 {
+		t.Fatalf("balance_decimals=%d", out.BalanceDecimals)
+	}
+	if out.Allowances["0xspender"] != "1000000" {
+		t.Fatalf("allowances were not preserved raw: %#v", out.Allowances)
 	}
 }

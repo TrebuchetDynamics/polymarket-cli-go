@@ -1,0 +1,83 @@
+---
+title: Go SDK Reference
+---
+
+Public packages available for consumption by `go-bot` and other Go projects.
+
+## `pkg/bookreader`
+
+Read-only CLOB order book access.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+
+reader := bookreader.NewReader("")
+book, err := reader.OrderBook(ctx, "token-id")
+```
+
+| Method | Returns |
+|--------|---------|
+| `OrderBook(ctx, tokenID)` | `OrderBook` with Bids, Asks, MarketID, TokenID |
+
+## `pkg/marketresolver`
+
+Active market discovery and token ID resolution.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
+
+resolver := marketresolver.NewResolver("")
+
+// Get all BTC markets
+markets, _ := resolver.ResolveCryptoMarkets(ctx, "BTC")
+
+// Resolve specific timeframe
+result := resolver.ResolveTokenIDs(ctx, "BTC", "5m")
+// result.Status = "available" | "unresolved"
+// result.UpTokenID, result.DownTokenID, result.ConditionID
+```
+
+| Method | Returns |
+|--------|---------|
+| `ResolveCryptoMarkets(ctx, asset)` | `[]CryptoMarket` |
+| `ResolveTokenIDs(ctx, asset, timeframe)` | `ResolveResult` |
+| `ValidateToken(ctx, tokenID)` | `MarketStatus` |
+
+## `pkg/bridge`
+
+Read-only Bridge API for cross-chain deposits.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/bridge"
+
+bridge := bridge.NewClient("", nil)
+assets, _ := bridge.GetSupportedAssets(ctx)
+quote, _ := bridge.GetQuote(ctx, bridge.QuoteRequest{...})
+```
+
+| Method | Returns |
+|--------|---------|
+| `GetSupportedAssets(ctx)` | `SupportedAssetsResponse` |
+| `CreateDepositAddress(ctx, address)` | `CreateDepositAddressResponse` |
+| `GetDepositStatus(ctx, depositAddress)` | `DepositStatusResponse` |
+| `GetQuote(ctx, QuoteRequest)` | `QuoteResponse` |
+
+## `pkg/pagination`
+
+Cursor and offset pagination helpers.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/pagination"
+
+// Cursor-based
+all, _ := pagination.CollectAll(ctx, func(ctx, cursor string) ([]T, string, error) {
+    resp, _ := client.Markets(ctx, cursor)
+    return resp.Data, resp.NextCursor, nil
+})
+
+// Offset-based  
+all, _ := pagination.CollectOffset(ctx, pageFn, 50)
+
+// Concurrent batch processing
+results, _ := pagination.Batch(ctx, items, 100, fn)
+```

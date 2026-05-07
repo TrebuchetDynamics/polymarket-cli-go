@@ -378,3 +378,140 @@ func buildQueryPath(basePath string, params interface{}) (string, error) {
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }
+
+// --- Comments ---
+
+func (c *Client) Comments(ctx context.Context, params *polytypes.CommentQuery) ([]polytypes.Comment, error) {
+	path, err := buildCommentPath("/comments", params)
+	if err != nil {
+		return nil, err
+	}
+	var result []polytypes.Comment
+	if err := c.transport.Get(ctx, path, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *Client) CommentByID(ctx context.Context, id string) (*polytypes.Comment, error) {
+	var result *polytypes.Comment
+	if err := c.transport.Get(ctx, "/comments/"+id, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *Client) CommentsByUser(ctx context.Context, userAddress string, limit int) ([]polytypes.Comment, error) {
+	path := fmt.Sprintf("/comments?user_address=%s&limit=%d", userAddress, limit)
+	var result []polytypes.Comment
+	if err := c.transport.Get(ctx, path, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// --- Profiles ---
+
+func (c *Client) PublicProfile(ctx context.Context, walletAddress string) (*polytypes.Profile, error) {
+	var result *polytypes.Profile
+	if err := c.transport.Get(ctx, "/profiles/"+walletAddress, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// --- Sports ---
+
+func (c *Client) SportsMarketTypes(ctx context.Context) ([]polytypes.SportsMarketType, error) {
+	var result []polytypes.SportsMarketType
+	if err := c.transport.Get(ctx, "/sports-market-types", &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// --- Market by Token ---
+
+func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*polytypes.MarketByTokenResponse, error) {
+	var result *polytypes.MarketByTokenResponse
+	if err := c.transport.Get(ctx, "/markets/token/"+tokenID, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// --- Keyset Pagination ---
+
+func (c *Client) EventsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Event, string, error) {
+	path, err := buildKeysetPath("/events-keyset", params)
+	if err != nil {
+		return nil, "", err
+	}
+	var result polytypes.KeysetResponse[polytypes.Event]
+	if err := c.transport.Get(ctx, path, &result); err != nil {
+		return nil, "", err
+	}
+	return result.Data, result.NextCursor, nil
+}
+
+func (c *Client) MarketsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Market, string, error) {
+	path, err := buildKeysetPath("/markets-keyset", params)
+	if err != nil {
+		return nil, "", err
+	}
+	var result polytypes.KeysetResponse[polytypes.Market]
+	if err := c.transport.Get(ctx, path, &result); err != nil {
+		return nil, "", err
+	}
+	return result.Data, result.NextCursor, nil
+}
+
+func buildCommentPath(basePath string, params *polytypes.CommentQuery) (string, error) {
+	u, err := url.Parse(basePath)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	if params.EntityID != nil {
+		q.Set("entity_id", strconv.Itoa(*params.EntityID))
+	}
+	if params.EntityType != nil {
+		q.Set("entity_type", *params.EntityType)
+	}
+	if params.Limit > 0 {
+		q.Set("limit", strconv.Itoa(params.Limit))
+	}
+	if params.Offset > 0 {
+		q.Set("offset", strconv.Itoa(params.Offset))
+	}
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
+func buildKeysetPath(basePath string, params *polytypes.KeysetParams) (string, error) {
+	u, err := url.Parse(basePath)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	if params.Limit > 0 {
+		q.Set("limit", strconv.Itoa(params.Limit))
+	}
+	if params.KeysetID != "" {
+		q.Set("keyset_id", params.KeysetID)
+	}
+	if params.Ascending != nil {
+		q.Set("ascending", strconv.FormatBool(*params.Ascending))
+	}
+	if params.Active != nil {
+		q.Set("active", strconv.FormatBool(*params.Active))
+	}
+	if params.Closed != nil {
+		q.Set("closed", strconv.FormatBool(*params.Closed))
+	}
+	if params.Order != "" {
+		q.Set("order", params.Order)
+	}
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}

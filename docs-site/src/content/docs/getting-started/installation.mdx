@@ -1,0 +1,54 @@
+---
+title: Installation
+---
+
+Get polygolem running in 30 seconds.
+
+## Install with Go
+
+```bash
+go install github.com/TrebuchetDynamics/polygolem/cmd/polygolem@latest
+```
+
+## Build from source
+
+```bash
+git clone https://github.com/TrebuchetDynamics/polygolem
+cd polygolem
+go build -o polygolem ./cmd/polygolem
+```
+
+## Verify
+
+```bash
+./polygolem version
+./polygolem health
+```
+
+## As a Go SDK dependency
+
+```bash
+go get github.com/TrebuchetDynamics/polygolem
+```
+
+Then in your code:
+
+```go
+import (
+    "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+    "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
+    "github.com/TrebuchetDynamics/polygolem/pkg/bridge"
+    "github.com/TrebuchetDynamics/polygolem/pkg/pagination"
+)
+```
+
+## Dependencies
+
+Polygolem only pulls in what it needs:
+
+- `cobra` + `viper` — CLI routing and config
+- `go-ethereum/crypto` — ECDSA signing (auth package only)
+- `gorilla/websocket` — WebSocket (stream package only)
+- `golang.org/x/crypto` — keccak256
+
+No external Polymarket SDKs. All types stolen from reference repos, not vendored.

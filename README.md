@@ -1,117 +1,130 @@
 # polygolem
 
-Safe Polymarket SDK and CLI for Go. Zero external PolyMarket SDK dependencies — all types and patterns stolen from the ecosystem's best open-source projects.
+Safe Polymarket SDK and CLI for Go. Read-only by default, no credentials needed.
+All types stolen from the ecosystem's best open-source projects — no external Polymarket SDKs.
 
-```
-Polymarket APIs → polygolem SDK → go-bot adapter → bot strategies
-                                 → CLI commands → operator terminal
-```
-
-## Why
-
-The Polymarket ecosystem has 8+ Go/Rust SDKs and CLI tools. None combine: read-only safety by default, paper trading with live market data, hard gated live execution, and a public SDK boundary for downstream bots.
-
-Polygolem is the single source of truth for Polymarket protocol access in the megabot stack. `go-bot` must not construct its own CLOB clients, Gamma URLs, or auth headers — it goes through polygolem.
-
-## Current Scope
-
-**33 Go files across 20 packages.** All built, all tests passing.
-
-```
-internal/
-├── transport/          HTTP client with retry, redaction, rate limiter, circuit breaker
-├── errors/             Structured error taxonomy (NET-xxx, CLOB-xxx, AUTH-xxx)
-├── polytypes/          Complete Gamma + CLOB types (100+ field Market, Decimal, NormalizedTime)
-├── gamma/              Gamma API client — 18 methods (markets, events, search, tags, series)
-├── clob/               CLOB API client — 17 methods (orderbook, price, midpoint, tick, fee, history)
-├── dataapi/            Data API client — 11 methods (positions, volume, leaderboards)
-├── marketdiscovery/    Gamma + CLOB enrichment service
-├── auth/               L0/L1/L2 model, EIP-712 signing, HMAC, builder attribution, signer
-├── wallet/             CREATE2 proxy/Safe address derivation, readiness checks
-├── orders/             OrderIntent, fluent builder, validation, lifecycle states, amount math
-├── execution/          Executor interface, PaperExecutor (local-only, no network)
-├── risk/               Per-trade caps, daily loss limits, circuit breaker
-├── stream/             WebSocket market client with reconnect + message deduplication
-├── paper/              Local paper state persistence
-├── preflight/          Safety gate checks
-├── modes/              Execution mode enums
-├── config/             Configuration loading
-├── output/             JSON + table output
-└── cli/                Cobra command wiring (thin handlers only)
-```
-
-### Public SDK (for go-bot)
-
-```
-pkg/
-├── bookreader/         OrderBook reader backed by polygolem CLOB client
-├── marketresolver/     Active market + token ID resolution from Gamma
-├── bridge/             Bridge API — supported assets, deposit addresses, quotes
-├── pagination/         Cursor and offset pagination helpers with batching
-└── SKILL.md            AI agent integration (Claude Code)
-```
-
-## Quick Start
+## Install
 
 ```bash
-cd go-bot/polygolem
-go build -o polygolem ./cmd/polygolem
+go install github.com/TrebuchetDynamics/polygolem/cmd/polygolem@latest
 ```
 
-### Read-only CLI (no credentials)
+Or build from source:
+```bash
+git clone https://github.com/TrebuchetDynamics/polygolem
+cd polygolem && go build -o polygolem ./cmd/polygolem
+```
+
+## What can you do with it?
+
+### 1. Search markets and check odds — no wallet, no API key
 
 ```bash
-./polygolem discover search --query "btc 5m" --limit 10
-./polygolem discover market --id "0x..."
-./polygolem discover enrich --id "0x..."
-./polygolem orderbook get --token-id "123..."
-./polygolem orderbook price --token-id "123..." 
-./polygolem orderbook midpoint --token-id "123..."
-./polygolem orderbook spread --token-id "123..."
-./polygolem orderbook tick-size --token-id "123..."
-./polygolem orderbook fee-rate --token-id "123..."
-./polygolem health
-./polygolem preflight
-./polygolem version
+# Find active BTC markets
+polygolem discover search --query "btc 5m" --limit 5
+
+# Get details for a specific market
+polygolem discover market --id "0xbd31dc8..."
+
+# Get everything at once — Gamma metadata + CLOB tick size, fee, orderbook
+polygolem discover enrich --id "0xbd31dc8..."
 ```
 
-### As Go SDK dependency (for go-bot)
+Output is always JSON:
+```json
+{
+  "market": {"question": "Bitcoin up in 5 minutes?", "lastTradePrice": 0.52, ...},
+  "tick_size": {"minimum_tick_size": "0.01", "minimum_order_size": "5"},
+  "neg_risk": false,
+  "fee_rate_bps": 0,
+  "order_book": {"bids": [...], "asks": [...]}
+}
+```
+
+### 2. Read order books and prices in real time
+
+```bash
+# Get L2 order book depth
+polygolem orderbook get --token-id "123456789..."
+
+# Check best bid/ask, midpoint, spread, tick size
+polygolem orderbook price --token-id "123..."
+polygolem orderbook midpoint --token-id "123..."
+polygolem orderbook spread --token-id "123..."
+polygolem orderbook tick-size --token-id "123..."
+polygolem orderbook fee-rate --token-id "123..."
+```
+
+### 3. Check API health
+
+```bash
+polygolem health
+# {"gamma": "ok", "clob": "ok"}
+```
+
+### 4. Bridge: check supported assets and get deposit quotes
+
+```bash
+# No CLI yet — use as Go library:
+```
 
 ```go
-import polybook "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
-import polyresolver "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
-import polybridge "github.com/TrebuchetDynamics/polygolem/pkg/bridge"
-import polypagination "github.com/TrebuchetDynamics/polygolem/pkg/pagination"
+import "github.com/TrebuchetDynamics/polygolem/pkg/bridge"
+
+bridge := bridge.NewClient("", nil)
+assets, _ := bridge.GetSupportedAssets(ctx)
+// [{ChainID: "137", ChainName: "Polygon", Token: {Symbol: "POL", Decimals: 18}, ...}]
+
+quote, _ := bridge.GetQuote(ctx, bridge.QuoteRequest{
+    FromAmountBaseUnit: "1000000000000000000", // 1 POL
+    FromChainID: "137", FromTokenAddress: "0x...",
+    RecipientAddress: "0xYourWallet", ToChainID: "137",
+    ToTokenAddress: "0xUSDC...",
+})
+// {EstOutputUsd: 0.23, EstFeeBreakdown: {GasUsd: 0.02, ...}}
 ```
 
-## Architecture
+### 5. Use as a Go SDK in your own bot
 
+```go
+import (
+    "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+    "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
+    "github.com/TrebuchetDynamics/polygolem/pkg/pagination"
+)
+
+// Resolve active token IDs for BTC 5m markets
+resolver := marketresolver.NewResolver("")
+result := resolver.ResolveTokenIDs(ctx, "BTC", "5m")
+// {Status: "available", UpTokenID: "...", DownTokenID: "...", ConditionID: "0x..."}
+
+// Fetch order books through polygolem (never construct your own CLOB client)
+reader := bookreader.NewReader("")
+book, _ := reader.OrderBook(ctx, result.UpTokenID)
+// {Bids: [{Price: 0.48, Size: 100}, ...], Asks: [{Price: 0.52, Size: 50}, ...]}
+
+// Build orders with the fluent builder
+intent, _ := orders.NewBuilder(result.UpTokenID, polytypes.SideBuy).
+    Price("0.49").Size("10").
+    TickSize("0.01").FeeRateBps(0).
+    Build()
+
+// Auto-paginate through all markets
+all, _ := pagination.CollectAll(ctx, func(ctx context.Context, cursor string) ([]CLOBMarket, string, error) {
+    resp, _ := clob.Markets(ctx, cursor)
+    return resp.Data, resp.NextCursor, nil
+})
 ```
-Transport Layer
-  └── HTTP retry, rate limiter, circuit breaker, redaction
 
-Protocol Layer
-  ├── gamma/      (Gamma API, read-only, no auth)
-  ├── clob/       (CLOB API, public + authenticated)
-  ├── dataapi/    (Data API, read-only analytics)
-  ├── stream/     (WebSocket, reconnect, dedup)
-  └── bridge/     (Bridge API, deposits, quotes)
+### 6. Paper trade locally against real market data
 
-Domain Layer
-  ├── polytypes/        (shared types)
-  ├── marketdiscovery/  (Gamma + CLOB enrichment)
-  ├── orders/           (intent, builder, lifecycle)
-  ├── execution/        (paper executor, future live)
-  ├── auth/             (L0/L1/L2, signer, HMAC)
-  ├── wallet/           (derivation, readiness)
-  └── risk/             (caps, limits, breaker)
-
-Application Layer
-  ├── cli/              (Cobra commands)
-  └── pkg/              (public SDK boundary)
+```go
+executor := execution.NewPaperExecutor("1000") // $1000 starting cash
+resp, _ := executor.Place(ctx, &intent)
+// {Success: true, OrderID: "paper-1", Status: "matched"}
 ```
 
-## Safety Model
+## Safety
 
 | Mode | Credentials | Can Sign | Can Post | Can Mutate |
 |------|-------------|----------|----------|------------|
@@ -119,61 +132,54 @@ Application Layer
 | Paper | None | No | No (local only) | No |
 | Live (future) | Private key + API key | Yes | Yes | Gated |
 
-Live execution requires: `POLYMARKET_LIVE_PROFILE=on`, `live_trading_enabled: true`, `--confirm-live`, successful `preflight`. No silent downgrade to paper/read-only.
+Read-only is the default. No API keys, no wallet, no risk. Live execution is hard-disabled until all gates pass: `POLYMARKET_LIVE_PROFILE=on`, `--confirm-live`, successful preflight.
+
+## Packages
+
+| Package | What it does |
+|---------|-------------|
+| `internal/gamma` | Gamma API client — 18 methods (markets, events, search, tags, series) |
+| `internal/clob` | CLOB API client — 17 methods (orderbook, price, midpoint, tick, fee, history) |
+| `internal/dataapi` | Data API client — 11 methods (positions, volume, leaderboards) |
+| `internal/auth` | L0/L1/L2 auth model, EIP-712 signing, HMAC, builder attribution |
+| `internal/wallet` | CREATE2 proxy/Safe address derivation |
+| `internal/orders` | OrderIntent, fluent builder, validation, lifecycle states |
+| `internal/execution` | PaperExecutor (local-only), future live executor |
+| `internal/stream` | WebSocket market client with reconnect + dedup |
+| `internal/risk` | Per-trade caps, daily loss limits, circuit breaker |
+| `internal/transport` | HTTP retry, rate limiter, circuit breaker, redaction |
+| `pkg/bookreader` | Public OrderBook reader for go-bot |
+| `pkg/marketresolver` | Public market + token ID resolution |
+| `pkg/bridge` | Public Bridge API — supported assets, deposit addresses, quotes |
+| `pkg/pagination` | Cursor and offset pagination with concurrent batching |
 
 ## Dependencies
 
 ```
-github.com/spf13/cobra          CLI routing
-github.com/spf13/viper          Config loading
-github.com/ethereum/go-ethereum ECDSA/secp256k1 (auth only)
+github.com/spf13/cobra          CLI
+github.com/spf13/viper          Config
+github.com/ethereum/go-ethereum Secp256k1 (auth only)
 github.com/gorilla/websocket    WebSocket (stream only)
-golang.org/x/crypto             keccak256
+golang.org/x/crypto             Keccak256
 ```
-
-No external Polymarket SDKs. All types stolen from reference repos, not vendored.
-
-## Test
-
-```bash
-go test ./... -count=1
-```
-
-10 test packages, all passing. Mock HTTP tests for gamma, clob, output, preflight.
 
 ## Status
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 0 | Go-bot boundary cleanup | CLOB book fixed, market resolver live |
-| A | Read-only SDK foundation | 18 gamma + 17 clob + 11 dataapi methods |
-| B | Auth & readiness | EIP-712, HMAC, builder, wallet derivation |
-| C | Orders & paper executor | Fluent builder, lifecycle, paper executor |
-| D | Streams | Market WS + dedup |
-| E | Gated live execution | Blocked — requires separate approved plan |
+| Phase | Status |
+|-------|--------|
+| 0 — Go-bot boundary cleanup | Done |
+| A — Read-only SDK foundation | Done |
+| B — Auth & readiness | Done |
+| C — Orders & paper executor | Done |
+| D — Streams | Done |
+| E — Gated live execution | Blocked (requires separate plan) |
 
-## Steal Log
+```bash
+go test ./... -count=1   # 10 packages, all passing
+```
 
-Every pattern in this codebase was stolen from the best open-source Polymarket projects:
+## Docs
 
-| Pattern | Source |
-|---------|--------|
-| Gamma types (100+ fields, NormalizedTime, StringOrArray) | polymarket-go-gamma-client |
-| CLOB client API surface, error taxonomy, transport | polymarket-go-sdk |
-| Auth model, EIP-712, HMAC, signer, builder | ybina/polymarket-go, go-builder-signing-sdk |
-| Fluent order builder | rs-clob-client |
-| WebSocket client, message dedup | polymarket-kit |
-| CLI structure, JSON output, SKILL.md | vazic/polymarket_cli |
-| Bridge API types | ybina/polymarket-go |
-| Circuit breaker, rate limiter | polymarket-go-sdk |
-| CREATE2 wallet derivation | polymarket-go, rs-clob-client |
-| Lifecycle states, idempotency keys | polymarket-go-sdk |
-| eth_call auto-detection | 0xNetuser/Polymarket-golang |
-
-## Documentation
-
-- [PRD](docs/PRD.md)
-- [Implementation Plan](docs/IMPLEMENTATION-PLAN.md)
-- [Phase 0 Go-Bot Migration](docs/PHASE0-GOBOT-MIGRATION.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Safety](docs/SAFETY.md)
+- [PRD](docs/PRD.md) — full requirements
+- [Implementation Plan](docs/IMPLEMENTATION-PLAN.md) — architecture decisions
+- [Phase 0 Migration](docs/PHASE0-GOBOT-MIGRATION.md) — go-bot integration

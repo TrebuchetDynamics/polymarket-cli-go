@@ -1,0 +1,57 @@
+---
+title: Market Discovery
+---
+
+Find active prediction markets on Polymarket — no authentication required.
+
+## Search markets
+
+```bash
+polygolem discover search --query "btc 5m" --limit 10
+polygolem discover search --query "ethereum" --limit 5
+```
+
+## Get market details
+
+```bash
+polygolem discover market --id "0xbd31dc8a..."   # by Gamma ID
+polygolem discover market --slug "will-btc-..."    # by slug
+```
+
+## Enrich a market
+
+Joins Gamma metadata with CLOB data in one call:
+
+```bash
+polygolem discover enrich --id "0x..."
+```
+
+Returns: question, outcomes, prices, best bid/ask, spread, volume, tick size, fee rate, neg risk status, orderbook snapshot.
+
+## Using the Go SDK
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
+
+resolver := marketresolver.NewResolver("")
+result := resolver.ResolveTokenIDs(ctx, "BTC", "5m")
+// result.Status = "available"
+// result.UpTokenID = "123..."
+// result.DownTokenID = "456..."
+```
+
+## Gamma API Methods
+
+| Method | Description |
+|--------|-------------|
+| `Markets` | List markets with filters |
+| `Events` | List events with filters |
+| `Search` | Cross-entity search (markets, events, profiles, tags) |
+| `Tags` | List tags, get by ID/slug, related tags |
+| `Series` | List series, get by ID |
+| `Teams` | List sports teams |
+| `Comments` | List comments, get by ID/user |
+| `Profiles` | Get public profile by wallet |
+| `SportsMarketTypes` | List valid sports market types |
+| `MarketByToken` | Resolve market from CLOB token ID |
+| `EventsKeyset` / `MarketsKeyset` | Keyset pagination variants |

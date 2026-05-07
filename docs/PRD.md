@@ -157,6 +157,46 @@ Observed paper-mode issues:
   high-to-low and asks best-first low-to-high, so bot risk checks see the true
   best spread instead of a synthetic `0.01`/`0.99` wide spread.
 
+Observed live-mode issues:
+
+- Live run blocker observed on 2026-05-07: `go-bot live` found the repo-local
+  Polygolem binary, but failed with `unknown command "clob" for "polygolem"`.
+  `go-bot` requires a compatibility command surface at
+  `polygolem clob book`, `tick-size`, `create-api-key`, `balance`,
+  `update-balance`, `orders`, `trades`, `create-order`, and `market-order`.
+- Resolved requirement: Polygolem must own all CLOB L1/L2 authentication.
+  `create-api-key` creates or derives CLOB API credentials at runtime with L1
+  EIP-712 auth, redacts secret/passphrase in JSON, and private CLOB reads use
+  L2 HMAC headers. The HMAC secret decoder must support URL-safe and standard
+  base64 encodings.
+- Live run blocker observed on 2026-05-07: CLOB
+  `/balance-allowance` returned raw base units. `go-bot` interpreted
+  `14000000` as `14,000,000` pUSD, which inflated the order budget to the
+  profile cap. Polygolem must normalize collateral and conditional CLOB amounts
+  from 6-decimal base units to human units at the CLI boundary and preserve the
+  raw value as `balance_raw`.
+- Resolved behavior required: `polygolem clob balance --asset-type collateral
+  --output json` returns human `balance`, raw `balance_raw`, and
+  `balance_decimals: 6`, while allowances remain raw strings for approval
+  readiness checks.
+- Live run blocker observed on 2026-05-07 after auth and funding readiness
+  passed: `MODEL_VALIDATION_PATH=../logs/evidence/model_validation.json`
+  expired at `2026-05-07T00:00:00Z`. The live loop correctly refused all
+  trades with `validation_blocked:expired` and submitted zero orders. This is a
+  model/operator gate, not a Polygolem protocol blocker, and must not be
+  bypassed by SDK code.
+- Implemented live protocol surface requirement: Polygolem order placement
+  commands must build fixed 6-decimal maker/taker amounts, derive proxy/Safe
+  maker addresses from the EOA for non-EOA signature types, sign the
+  Polymarket CTF Exchange EIP-712 order, post to `/order` with L2 auth, and
+  preserve the CLOB response fields that `go-bot` uses for submission audit and
+  reconciliation.
+- Safety requirement: even with the command surface implemented, `go-bot` owns
+  strategy, validation, wallet, funding, daily cap, and safe-pause gates. A
+  Polygolem command must fail loudly on invalid order inputs or insufficient
+  FOK liquidity instead of silently downgrading to paper mode or changing order
+  type.
+
 ## Functional Requirements
 
 ### R1. Market Discovery
@@ -407,7 +447,7 @@ Requirements:
 - Read-only is the default and requires no credentials.
 - Paper mode cannot sign, approve, place orders, cancel live orders, or call
   authenticated mutation endpoints.
-- Future live mode requires all gates:
+- Live mode requires all gates:
   `POLYMARKET_LIVE_PROFILE=on`, `live_trading_enabled: true`,
   `--confirm-live`, and successful preflight.
 - Preflight must include config validity, wallet readiness, auth readiness,
@@ -423,8 +463,9 @@ Requirements:
 Acceptance criteria:
 
 - A blocked dangerous operation returns a stable machine-readable error.
-- Live execution remains unavailable until a separate implementation plan,
-  tests, and explicit approval exist.
+- Live execution commands are available only as gated protocol primitives; the
+  bot must still block before command invocation unless validation, funding,
+  wallet, risk, safe-pause, and operator gates pass.
 
 ### R11. Transport, Errors, And Observability
 
@@ -692,9 +733,10 @@ Recommended `go-bot` integration modules:
 - Add public market WebSocket streams first.
 - Add authenticated user streams only after L2 auth readiness is tested.
 
-### Phase E - Future Gated Live Execution
+### Phase E - Gated Live Execution
 
-- Add live execution only through a separate approved plan.
+- Add live execution only through an approved plan and TDD fixtures for CLOB
+  signing, L2 order posting, reconciliation reads, and blocked-gate behavior.
 - Require all live gates, preflight, risk caps, balance/allowance checks,
   structured errors, and non-idempotent retry rules before enabling any real
   order placement or cancellation.
