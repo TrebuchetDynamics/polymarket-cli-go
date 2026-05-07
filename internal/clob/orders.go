@@ -95,7 +95,6 @@ type orderDraft struct {
 	side          string
 	makerAmount   string
 	takerAmount   string
-	feeRateBps    string
 	signatureType int
 	orderType     string
 }
@@ -127,10 +126,6 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 	if err := validatePriceScale(price, params.Price, tick); err != nil {
 		return nil, err
 	}
-	fee, err := c.FeeRateBps(ctx, params.TokenID)
-	if err != nil {
-		return nil, fmt.Errorf("fee rate lookup failed: %w", err)
-	}
 
 	makerAmount, takerAmount := limitFixedAmounts(side, price, size)
 	draft := orderDraft{
@@ -138,7 +133,6 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 		side:          side,
 		makerAmount:   makerAmount,
 		takerAmount:   takerAmount,
-		feeRateBps:    fmt.Sprintf("%d", fee),
 		signatureType: params.SignatureType,
 		orderType:     normalizeOrderType(params.OrderType, "GTC"),
 	}
@@ -208,10 +202,6 @@ func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, param
 	if price.Sign() <= 0 {
 		return nil, fmt.Errorf("price must be positive")
 	}
-	fee, err := c.FeeRateBps(ctx, params.TokenID)
-	if err != nil {
-		return nil, fmt.Errorf("fee rate lookup failed: %w", err)
-	}
 
 	taker := new(big.Rat).Quo(amount, price)
 	taker = truncateRat(taker, tickScale+2)
@@ -223,7 +213,6 @@ func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, param
 		side:          side,
 		makerAmount:   fixedDecimal(amount, 6),
 		takerAmount:   fixedDecimal(taker, 6),
-		feeRateBps:    fmt.Sprintf("%d", fee),
 		signatureType: params.SignatureType,
 		orderType:     normalizeOrderType(params.OrderType, "FOK"),
 	}

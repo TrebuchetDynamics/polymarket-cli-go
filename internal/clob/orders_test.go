@@ -27,7 +27,6 @@ func TestBuildSignedOrderPayloadV2UsesCurrentCLOBShape(t *testing.T) {
 		side:          "BUY",
 		makerAmount:   "700000",
 		takerAmount:   "1400000",
-		feeRateBps:    "0",
 		signatureType: 0,
 		orderType:     "FOK",
 	}, time.UnixMilli(1778125000123), false)
@@ -61,7 +60,6 @@ func TestBuildSignedOrderPayloadV2DepositWalletUsesEOASignerWithDepositMaker(t *
 		side:          "BUY",
 		makerAmount:   "700000",
 		takerAmount:   "1400000",
-		feeRateBps:    "0",
 		signatureType: signatureTypePoly1271,
 		orderType:     "FOK",
 	}, time.UnixMilli(1778125000123), false)
