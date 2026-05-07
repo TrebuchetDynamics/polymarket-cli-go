@@ -354,8 +354,11 @@ Requirements:
 - L1: wallet signer for API key creation/derivation using EIP-712 CLOB auth.
 - L2: API key, secret, passphrase, timestamp, and HMAC signature for private
   CLOB endpoints.
-- Builder attribution: optional separate builder headers for attributed order
-  flow. Builder credentials must not be confused with user L2 credentials.
+- Builder attribution: V2 uses a per-order `builderCode` (bytes32) field for
+  order attribution, replacing the legacy `POLY_BUILDER_*` HMAC headers used
+  in V1. Builder credentials (`BUILDER_API_KEY/SECRET/PASSPHRASE`) authenticate
+  with the relayer for WALLET-CREATE and WALLET batch flows; they must not be
+  confused with user L2 credentials or with the per-order `builderCode`.
 - Signature types: Deposit wallet / `POLY_1271` (type 3) is the **only**
   supported mode. EOA, proxy, and Gnosis Safe are blocked by CLOB V2.
   go-bot live execution keeps the EOA as owner/signer while using the

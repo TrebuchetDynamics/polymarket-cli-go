@@ -33,6 +33,13 @@ The migration introduced **deposit wallets** — a new wallet architecture using
 
 ## 2. Why This Is a Bot Killer
 
+**Why this rejection occurs:** Per docs.polymarket.com/v2-migration,
+the V2 backend rejects orders whose maker address has no
+smart-account contract deployed and approved at the V2 Exchange. The
+"use the deposit wallet flow" message is one suggested remediation;
+for grandfathered accounts an existing proxy or Safe deployment also
+satisfies the requirement.
+
 ### 2.1 The Rejection
 
 Any `POST /order` with `signatureType = 0` (EOA) from an account classified as a "new API user" returns:
