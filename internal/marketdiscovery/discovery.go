@@ -1,4 +1,3 @@
-// Package marketdiscovery provides market enrichment by joining Gamma metadata with CLOB details.
 package marketdiscovery
 
 import (

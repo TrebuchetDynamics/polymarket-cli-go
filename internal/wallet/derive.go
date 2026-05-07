@@ -1,5 +1,3 @@
-// Package wallet provides non-mutating wallet readiness checks.
-// Address derivation stolen from polymarket-go and rs-clob-client.
 package wallet
 
 import (

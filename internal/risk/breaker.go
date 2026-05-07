@@ -1,4 +1,3 @@
-// Package risk provides per-trade caps, limits, and circuit breakers.
 package risk
 
 import (

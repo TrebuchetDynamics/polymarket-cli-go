@@ -1,5 +1,3 @@
-// Package execution provides the order execution interface.
-// Paper and live implementations share the same contract.
 package execution
 
 import (
