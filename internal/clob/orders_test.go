@@ -140,12 +140,12 @@ func TestCreateMarketOrderPostsV2PayloadWhenCLOBVersionIsTwo(t *testing.T) {
 	}
 }
 
-func TestSignCLOBOrderV2UsesNegRiskExchangeAddressWhenFlagged(t *testing.T) {
+func TestSignCLOBOrderUsesNegRiskExchangeAddressWhenFlagged(t *testing.T) {
 	signer, err := auth.NewPrivateKeySigner(testOrderPrivateKey, polygonChainID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	payload := signedOrderPayloadV2{
+	payload := signedOrderPayload{
 		Salt:          1,
 		Maker:         signer.Address(),
 		Signer:        signer.Address(),
@@ -158,11 +158,11 @@ func TestSignCLOBOrderV2UsesNegRiskExchangeAddressWhenFlagged(t *testing.T) {
 		Metadata:      bytes32Zero,
 		Builder:       bytes32Zero,
 	}
-	sigRegular, err := signCLOBOrderV2(signer, payload, false)
+	sigRegular, err := signCLOBOrder(signer, payload, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sigNegRisk, err := signCLOBOrderV2(signer, payload, true)
+	sigNegRisk, err := signCLOBOrder(signer, payload, true)
 	if err != nil {
 		t.Fatal(err)
 	}

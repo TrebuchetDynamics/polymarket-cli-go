@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	clobExchangeAddressV2    = "0xE111180000d2663C0091e4f400237545B87B996B"    // V2 regular
-	negRiskExchangeAddressV2 = "0xe2222d279d744050d28e00520010520000310F59"    // V2 neg-risk
+	clobExchangeAddress    = "0xE111180000d2663C0091e4f400237545B87B996B"    // V2 regular
+	negRiskExchangeAddress = "0xe2222d279d744050d28e00520010520000310F59"    // V2 neg-risk
 	zeroAddress              = "0x0000000000000000000000000000000000000000"
 	bytes32Zero              = "0x0000000000000000000000000000000000000000000000000000000000000000"
 	signatureTypePoly1271    = 3
@@ -57,10 +57,10 @@ type OrderPlacementResponse struct {
 	TradeIDs           []string `json:"tradeIDs,omitempty"`
 }
 
-// signedOrderPayloadV2 is the CLOB V2 order wire format.
+// signedOrderPayload is the CLOB V2 order wire format.
 // Differs from V1: taker/nonce/feeRateBps removed, timestamp/metadata/builder added.
 // Expiration is in the POST body but NOT in the V2 EIP-712 signed struct.
-type signedOrderPayloadV2 struct {
+type signedOrderPayload struct {
 	Salt          uint64 `json:"salt"`
 	Maker         string `json:"maker"`
 	Signer        string `json:"signer"`
@@ -76,8 +76,8 @@ type signedOrderPayloadV2 struct {
 	Signature     string `json:"signature"`
 }
 
-type sendOrderPayloadV2 struct {
-	Order     signedOrderPayloadV2 `json:"order"`
+type sendOrderPayload struct {
+	Order     signedOrderPayload `json:"order"`
 	Owner     string               `json:"owner"`
 	OrderType string               `json:"orderType"`
 	PostOnly  bool                 `json:"postOnly"`
@@ -233,10 +233,6 @@ func (c *Client) signAndPostOrder(ctx context.Context, privateKey string, draft 
 	if err != nil {
 		return nil, fmt.Errorf("derive api key: %w", err)
 	}
-	return c.signAndPostOrderV2(ctx, privateKey, signer, &key, draft)
-}
-
-func (c *Client) signAndPostOrderV2(ctx context.Context, privateKey string, signer *auth.PrivateKeySigner, key *auth.APIKey, draft orderDraft) (*OrderPlacementResponse, error) {
 	nr, err := c.NegRisk(ctx, draft.tokenID.String())
 	if err != nil {
 		return nil, fmt.Errorf("neg-risk lookup: %w", err)
@@ -245,14 +241,14 @@ func (c *Client) signAndPostOrderV2(ctx context.Context, privateKey string, sign
 	if err != nil {
 		return nil, err
 	}
-	payload := sendOrderPayloadV2{
+	payload := sendOrderPayload{
 		Order:     unsigned,
 		Owner:     key.Key,
 		OrderType: draft.orderType,
 		PostOnly:  false,
 		DeferExec: false,
 	}
-	return c.postOrder(ctx, privateKey, key, payload, draft.orderType)
+	return c.postOrder(ctx, privateKey, &key, payload, draft.orderType)
 }
 
 func (c *Client) postOrder(ctx context.Context, privateKey string, key *auth.APIKey, payload interface{}, orderType string) (*OrderPlacementResponse, error) {
@@ -272,8 +268,8 @@ func (c *Client) postOrder(ctx context.Context, privateKey string, key *auth.API
 	return &result, nil
 }
 
-func signCLOBOrderV2(signer *auth.PrivateKeySigner, order signedOrderPayloadV2, negRisk bool) (string, error) {
-	typed := buildOrderTypedDataV2(order, negRisk)
+func signCLOBOrder(signer *auth.PrivateKeySigner, order signedOrderPayload, negRisk bool) (string, error) {
+	typed := buildOrderTypedData(order, negRisk)
 	sig, err := signer.SignEIP712(typed)
 	if err != nil {
 		return "", err
@@ -281,16 +277,16 @@ func signCLOBOrderV2(signer *auth.PrivateKeySigner, order signedOrderPayloadV2, 
 	return fmt.Sprintf("0x%x", sig), nil
 }
 
-// buildOrderTypedDataV2 builds the apitypes.TypedData for a V2 order.
-// Shared by signCLOBOrderV2 and wrapPOLY1271Signature.
-func buildOrderTypedDataV2(order signedOrderPayloadV2, negRisk bool) apitypes.TypedData {
+// buildOrderTypedData builds the apitypes.TypedData for a V2 order.
+// Shared by signCLOBOrder and wrapPOLY1271Signature.
+func buildOrderTypedData(order signedOrderPayload, negRisk bool) apitypes.TypedData {
 	sideInt := int64(0)
 	if order.Side == "SELL" {
 		sideInt = 1
 	}
-	verifyingContract := clobExchangeAddressV2
+	verifyingContract := clobExchangeAddress
 	if negRisk {
-		verifyingContract = negRiskExchangeAddressV2
+		verifyingContract = negRiskExchangeAddress
 	}
 	tokenID, _ := new(big.Int).SetString(order.TokenID, 10)
 	makerAmount, _ := new(big.Int).SetString(order.MakerAmount, 10)
@@ -428,20 +424,20 @@ func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, 
 }
 
 // buildSignedOrderPayload constructs a signed V2 order payload from a draft.
-func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts time.Time, negRisk bool) (signedOrderPayloadV2, error) {
+func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts time.Time, negRisk bool) (signedOrderPayload, error) {
 	salt, err := generateOrderSalt()
 	if err != nil {
-		return signedOrderPayloadV2{}, err
+		return signedOrderPayload{}, err
 	}
 	maker, err := auth.MakerAddressForSignatureType(signer.Address(), polygonChainID, draft.signatureType)
 	if err != nil {
-		return signedOrderPayloadV2{}, err
+		return signedOrderPayload{}, err
 	}
 	orderSigner := signer.Address()
 	if draft.signatureType == signatureTypePoly1271 {
 		orderSigner = maker
 	}
-	payload := signedOrderPayloadV2{
+	payload := signedOrderPayload{
 		Salt:          salt,
 		Maker:         maker,
 		Signer:        orderSigner,
@@ -455,15 +451,15 @@ func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts
 		Metadata:      bytes32Zero,
 		Builder:       bytes32Zero,
 	}
-	sig, err := signCLOBOrderV2(signer, payload, negRisk)
+	sig, err := signCLOBOrder(signer, payload, negRisk)
 	if err != nil {
-		return signedOrderPayloadV2{}, err
+		return signedOrderPayload{}, err
 	}
 	if draft.signatureType == signatureTypePoly1271 {
-		typedData := buildOrderTypedDataV2(payload, negRisk)
+		typedData := buildOrderTypedData(payload, negRisk)
 		sig, err = wrapPOLY1271Signature(signer, maker, typedData)
 		if err != nil {
-			return signedOrderPayloadV2{}, err
+			return signedOrderPayload{}, err
 		}
 	}
 	payload.Signature = sig
