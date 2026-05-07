@@ -64,11 +64,28 @@ func (c *Client) GetWithHeaders(ctx context.Context, path string, headers map[st
 
 // GetRaw performs a GET request and returns raw bytes.
 func (c *Client) GetRaw(ctx context.Context, path string) ([]byte, error) {
-	var raw json.RawMessage
-	if err := c.doWithHeaders(ctx, http.MethodGet, path, nil, &raw, nil); err != nil {
+	url := c.config.BaseURL + path
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
 		return nil, err
 	}
-	return []byte(raw), nil
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", c.config.UserAgent)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, fmt.Errorf("HTTP %d %s: %s", resp.StatusCode, url, string(raw))
+	}
+	return raw, nil
 }
 
 // Post performs a POST request. POSTs are never retried.

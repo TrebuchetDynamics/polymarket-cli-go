@@ -314,26 +314,31 @@ func (c *Client) Spread(ctx context.Context, tokenID string) (string, error) {
 // TickSize returns the tick size for a token.
 func (c *Client) TickSize(ctx context.Context, tokenID string) (*polytypes.TickSize, error) {
 	path := fmt.Sprintf("/tick-size?token_id=%s", url.QueryEscape(tokenID))
-	// The CLOB v2 API wraps tick size responses differently.
-	// Try the standard structure first, then fall back.
-	var result polytypes.TickSize
-	if err := c.transport.Get(ctx, path, &result); err != nil {
-		// Fallback: some endpoints return minimum_tick_size as top-level
-		var raw struct {
-			MinimumTickSize  string `json:"minimum_tick_size"`
-			MinimumOrderSize string `json:"minimum_order_size"`
-			TickSize         string `json:"tick_size"`
-		}
-		if err2 := c.transport.Get(ctx, path, &raw); err2 != nil {
-			return nil, fmt.Errorf("tick-size: %w", err)
-		}
-		result = polytypes.TickSize{
-			MinimumTickSize:  raw.MinimumTickSize,
-			MinimumOrderSize: raw.MinimumOrderSize,
-			TickSize:         raw.TickSize,
+	var raw struct {
+		MinimumTickSize  interface{} `json:"minimum_tick_size"`
+		MinimumOrderSize interface{} `json:"minimum_order_size"`
+		TickSize         interface{} `json:"tick_size"`
+	}
+	if err := c.transport.Get(ctx, path, &raw); err != nil {
+		return nil, err
+	}
+	toString := func(v interface{}) string {
+		switch val := v.(type) {
+		case string:
+			return val
+		case float64:
+			return strconv.FormatFloat(val, 'f', -1, 64)
+		case json.Number:
+			return val.String()
+		default:
+			return fmt.Sprintf("%v", val)
 		}
 	}
-	return &result, nil
+	return &polytypes.TickSize{
+		MinimumTickSize:  toString(raw.MinimumTickSize),
+		MinimumOrderSize: toString(raw.MinimumOrderSize),
+		TickSize:         toString(raw.TickSize),
+	}, nil
 }
 
 // NegRisk returns neg risk info for a token.

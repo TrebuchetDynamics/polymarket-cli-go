@@ -26,11 +26,10 @@ func NewClient(baseURL string, tc *transport.Client) *Client {
 
 // HealthCheck verifies the Gamma API is reachable.
 func (c *Client) HealthCheck(ctx context.Context) (*polytypes.HealthResponse, error) {
-	var result polytypes.HealthResponse
-	if err := c.transport.Get(ctx, "/", &result); err != nil {
+	if _, err := c.transport.GetRaw(ctx, "/"); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return &polytypes.HealthResponse{Data: "ok"}, nil
 }
 
 // ActiveMarkets returns active, non-closed markets.
