@@ -1,5 +1,18 @@
-// Package bookreader provides a public BookReader interface and Polygolem implementation.
-// This is the Phase 0 boundary between go-bot and polygolem — replaces direct CLOB clients.
+// Package bookreader is a read-only Polymarket CLOB order-book reader.
+//
+// Use bookreader when you want top-of-book price discovery for one or
+// more token IDs without pulling in the full polygolem CLI. The Reader
+// interface is the only public entry point; NewReader returns a
+// production implementation backed by the CLOB HTTP API.
+//
+// When not to use this package:
+//   - For authenticated CLOB operations (create or cancel orders) — those
+//     are not part of the public SDK.
+//   - For low-latency streaming — use a WebSocket client instead.
+//
+// Stability: the Reader interface, OrderBook, Level, and NewReader are
+// part of the polygolem public SDK and follow semver. Internal helpers
+// remain unexported and may change.
 package bookreader
 
 import (
@@ -12,7 +25,10 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 )
 
-// OrderBook is the public order book type usable by go-bot.
+// OrderBook is a snapshot of one Polymarket CLOB market.
+// Bids are sorted highest-price first and Asks lowest-price first.
+// LastTradePrice may be zero if the snapshot does not include a trade
+// reference.
 type OrderBook struct {
 	MarketID       string
 	TokenID        string
@@ -21,18 +37,25 @@ type OrderBook struct {
 	LastTradePrice float64
 }
 
-// Level is a single price level.
+// Level is one price level in the order book — a single Price with the
+// total Size resting at that price.
 type Level struct {
 	Price float64
 	Size  float64
 }
 
-// Reader fetches CLOB order books.
+// Reader fetches CLOB order books by ERC-1155 token ID.
+// Implementations must be safe for concurrent use by multiple goroutines.
 type Reader interface {
+	// OrderBook returns the current order-book snapshot for tokenID.
+	// The returned OrderBook is sorted best-first on each side.
 	OrderBook(ctx context.Context, tokenID string) (OrderBook, error)
 }
 
-// NewReader creates a BookReader backed by the Polygolem CLOB client.
+// NewReader returns a Reader backed by the polygolem CLOB client at
+// clobBaseURL. Pass an empty string to use the Polymarket production CLOB
+// URL. The returned Reader uses the package's default HTTP transport with
+// retry and rate limiting.
 func NewReader(clobBaseURL string) Reader {
 	return &reader{client: clob.NewClient(clobBaseURL, nil)}
 }
