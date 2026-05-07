@@ -1,6 +1,3 @@
-// Package polytypes provides shared Polymarket data types for polygolem.
-// Types are adapted from polymarket-go-gamma-client, rs-clob-client,
-// and polymarket-go-sdk — stolen aggressively per the polygolem PRD.
 package polytypes
 
 import (

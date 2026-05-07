@@ -1,4 +1,3 @@
-// Package polytypes — Gamma market and event types stolen from polymarket-go-gamma-client.
 package polytypes
 
 // HealthResponse represents the Gamma health check response.

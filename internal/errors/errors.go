@@ -1,5 +1,3 @@
-// Package errors provides structured error codes for polygolem.
-// Error taxonomy stolen from polymarket-go-sdk/pkg/errors.
 package errors
 
 import "fmt"

@@ -1,5 +1,3 @@
-// Package auth provides Polymarket authentication primitives.
-// Based on patterns from polymarket-go (ybina), polymarket-go-sdk, and go-builder-signing-sdk.
 package auth
 
 import (

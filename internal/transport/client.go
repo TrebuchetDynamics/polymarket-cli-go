@@ -1,5 +1,3 @@
-// Package transport provides HTTP transport with retry, redaction, and rate limiting.
-// Patterns stolen from polymarket-go-sdk/pkg/transport.
 package transport
 
 import (

@@ -1,5 +1,3 @@
-// Package polytypes — Comment, Rewards, Profile, and Keyset types.
-// Stolen from polymarket-go-gamma-client, polymarket-go-sdk, and official docs.
 package polytypes
 
 // --- Comments (Gamma) ---
