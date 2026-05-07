@@ -1,53 +1,53 @@
 # Commands
 
-The Phase 1 binary command name is `polymarket`. Commands are designed around
+The Phase 1 binary command name is `polygolem`. Commands are designed around
 safe read-only access, local paper state, and explicit status checks.
 
 ## Core
 
-- `polymarket version`: prints the CLI version.
-- `polymarket preflight`: reports local and remote readiness checks.
+- `polygolem version`: prints the CLI version.
+- `polygolem preflight`: reports local and remote readiness checks.
 
 Examples:
 
 ```bash
-polymarket version
-polymarket --json version
-polymarket preflight
+polygolem version
+polygolem --json version
+polygolem preflight
 ```
 
 ## Markets
 
-- `polymarket markets search`: intended read-only market search.
-- `polymarket markets get`: intended read-only lookup for one market.
-- `polymarket markets active`: intended read-only active-market listing.
+- `polygolem markets search`: intended read-only market search.
+- `polygolem markets get`: intended read-only lookup for one market.
+- `polygolem markets active`: intended read-only active-market listing.
 
 Examples:
 
 ```bash
-polymarket markets search "bitcoin"
-polymarket --json markets active
-polymarket --json markets get <market-id-or-slug>
+polygolem markets search "bitcoin"
+polygolem --json markets active
+polygolem --json markets get <market-id-or-slug>
 ```
 
 ## Market Data
 
-- `polymarket orderbook get`: intended read-only order book lookup.
-- `polymarket prices get`: intended read-only price lookup.
+- `polygolem orderbook get`: intended read-only order book lookup.
+- `polygolem prices get`: intended read-only price lookup.
 
 Examples:
 
 ```bash
-polymarket --json orderbook get <token-id>
-polymarket --json prices get <token-id>
+polygolem --json orderbook get <token-id>
+polygolem --json prices get <token-id>
 ```
 
 ## Paper
 
-- `polymarket paper buy`: intended local simulated buy.
-- `polymarket paper sell`: intended local simulated sell.
-- `polymarket paper positions`: intended local position listing.
-- `polymarket paper reset`: intended local paper-state reset.
+- `polygolem paper buy`: intended local simulated buy.
+- `polygolem paper sell`: intended local simulated sell.
+- `polygolem paper positions`: intended local position listing.
+- `polygolem paper reset`: intended local paper-state reset.
 
 Paper commands operate on local persisted state. They may use read-only market
 data for reference pricing, but they must not send authenticated trading
@@ -56,23 +56,23 @@ mutations.
 Examples:
 
 ```bash
-polymarket --json paper buy --market <market-id> --outcome yes --size 10
-polymarket --json paper sell --market <market-id> --outcome yes --size 5
-polymarket --json paper positions
-polymarket paper reset
+polygolem --json paper buy --market <market-id> --outcome yes --size 10
+polygolem --json paper sell --market <market-id> --outcome yes --size 5
+polygolem --json paper positions
+polygolem paper reset
 ```
 
 ## Status
 
-- `polymarket auth status`: reports authentication readiness without exposing
+- `polygolem auth status`: reports authentication readiness without exposing
   credential material.
-- `polymarket live status`: reports live gate state without enabling execution.
+- `polygolem live status`: reports live gate state without enabling execution.
 
 Examples:
 
 ```bash
-polymarket --json auth status
-polymarket --json live status
+polygolem --json auth status
+polygolem --json live status
 ```
 
 ## Automation Patterns
@@ -83,7 +83,7 @@ Treat non-zero exits as failures and inspect structured error output.
 ```bash
 set -euo pipefail
 
-status="$(polymarket --json preflight)"
+status="$(polygolem --json preflight)"
 echo "$status" | jq .
 ```
 
@@ -92,7 +92,7 @@ For read-only market workflows:
 ```bash
 set -euo pipefail
 
-markets="$(polymarket --json markets search "election")"
+markets="$(polygolem --json markets search "election")"
 echo "$markets" | jq .
 ```
 

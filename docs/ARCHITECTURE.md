@@ -1,13 +1,13 @@
 # Architecture
 
-`polymarket-cli-go` is a Go protocol and automation stack with a CLI frontend.
+`polygolem` is a Go protocol and automation stack with a CLI frontend.
 The Cobra command tree is a thin frontend over typed, testable internal
 packages. The Rust CLI is retained only as a behavioral reference in
 `docs/REFERENCE-RUST-CLI.md`.
 
 ## Package Boundaries
 
-- `cmd/polymarket-cli-go`: binary entry point and process exit handling.
+- `cmd/polygolem`: binary entry point and process exit handling.
 - `internal/cli`: Cobra command construction and dependency wiring.
 - `internal/config`: explicit Viper-backed config loading, defaults,
   environment binding, validation, and redaction.
@@ -29,7 +29,7 @@ protocol clients -> application services -> thin Cobra CLI
 The package-level dependency direction is:
 
 ```text
-cmd/polymarket-cli-go
+cmd/polygolem
         |
 internal/cli
         |

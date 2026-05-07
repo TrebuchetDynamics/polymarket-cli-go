@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/TrebuchetDynamics/polymarket-cli-go/internal/cli"
+	"github.com/TrebuchetDynamics/polygolem/internal/cli"
 )
 
 var version = "dev"

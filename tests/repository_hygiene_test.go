@@ -39,7 +39,6 @@ func TestRepositoryHygiene(t *testing.T) {
 		"scripts",
 		"src",
 		".github/workflows/release.yml",
-		"pkg",
 		"cmd/polymarket",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(unsafePath))); err == nil {
@@ -47,6 +46,11 @@ func TestRepositoryHygiene(t *testing.T) {
 		} else if !os.IsNotExist(err) {
 			t.Fatalf("could not inspect %s: %v", unsafePath, err)
 		}
+	}
+
+	// pkg/ is the approved public SDK boundary (Phase 0 bookreader)
+	if _, err := os.Stat(filepath.Join(root, "pkg/bookreader")); err != nil {
+		t.Fatalf("pkg/bookreader public boundary is missing: %v", err)
 	}
 }
 

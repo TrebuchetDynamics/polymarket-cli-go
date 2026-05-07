@@ -10,7 +10,7 @@ Build a clean, idiomatic Go replacement for the official Rust Polymarket CLI.
 The Rust repository is the behavioral and protocol reference only. The Go
 implementation must not translate Rust source line-by-line.
 
-The project name is `polymarket-cli-go`. The repository will become a clean Go
+The project name is `polygolem`. The repository will become a clean Go
 repository rather than a mixed Rust/Go tree.
 
 ## Hard Engineering Rule
@@ -94,7 +94,7 @@ packages where concrete types are clearer.
 
 Phase 1 will use these package responsibilities:
 
-- `cmd/polymarket-cli-go/main.go`: binary entry point only.
+- `cmd/polygolem/main.go`: binary entry point only.
 - `internal/cli`: Cobra command construction and dependency wiring.
 - `internal/config`: Viper-backed config loading, defaults, environment
   binding, validation, and safe redaction.
@@ -188,35 +188,35 @@ placement.
 
 ## Commands In Phase 1
 
-The binary command name is `polymarket`.
+The binary command name is `polygolem`.
 
 Core:
 
-- `polymarket version`
-- `polymarket preflight`
+- `polygolem version`
+- `polygolem preflight`
 
 Markets:
 
-- `polymarket markets search`
-- `polymarket markets get`
-- `polymarket markets active`
+- `polygolem markets search`
+- `polygolem markets get`
+- `polygolem markets active`
 
 Market data:
 
-- `polymarket orderbook get`
-- `polymarket prices get`
+- `polygolem orderbook get`
+- `polygolem prices get`
 
 Paper trading:
 
-- `polymarket paper buy`
-- `polymarket paper sell`
-- `polymarket paper positions`
-- `polymarket paper reset`
+- `polygolem paper buy`
+- `polygolem paper sell`
+- `polygolem paper positions`
+- `polygolem paper reset`
 
 Status:
 
-- `polymarket auth status`
-- `polymarket live status`
+- `polygolem auth status`
+- `polygolem live status`
 
 Every command supports `--json`. JSON output must be stable and covered by
 golden tests.

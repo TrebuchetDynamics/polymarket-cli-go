@@ -28,16 +28,19 @@ func TestDocumentationSafety(t *testing.T) {
 	}
 
 	readme := readRepositoryFile(t, root, "README.md")
-	if !strings.Contains(readme, "polymarket-cli-go") && !strings.Contains(readme, "Go Phase 1") {
-		t.Fatalf("README.md must identify this repository as polymarket-cli-go or Go Phase 1")
+	if !strings.Contains(readme, "polygolem") && !strings.Contains(readme, "Go Phase 1") {
+		t.Fatalf("README.md must identify this repository as polygolem or Go Phase 1")
 	}
 
 	blockedPhrases := []string{
 		"Rust CLI for Polymarket",
 		"cargo install --path .",
 		"brew install polymarket",
+		"brew install polygolem",
 		"polymarket setup",
+		"polygolem setup",
 		"polymarket wallet create",
+		"polygolem wallet create",
 		"clob create-order",
 		"clob market-order",
 	}
@@ -89,7 +92,7 @@ func TestDocumentationSafety(t *testing.T) {
 	commands := readRepositoryFile(t, root, "docs/COMMANDS.md")
 	for _, required := range []string{
 		"--json",
-		"polymarket --json version",
+		"polygolem --json version",
 		"set -euo pipefail",
 		"jq",
 	} {

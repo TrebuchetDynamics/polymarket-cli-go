@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build Phase 1 of `polymarket-cli-go`: a safe-by-default Go CLI with read-only market data, local-only paper trading, live-mode gates, structured JSON output, and docs that match actual behavior.
+**Goal:** Build Phase 1 of `polygolem`: a safe-by-default Go CLI with read-only market data, local-only paper trading, live-mode gates, structured JSON output, and docs that match actual behavior.
 
 **Architecture:** Replace the Rust tree with a Go module shaped around typed internal packages and a thin Cobra CLI. Protocol clients, modes, config, output, preflight, and paper trading remain testable without executing the binary. Existing untracked `cmd/` and `pkg/` prototype files are treated as untrusted because they contain live order paths and do not follow the approved TDD safety model.
 
@@ -42,8 +42,8 @@ Rules:
 
 Create or replace these files during Phase 1:
 
-- `go.mod`: module metadata for `github.com/TrebuchetDynamics/polymarket-cli-go`.
-- `cmd/polymarket-cli-go/main.go`: binary entry point only.
+- `go.mod`: module metadata for `github.com/TrebuchetDynamics/polygolem`.
+- `cmd/polygolem/main.go`: binary entry point only.
 - `internal/cli/root.go`: Cobra root command and dependency wiring.
 - `internal/cli/root_test.go`: command construction tests.
 - `internal/output/output.go`: JSON/table rendering and structured errors.
@@ -189,7 +189,7 @@ git commit -m "docs: audit rust polymarket cli reference"
 
 **Files:**
 - Replace: `go.mod`
-- Create: `cmd/polymarket-cli-go/main.go`
+- Create: `cmd/polygolem/main.go`
 - Create: `internal/cli/root_test.go`
 - Create: `internal/cli/root.go`
 
@@ -219,7 +219,7 @@ before deleting untracked paths.
 Create `go.mod`:
 
 ```go
-module github.com/TrebuchetDynamics/polymarket-cli-go
+module github.com/TrebuchetDynamics/polygolem
 
 go 1.23
 
@@ -314,7 +314,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 	}
 
 	root := &cobra.Command{
-		Use:           "polymarket",
+		Use:           "polygolem",
 		Short:         "Safe Polymarket CLI for research and automation",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -326,7 +326,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		Use:   "version",
 		Short: "Print version information",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := fmt.Fprintf(cmd.OutOrStdout(), "polymarket %s\n", opts.Version)
+			_, err := fmt.Fprintf(cmd.OutOrStdout(), "polygolem %s\n", opts.Version)
 			return err
 		},
 	})
@@ -335,7 +335,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 }
 ```
 
-Create `cmd/polymarket-cli-go/main.go`:
+Create `cmd/polygolem/main.go`:
 
 ```go
 package main
@@ -343,7 +343,7 @@ package main
 import (
 	"os"
 
-	"github.com/TrebuchetDynamics/polymarket-cli-go/internal/cli"
+	"github.com/TrebuchetDynamics/polygolem/internal/cli"
 )
 
 var version = "dev"
@@ -371,7 +371,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add go.mod go.sum cmd/polymarket-cli-go/main.go internal/cli/root.go internal/cli/root_test.go
+git add go.mod go.sum cmd/polygolem/main.go internal/cli/root.go internal/cli/root_test.go
 git commit -m "feat: add go cli baseline"
 ```
 
@@ -1426,7 +1426,7 @@ Create `docs/ARCHITECTURE.md`:
 ```markdown
 # Architecture
 
-`polymarket-cli-go` is a Go CLI built around internal typed packages and a thin
+`polygolem` is a Go CLI built around internal typed packages and a thin
 Cobra command layer.
 
 ## Dependency Flow
@@ -1463,31 +1463,31 @@ Every command supports automation-friendly output. Use `--json` when scripting.
 
 ## Core
 
-- `polymarket version`
-- `polymarket preflight`
+- `polygolem version`
+- `polygolem preflight`
 
 ## Markets
 
-- `polymarket markets search`
-- `polymarket markets get`
-- `polymarket markets active`
+- `polygolem markets search`
+- `polygolem markets get`
+- `polygolem markets active`
 
 ## Market Data
 
-- `polymarket orderbook get`
-- `polymarket prices get`
+- `polygolem orderbook get`
+- `polygolem prices get`
 
 ## Paper Trading
 
-- `polymarket paper buy`
-- `polymarket paper sell`
-- `polymarket paper positions`
-- `polymarket paper reset`
+- `polygolem paper buy`
+- `polygolem paper sell`
+- `polygolem paper positions`
+- `polygolem paper reset`
 
 ## Status
 
-- `polymarket auth status`
-- `polymarket live status`
+- `polygolem auth status`
+- `polygolem live status`
 ```
 
 - [ ] **Step 3: Write safety doc**
@@ -1565,7 +1565,7 @@ Run:
 git push trebuchet main
 ```
 
-Expected: push exits 0 and updates `TrebuchetDynamics/polymarket-cli-go`.
+Expected: push exits 0 and updates `TrebuchetDynamics/polygolem`.
 
 - [ ] **Step 4: Capture final evidence**
 

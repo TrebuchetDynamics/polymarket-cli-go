@@ -15,7 +15,7 @@ func TestHelpListsPhaseOneCommands(t *testing.T) {
 		t.Fatalf("Execute returned error: %v", err)
 	}
 	help := stdout.String()
-	for _, want := range []string{"preflight", "markets", "orderbook", "prices", "paper", "auth", "live"} {
+	for _, want := range []string{"preflight", "discover", "orderbook", "health", "paper", "auth", "live"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help missing %q:\n%s", want, help)
 		}
