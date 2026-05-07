@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/errors"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	gethmath "github.com/ethereum/go-ethereum/common/math"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
@@ -88,6 +89,15 @@ const (
 	safeFactoryAddress  = "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b"
 	proxyInitCodeHash   = "0xd21df8dc65880a8606f09fe0ce3df9b8869287ab0b058be05aa9e8af6330a00b"
 	safeInitCodeHash    = "0x2bce2127ff07fb632d16c8347c4ebf501f4841168bed00d9e6ef715ddb6fcecf"
+
+	depositWalletFactoryAddress = "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07"
+	depositWalletImplAddress    = "0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB"
+
+	// ERC-1967 proxy init code constants — verified against
+	// Polymarket/py-builder-relayer-client builder/derive.py.
+	erc1967Prefix = 0x61003D3D8160233D3973
+	erc1967Const1 = "0xcc3735a920a3ca505d382bbc545af43d6000803e6038573d6000fd5b3d6000f3"
+	erc1967Const2 = "0x5155f3363d3d373d3d363d7f360894a13ba1a3210667c828492db98dca3e2076"
 )
 
 // MakerAddressForSignatureType returns the CLOB maker/funder address for the
@@ -118,6 +128,11 @@ func MakerAddressForSignatureType(signerAddress string, chainID int64, signature
 		}
 		salt := ethcrypto.Keccak256(common.LeftPadBytes(signer.Bytes(), 32))
 		return ethcrypto.CreateAddress2(common.HexToAddress(safeFactoryAddress), common.BytesToHash(salt), hash).Hex(), nil
+	case 3:
+		if chainID != 137 {
+			return "", fmt.Errorf("deposit wallet derivation only supports Polygon chain 137")
+		}
+		return deriveDepositWalletAddress(signer), nil
 	default:
 		return "", fmt.Errorf("unsupported signature type %d", signatureType)
 	}
@@ -152,4 +167,58 @@ func PrivateKeyToAddress(privateKeyHex string) (string, error) {
 		return "", err
 	}
 	return signer.Address(), nil
+}
+
+// deriveDepositWalletAddress computes the deterministic CREATE2 deposit wallet
+// address for the given EOA owner.
+func deriveDepositWalletAddress(owner common.Address) string {
+	factory := common.HexToAddress(depositWalletFactoryAddress)
+	impl := common.HexToAddress(depositWalletImplAddress)
+	walletID := common.LeftPadBytes(owner.Bytes(), 32)
+
+	addressType, _ := abi.NewType("address", "", nil)
+	bytes32Type, _ := abi.NewType("bytes32", "", nil)
+	argsType := abi.Arguments{
+		{Type: addressType},
+		{Type: bytes32Type},
+	}
+	args, _ := argsType.Pack(factory, common.BytesToHash(walletID))
+	salt := ethcrypto.Keccak256Hash(args)
+
+	initCode := depositWalletInitCode(impl, args)
+	bytecodeHash := ethcrypto.Keccak256Hash(initCode)
+
+	return ethcrypto.CreateAddress2(factory, salt, bytecodeHash.Bytes()).Hex()
+}
+
+// depositWalletInitCode builds the ERC-1967 proxy init bytecode.
+// Verified against Polymarket/py-builder-relayer-client builder/derive.py.
+func depositWalletInitCode(impl common.Address, args []byte) []byte {
+	erc1967 := new(big.Int)
+	erc1967.SetString("61003D3D8160233D3973", 16)
+	argsLen := new(big.Int).Lsh(new(big.Int).SetInt64(int64(len(args))), 56)
+	combined := new(big.Int).Add(erc1967, argsLen)
+
+	c2 := hexDecode(erc1967Const2)
+	c1 := hexDecode(erc1967Const1)
+	six009 := hexDecode("0x6009")
+	code := make([]byte, 10+20+2+len(c2)+len(c1)+len(args))
+	combined.FillBytes(code[:10])
+	pos := 10
+	pos += copy(code[pos:], impl.Bytes())
+	pos += copy(code[pos:], six009)
+	pos += copy(code[pos:], c2)
+	pos += copy(code[pos:], c1)
+	copy(code[pos:], args)
+	return code
+}
+
+// hexDecode decodes a 0x-prefixed hex string to bytes. Panics on invalid input
+// — callers must only pass compile-time constants.
+func hexDecode(value string) []byte {
+	b, err := hex.DecodeString(strings.TrimPrefix(value, "0x"))
+	if err != nil {
+		panic(fmt.Sprintf("internal: invalid hex constant %q: %v", value, err))
+	}
+	return b
 }

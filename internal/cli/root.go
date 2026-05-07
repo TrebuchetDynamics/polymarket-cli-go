@@ -101,6 +101,8 @@ func NewRootCommand(opts Options) *cobra.Command {
 	root.AddCommand(healthCmd(jsonOutput))
 	root.AddCommand(eventsCmd(jsonOutput))
 	root.AddCommand(bridgeCmd(jsonOutput))
+	root.AddCommand(depositWalletCmd(jsonOutput))
+	root.AddCommand(newBuilderCommand(jsonOutput))
 	root.AddCommand(commandGroup("paper", "Inspect local paper trading state",
 		skeleton("buy"), skeleton("sell"), skeleton("positions"), skeleton("reset"),
 	))
@@ -290,7 +292,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(balanceCmd, &balanceOutput)
 	balanceCmd.Flags().StringVar(&balanceAssetType, "asset-type", "collateral", "asset type")
 	balanceCmd.Flags().StringVar(&balanceTokenID, "token-id", "", "conditional token id")
-	balanceCmd.Flags().StringVar(&balanceSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe")
+	balanceCmd.Flags().StringVar(&balanceSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(balanceCmd)
 
 	var updateBalanceOutput, updateBalanceAssetType, updateBalanceTokenID, updateBalanceSignatureType string
@@ -321,7 +323,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(updateBalanceCmd, &updateBalanceOutput)
 	updateBalanceCmd.Flags().StringVar(&updateBalanceAssetType, "asset-type", "collateral", "asset type")
 	updateBalanceCmd.Flags().StringVar(&updateBalanceTokenID, "token-id", "", "conditional token id")
-	updateBalanceCmd.Flags().StringVar(&updateBalanceSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe")
+	updateBalanceCmd.Flags().StringVar(&updateBalanceSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(updateBalanceCmd)
 
 	var ordersOutput string
@@ -398,7 +400,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	createOrderCmd.Flags().StringVar(&createOrderPrice, "price", "", "limit price")
 	createOrderCmd.Flags().StringVar(&createOrderSize, "size", "", "order size")
 	createOrderCmd.Flags().StringVar(&createOrderType, "order-type", "GTC", "order type")
-	createOrderCmd.Flags().StringVar(&createOrderSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe")
+	createOrderCmd.Flags().StringVar(&createOrderSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(createOrderCmd)
 
 	var marketOrderOutput, marketOrderToken, marketOrderSide, marketOrderAmount, marketOrderPrice, marketOrderType, marketOrderSignatureType string
@@ -435,7 +437,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	marketOrderCmd.Flags().StringVar(&marketOrderAmount, "amount", "", "USDC amount")
 	marketOrderCmd.Flags().StringVar(&marketOrderPrice, "price", "", "limit price")
 	marketOrderCmd.Flags().StringVar(&marketOrderType, "order-type", "FOK", "order type")
-	marketOrderCmd.Flags().StringVar(&marketOrderSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe")
+	marketOrderCmd.Flags().StringVar(&marketOrderSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(marketOrderCmd)
 
 	var priceHistoryOutput, priceHistoryInterval string
@@ -485,6 +487,8 @@ func parseSignatureTypeFlag(value string) (int, error) {
 		return 0, nil
 	case "safe", "gnosis", "gnosis-safe", "2":
 		return 2, nil
+	case "deposit", "deposit-wallet", "poly-1271", "3":
+		return 3, nil
 	default:
 		return 0, fmt.Errorf("unsupported signature type %q", value)
 	}

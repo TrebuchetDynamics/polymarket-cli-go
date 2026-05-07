@@ -184,7 +184,8 @@ func balanceAllowancePath(base string, params BalanceAllowanceParams) string {
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
+		v := strings.TrimSpace(value)
+		if v != "" && v != "<nil>" {
 			return value
 		}
 	}
@@ -323,6 +324,9 @@ func (c *Client) TickSize(ctx context.Context, tokenID string) (*polytypes.TickS
 		return nil, err
 	}
 	toString := func(v interface{}) string {
+		if v == nil {
+			return ""
+		}
 		switch val := v.(type) {
 		case string:
 			return val

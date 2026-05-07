@@ -101,6 +101,7 @@ type sendOrderPayloadV2 struct {
 	Order     signedOrderPayloadV2 `json:"order"`
 	Owner     string               `json:"owner"`
 	OrderType string               `json:"orderType"`
+	PostOnly  bool                 `json:"postOnly"`
 	DeferExec bool                 `json:"deferExec"`
 }
 
@@ -341,6 +342,7 @@ func (c *Client) signAndPostOrderV2(ctx context.Context, privateKey string, sign
 		Order:     unsigned,
 		Owner:     key.Key,
 		OrderType: draft.orderType,
+		PostOnly:  false,
 		DeferExec: false,
 	}
 	return c.postOrder(ctx, privateKey, key, payload, draft.orderType)

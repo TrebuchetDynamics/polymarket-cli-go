@@ -1,0 +1,153 @@
+---
+title: Deposit Wallet Lifecycle
+description: The complete deposit wallet lifecycle — deploy, fund, approve, trade, recover — and what go-bot does automatically at startup.
+---
+
+The deposit wallet has a defined lifecycle. Polygolem handles every phase, and
+go-bot's live loop automates the full startup sequence so a restart always
+recovers to a ready state.
+
+## Lifecycle Phases
+
+```
+  ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+  │ DERIVE   │ ──→ │ DEPLOY   │ ──→ │ FUND     │ ──→ │ TRADE    │
+  │ (offline)│     │ (relayer)│     │ (onchain)│     │ (CLOB)   │
+  └──────────┘     └──────────┘     └──────────┘     └──────────┘
+       │                │                │                │
+       └────────────────┴────────────────┴────────────────┘
+                     All idempotent on restart
+```
+
+### Phase 1: Derive (offline, always succeeds)
+
+The deposit wallet address is computed from the EOA address using CREATE2.
+No network calls. The same EOA always produces the same address.
+
+```
+wallet = CreateAddress2(
+    factory = 0x00000000000Fb5C9ADea0298D729A0CB3823Cc07,
+    salt    = keccak256(abi.encode(factory, LeftPad32(EOA))),
+    hash    = keccak256(proxyInitCode)
+)
+```
+
+### Phase 2: Deploy (relayer, idempotent)
+
+The relayer deploys a clone proxy via the deposit wallet factory and funds
+the deployment gas. The go-bot checks deployment status before submitting.
+
+```
+WALLET-CREATE { from: <EOA>, to: <factory> }
+```
+
+### Phase 3: Fund (onchain)
+
+pUSD must be transferred from the EOA to the deposit wallet. The EOA's pUSD
+balance does **not** count for deposit wallet trading. Only pUSD held by the
+deposit wallet contract is available for CLOB orders.
+
+Two-step funding:
+1. EOA acquires pUSD (bridge POL or swap)
+2. EOA transfers pUSD to deposit wallet (ERC-20 transfer)
+
+### Phase 4: Approve (relayer WALLET batch)
+
+The deposit wallet must approve six trading contracts to spend its tokens.
+This is a single WALLET batch signed via EIP-712 and submitted to the relayer.
+
+### Phase 5: Trade (CLOB)
+
+With the wallet deployed, funded, and approved, orders are placed with
+`--signature-type deposit`. The EOA signs the order, but the CLOB sees the
+deposit wallet as the maker.
+
+## Recovery Modes
+
+On every startup, go-bot walks the lifecycle and fills any gaps. Every step
+is idempotent — running it twice on an already-ready wallet is a no-op.
+
+| State on Restart | What Happens |
+|------------------|-------------|
+| **No deployment** | `IsDeployed()` → false → `WALLET-CREATE` → poll until mined |
+| **Deployed, no pUSD** | `IsDeployed()` → true, balance zero → fund EOA pUSD → transfer to wallet |
+| **Deployed, pUSD present, no approvals** | Balance OK, allowances empty → `SubmitWalletBatchSafe` with fresh nonce |
+| **Fully operational** | All checks pass → skip to live trading loop |
+| **Nonce conflict** (lost response after a previous batch) | `SubmitWalletBatchSafe` re-fetches nonce from relayer, signs with new nonce, retries |
+| **Wallet lost** (never happens — it's a contract on Polygon) | Re-derive address (same result) → check `IsDeployed` → still true → skip deploy |
+
+## Nonce Safety
+
+Every WALLET batch consumes one nonce tracked by the relayer per EOA.
+The nonce is **never cached or reused**:
+
+1. Fetch fresh nonce from `GET /nonce?address=<EOA>&type=WALLET`
+2. Sign the batch EIP-712 with that nonce
+3. Submit to `POST /submit` (type=WALLET)
+4. If submission succeeds → poll for confirmation
+5. If submission fails with **nonce conflict** (a previous lost response consumed it) → re-fetch (step 1) and retry
+6. If submission fails with any other error → report and stop
+
+This guarantees:
+- No duplicate nonce submission
+- Recovery from lost responses without operator intervention
+- Max 3 retries before failing with a clear error
+
+## One-Command Onboard (Manual)
+
+For a first-time setup or manual intervention:
+
+```bash
+POLYMARKET_PRIVATE_KEY="0x..." \
+POLYMARKET_BUILDER_API_KEY="pk_live_..." \
+POLYMARKET_BUILDER_SECRET="..." \
+POLYMARKET_BUILDER_PASSPHRASE="..." \
+  polygolem deposit-wallet onboard --fund-amount 50 --json
+```
+
+This single command runs: derive → deploy → approve (6 calls) → fund (transfer).
+
+Then sync the CLOB balance:
+
+```bash
+POLYMARKET_PRIVATE_KEY="0x..." \
+  polygolem clob update-balance --asset-type collateral --signature-type deposit
+```
+
+## Automated Startup (go-bot live)
+
+go-bot's `live` command automates the full lifecycle at startup:
+
+```
+go-bot live startup:
+  1. derive deposit wallet address (offline)
+  2. check IsDeployed() → deploy if needed
+  3. check deposit wallet pUSD balance → fund if needed
+  4. check collateral allowances → approve if needed
+  5. update CLOB balance cache
+  6. enter live trading loop with --signature-type deposit
+```
+
+With persistence, a restart after a crash recovers cleanly:
+
+```
+crash → restart → derive (same address) → IsDeployed=true → skip deploy
+→ balance OK → skip fund → allowances OK → skip approve → start trading
+```
+
+## Checking Status
+
+```bash
+# Is the wallet deployed?
+polygolem deposit-wallet status
+
+# What's the deposit wallet balance?
+polygolem clob balance --asset-type collateral --signature-type deposit
+
+# What's the EOA's onchain balance?
+polygolem clob balance --asset-type collateral --signature-type eoa
+```
+
+> pUSD held by the EOA and pUSD held by the deposit wallet are **separate
+> balances**. Only the deposit wallet balance counts for trading with
+> signature type `deposit` (POLY_1271).

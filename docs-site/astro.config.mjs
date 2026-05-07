@@ -26,6 +26,7 @@ export default defineConfig({
           label: "Guides",
           items: [
             { label: "Market Discovery", slug: "guides/market-discovery" },
+            { label: "Deposit Wallet Lifecycle", slug: "guides/deposit-wallet-lifecycle" },
             { label: "Orderbook Data", slug: "guides/orderbook-data" },
             { label: "Paper Trading", slug: "guides/paper-trading" },
             { label: "Bridge & Funding", slug: "guides/bridge-funding" },
@@ -37,6 +38,7 @@ export default defineConfig({
           items: [
             { label: "Polymarket API Overview", slug: "concepts/polymarket-api" },
             { label: "Deposit Wallets & Signature Types", slug: "concepts/deposit-wallets" },
+            { label: "Secrets Management", slug: "concepts/secrets-management" },
             { label: "Markets, Events & Tokens", slug: "concepts/markets-events-tokens" },
             { label: "Safety Model", slug: "concepts/safety" },
             { label: "Architecture", slug: "concepts/architecture" },
