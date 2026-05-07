@@ -21,7 +21,18 @@ working tree:
 - `CLOBVersion()` `/version` lookup with version-gated dispatch
   (V1 path retained alongside V2).
 - An empirical run confirmed V2 signing reaches the production CLOB —
-  the response was a real backend error, not a signing failure.
+  the response was a real backend error, not a signing failure. The
+  error was `HTTP 400: "maker address not allowed, please use the
+  deposit wallet flow"`. Per the official Polymarket V2 migration
+  docs (`docs.polymarket.com/v2-migration` and
+  `docs.polymarket.com/trading/deposit-wallet-migration`), this is
+  **the documented enforcement**: deposit wallets are mandatory for
+  new API users; existing proxy/Safe users are grandfathered. The
+  rejection is not a polygolem signing bug and not a "new API user
+  gating heuristic" — it is the V2 product rule. Polygolem's job is
+  to support sigtype 3 (POLY_1271) correctly. Sigtype 0 / 1 / 2
+  remain useful for grandfathered accounts but are documented as
+  legacy.
 
 What did **not** land:
 
@@ -107,8 +118,15 @@ This track closes each gap.
 ### 2.2 Out-of-scope (explicit non-goals)
 
 1. **Builder attribution wiring.** `builder` field stays
-   `bytes32(0)`. The UUID→bytes32 encoding is a separate research and
-   wiring task.
+   `bytes32(0)`. Per the official V2 docs, the V2 builder model is
+   *not* the legacy HMAC `POLY_BUILDER_*` headers — it is a single
+   `builderCode` (bytes32) sourced directly from
+   `polymarket.com/settings?tab=builder` and attached per-order. The
+   wiring is straightforward (env var or CLI flag accepting a 32-byte
+   hex string) but is its own track. `polygolem builder onboard`
+   captures the legacy HMAC triple, which V2 retains only for relayer
+   flows (e.g. deposit-wallet deploy / batch). It does not produce
+   the V2 `builderCode`.
 2. **`go-bot/internal/app` live readiness gate.** The pUSD readiness
    check that fails `go-bot live` lives outside polygolem. Empirically
    the production CLOB is gating new API users to deposit-wallet flow
@@ -144,11 +162,24 @@ expecting a signed payload back. The fix:
 1. Move the V2 path to call `signCLOBOrderV2` before returning.
 2. For signature type 3 (POLY_1271), set `Signer = maker` (the deposit
    wallet) instead of `signer.Address()` (the EOA).
-3. Wrap the raw ECDSA signature into a POLY_1271 signature blob (318
-   bytes; the wire format `Signature` field is 636 hex chars without
-   `0x` prefix or 638 with — verify against the failing test
-   expectation `len(order.Signature) != 636` and the foxme666
-   reference's wrapping helper).
+3. Wrap the ECDSA signature into the **ERC-7739 `TypedDataSign`
+   envelope** documented at
+   `docs.polymarket.com/trading/deposit-wallet-migration`. The wrapper
+   signs a separate EIP-712 typed-data message whose domain is:
+
+   ```
+   name:              "DepositWallet"
+   version:           "1"
+   chainId:           137
+   verifyingContract: <the deposit wallet address>
+   salt:              0x0000000000000000000000000000000000000000000000000000000000000000
+   ```
+
+   The wrapped payload is what the deposit wallet's `isValidSignature`
+   validates. Output length matches the failing test's pin:
+   `len(order.Signature) == 636`. The exact byte layout (header,
+   appended hashes, content-type bytes per ERC-7739) is implemented by
+   reference to the foxme666 fork after it is fetched.
 4. Remove the V1 branch (`clobVersion < 2` path) entirely.
 5. Drop the `clobVersion int64` parameter from
    `buildSignedOrderPayload`'s signature once V1 is gone — but keep the
@@ -214,6 +245,31 @@ if negRisk {
 
 Add the `negRiskExchangeAddressV2` constant (or import from
 `internal/relayer/approvals.go` if the visibility allows).
+
+**Verify the V2 Order field ordering matches the docs.** Per
+`docs.polymarket.com/v2-migration`, the canonical V2 Order struct is:
+
+```
+Order(
+  uint256 salt,
+  address maker,
+  address signer,
+  uint256 tokenId,
+  uint256 makerAmount,
+  uint256 takerAmount,
+  uint8   side,
+  uint8   signatureType,
+  uint256 timestamp,
+  bytes32 metadata,
+  bytes32 builder
+)
+```
+
+Note: `side, signatureType` precede `timestamp, metadata, builder`.
+EIP-712 hashes are order-sensitive at the type-encoding level. The
+plan must include a step that diffs polygolem's `signCLOBOrderV2`
+typed-data field array against this canonical ordering and reorders
+if needed.
 
 ### 3.3 `internal/clob/orders.go` — `signAndPostOrder`
 
@@ -383,13 +439,15 @@ CI does not need to run the operator-side step.
 |---|---|---|
 | Scope boundary | polygolem-only | go-bot live gate is operational, not a code blocker — separate follow-up. |
 | V1 path | drop entirely | Cutover was April 28. V1 is dead. Dispatch is dead code. |
-| Builder attribution | zero bytes32 | Encoding research blocks scope. Follow-up. |
+| Builder attribution | zero bytes32 | V2 docs replaced the HMAC builder model with a single `builderCode` bytes32 sourced from the Builder Profile page. Wiring is its own track. |
 | Test strategy | extend existing tests + add golden vectors | Three existing failing tests are the de-facto contract; add hash pins on top. |
 | Structure | keep code in `internal/clob/orders.go` | Subpackage extraction was overkill; greenfield framing was wrong. File stays under 500 lines after V1 removal. |
 | Golden-vector source | foxme666/Polymarket-golang | April 2026 V2 fork. Cleanest reference. |
 | Fernet encryption | defer | Orthogonal. |
-| Reframe docs as gasless-Safe-as-default | no | All four sigtypes first-class. |
-| Deposit-wallet code | keep | Empirically the only working path for new API accounts. |
+| Sigtype 3 signature wrapping | ERC-7739 `TypedDataSign` envelope with `DepositWallet` domain | Per `docs.polymarket.com/trading/deposit-wallet-migration`. Test 2 length-pin (636) is consistent with this envelope. |
+| Order field ordering | match docs ordering | Per `docs.polymarket.com/v2-migration`: `side, signatureType` precede `timestamp, metadata, builder`. EIP-712 type-encoding is order-sensitive. |
+| Safe-as-default for new bots | no | Official V2 docs treat Safe as legacy/grandfathered; deposit wallet is mandatory for new API users. The earlier "Safe-for-bots" intel was outdated. |
+| Deposit-wallet code | keep | Per V2 docs, mandatory for new API users. |
 | `signing/` subpackage extraction | drop | Was greenfield-thinking; not warranted for surgical fixes. |
 
 ---
@@ -404,13 +462,20 @@ The plan will sequence:
 
 1. Fetch `foxme666/Polymarket-golang` into
    `opensource-projects/repos/`.
-2. Test 1 fix (sign the V2 payload in `buildSignedOrderPayload`).
-3. Test 2 fix (POLY_1271: Signer = wallet; wrap signature).
-4. Test 3 fix (tick-size `<nil>` handling).
-5. Add per-market neg-risk verifyingContract selection.
-6. Wire `c.NegRisk(ctx, tokenID)` into `signAndPostOrder`.
-7. Remove V1 dead code (constant, struct, function, dispatch).
-8. Rename V2-suffixed identifiers back to unsuffixed.
-9. Add golden-vector fixtures (4).
-10. Light docs repositioning + `tests/docs_safety_test.go` pins.
-11. Operator end-to-end verification.
+2. Verify polygolem's V2 Order field ordering matches the docs
+   ordering (`side, signatureType` before `timestamp, metadata,
+   builder`); reorder typed-data field array if needed.
+3. Test 1 fix (sign the V2 payload in `buildSignedOrderPayload`).
+4. Test 2 fix (POLY_1271: Signer = wallet; ERC-7739 `TypedDataSign`
+   envelope with `DepositWallet` domain).
+5. Test 3 fix (tick-size `<nil>` handling).
+6. Add per-market neg-risk verifyingContract selection.
+7. Wire `c.NegRisk(ctx, tokenID)` into `signAndPostOrder`.
+8. Remove V1 dead code (constant, struct, function, dispatch).
+9. Rename V2-suffixed identifiers back to unsuffixed.
+10. Add golden-vector fixtures (4).
+11. Light docs repositioning + `tests/docs_safety_test.go` pins;
+    update `BLOCKERS.md` to cite the V2 migration docs as the
+    authoritative source for the deposit-wallet mandate.
+12. Operator end-to-end verification (sigtype 3 once builder
+    credentials and deposit wallet are funded).
