@@ -58,3 +58,88 @@ enforcement before it is exposed through the CLI frontend.
 Read-only and paper workflows should not require private keys. Any future
 credential-aware status output must redact sensitive values and report readiness
 without printing secrets.
+
+## Deposit Wallet Safety
+
+For new API users, Polymarket requires deposit wallet (POLY_1271 / signature type 3)
+orders. This introduces safety rules beyond the EOA model.
+
+### Signer vs Funder Separation
+
+The EOA remains the signing key. The deposit wallet is the funder (the address that
+holds pUSD and is the CLOB `maker`/`signer`). These must never be confused:
+
+- **EOA pUSD does NOT fund deposit-wallet orders.** CLOB reads the deposit wallet's balance.
+- **Approvals must come from the deposit wallet** via relayer WALLET batch, not from the EOA.
+- **Diagnostics must distinguish** `signer_eoa` from `funder/deposit_wallet` in logs and audit records.
+
+### Builder Credential Isolation
+
+Builder credentials (`BUILDER_API_KEY/SECRET/PASSPHRASE`) authenticate with the
+relayer for WALLET-CREATE and WALLET batch operations. These are a separate auth
+system and must never be:
+
+- Reused as CLOB L2 credentials
+- Stored alongside CLOB API keys in the same config section
+- Added to order-signing headers (orders use `builderCode`, not builder HMAC)
+
+### Relayer Auth vs Trading Auth
+
+- **Relayer auth**: Builder HMAC credentials → used for wallet lifecycle operations
+- **Trading auth**: CLOB L1/L2 credentials → used for order placement and balance queries
+- These systems are independent. A failed relayer call must not be retried as a CLOB call.
+
+### Deposit-Wallet Balance Routing
+
+When `signature_type = 3` (deposit), the CLOB balance endpoint returns the
+**deposit wallet's pUSD balance**, not the EOA's. Live readiness must:
+
+1. Check the CLOB balance with `signature_type = 3`
+2. Verify the deposit wallet is deployed (relayer `/deployed` endpoint)
+3. Verify collateral allowances are non-zero
+4. Block before order submission if any check fails
+
+See [DEPOSIT-WALLET-MIGRATION.md](./DEPOSIT-WALLET-MIGRATION.md) for the full onboarding flow,
+common pitfalls, and recovery steps.
+
+## Deposit Wallet Safety Rules
+
+The May 2026 deposit-wallet migration introduces a new family of commands
+(`polygolem deposit-wallet *`) that perform on-chain or relayer-bound
+operations. These rules apply.
+
+1. **Builder credentials are required and redacted.** `--deploy`,
+   `--batch`, `--approve --submit`, and `--onboard` require
+   `POLYMARKET_BUILDER_API_KEY`, `POLYMARKET_BUILDER_SECRET`, and
+   `POLYMARKET_BUILDER_PASSPHRASE`. Configuration loading redacts all three
+   on every load; no command emits them in JSON output.
+
+2. **Read-only deposit-wallet commands stay read-only.**
+   `deposit-wallet derive`, `deposit-wallet status`, and
+   `deposit-wallet nonce` perform no on-chain or relayer mutations.
+
+3. **Batch signing requires explicit calldata input.**
+   `deposit-wallet batch --calls-json` requires structured input. The CLI
+   does not synthesize calls. The `approve` shortcut shows calldata before
+   submission unless `--submit` is passed.
+
+4. **Funding moves real money.** `deposit-wallet fund --amount X`
+   transfers ERC-20 pUSD from the EOA to the deposit wallet via direct RPC.
+   The amount must be specified explicitly. There is no default.
+
+5. **Onboarding is the only multi-step composite.**
+   `deposit-wallet onboard --fund-amount X` performs deploy → approve →
+   fund. Each step is gated; failure of any step aborts the composite and
+   leaves the wallet in a recoverable state visible to
+   `deposit-wallet status`.
+
+6. **POLY_1271 orders use the deployed wallet's signature path.**
+   `clob create-order --signature-type deposit` and
+   `clob market-order --signature-type deposit` sign with the deposit
+   wallet's POLY_1271 path. Orders signed without the deposit signature
+   type after the May 2026 cutoff will be rejected by Polymarket for
+   new accounts.
+
+7. **Builder attribution does not bypass safety.** Setting builder
+   credentials enables deposit-wallet operations; it does not relax any
+   gate or grant trading privileges.
