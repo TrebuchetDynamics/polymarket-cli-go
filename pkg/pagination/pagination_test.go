@@ -2,6 +2,7 @@ package pagination
 
 import (
 	"context"
+	"fmt"
 	"testing"
 )
 
@@ -82,4 +83,27 @@ func TestBatch(t *testing.T) {
 	if len(results) != 3 {
 		t.Fatalf("expected 3 batches: %v", results)
 	}
+}
+
+// Example_collectAll demonstrates iterating through every page of a
+// cursor-based source and collecting all items. The page function is
+// in-memory so the example is hermetic.
+func Example_collectAll() {
+	pageFn := func(ctx context.Context, cursor string) ([]int, string, error) {
+		switch cursor {
+		case "":
+			return []int{1, 2}, "p2", nil
+		case "p2":
+			return []int{3}, "", nil
+		}
+		return nil, "", nil
+	}
+
+	items, err := CollectAll(context.Background(), pageFn)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	fmt.Println(items)
+	// Output: [1 2 3]
 }
