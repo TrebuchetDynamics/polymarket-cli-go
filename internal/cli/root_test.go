@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -54,6 +55,17 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 		{"orderbook", "tick-size"},
 		{"orderbook", "fee-rate"},
 		{"orderbook", "last-trade"},
+		{"clob", "book"},
+		{"clob", "tick-size"},
+		{"clob", "create-api-key"},
+		{"clob", "balance"},
+		{"clob", "update-balance"},
+		{"clob", "orders"},
+		{"clob", "trades"},
+		{"clob", "create-order"},
+		{"clob", "market-order"},
+		{"clob", "price-history"},
+		{"clob", "market"},
 		{"events", "list"},
 		{"bridge", "assets"},
 		{"bridge", "deposit"},
@@ -89,5 +101,23 @@ func TestDocumentedSubcommandArgsAreNotHandledByParentOnly(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "polygolem discover search") {
 		t.Fatalf("discover search was not handled by its own command:\n%s", stdout.String())
+	}
+}
+
+func TestNormalizeCollateralBalanceResponseScalesBaseUnits(t *testing.T) {
+	raw := map[string]interface{}{
+		"balance": "14000000",
+		"allowances": map[string]string{
+			"0xspender": "1000000",
+		},
+	}
+
+	got := normalizeCollateralBalanceResponse(raw)
+
+	if got["balance"] != "14.000000" {
+		t.Fatalf("balance=%v", got["balance"])
+	}
+	if !reflect.DeepEqual(got["allowances"], raw["allowances"]) {
+		t.Fatalf("allowances changed: %#v", got["allowances"])
 	}
 }

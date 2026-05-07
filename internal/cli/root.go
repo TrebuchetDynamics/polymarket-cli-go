@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
@@ -95,6 +97,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 
 	root.AddCommand(discoverCmd(jsonOutput))
 	root.AddCommand(orderbookCmd(jsonOutput))
+	root.AddCommand(clobCmd(jsonOutput))
 	root.AddCommand(healthCmd(jsonOutput))
 	root.AddCommand(eventsCmd(jsonOutput))
 	root.AddCommand(bridgeCmd(jsonOutput))
@@ -186,13 +189,365 @@ func discoverCmd(jsonOut bool) *cobra.Command {
 	return cmd
 }
 
+func clobCmd(jsonOut bool) *cobra.Command {
+	w := newWire(jsonOut)
+	cmd := commandGroup("clob", "CLOB market data and authenticated account commands")
+
+	addOutput := func(c *cobra.Command, output *string) {
+		c.Flags().StringVar(output, "output", "json", "output format (json)")
+	}
+	checkOutput := func(output string) error {
+		if output != "" && output != "json" {
+			return fmt.Errorf("only --output json is supported")
+		}
+		return nil
+	}
+	privateKey := func() (string, error) {
+		key := strings.TrimSpace(os.Getenv("POLYMARKET_PRIVATE_KEY"))
+		if key == "" {
+			return "", fmt.Errorf("POLYMARKET_PRIVATE_KEY is required")
+		}
+		return key, nil
+	}
+
+	var bookOutput string
+	bookCmd := &cobra.Command{Use: "book <token-id>", Short: "Get L2 order book", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(bookOutput); err != nil {
+				return err
+			}
+			book, err := w.clob.OrderBook(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, book)
+		},
+	}
+	addOutput(bookCmd, &bookOutput)
+	cmd.AddCommand(bookCmd)
+
+	var tickOutput string
+	tickCmd := &cobra.Command{Use: "tick-size <token-id>", Short: "Get minimum tick size", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(tickOutput); err != nil {
+				return err
+			}
+			tick, err := w.clob.TickSize(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, tick)
+		},
+	}
+	addOutput(tickCmd, &tickOutput)
+	cmd.AddCommand(tickCmd)
+
+	var createKeyOutput string
+	createKeyCmd := &cobra.Command{Use: "create-api-key", Short: "Create or derive CLOB API credentials", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(createKeyOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			apiKey, err := w.clob.CreateOrDeriveAPIKey(cmd.Context(), key)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, map[string]string{"api_key": apiKey.Key})
+		},
+	}
+	addOutput(createKeyCmd, &createKeyOutput)
+	cmd.AddCommand(createKeyCmd)
+
+	var balanceOutput, balanceAssetType, balanceTokenID, balanceSignatureType string
+	balanceCmd := &cobra.Command{Use: "balance", Short: "Get CLOB balance and allowances", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(balanceOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			sig, err := parseSignatureTypeFlag(balanceSignatureType)
+			if err != nil {
+				return err
+			}
+			res, err := w.clob.BalanceAllowance(cmd.Context(), key, clob.BalanceAllowanceParams{
+				AssetType:     balanceAssetType,
+				TokenID:       balanceTokenID,
+				SignatureType: sig,
+			})
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, normalizeCollateralBalanceResponse(balanceResponseMap(res)))
+		},
+	}
+	addOutput(balanceCmd, &balanceOutput)
+	balanceCmd.Flags().StringVar(&balanceAssetType, "asset-type", "collateral", "asset type")
+	balanceCmd.Flags().StringVar(&balanceTokenID, "token-id", "", "conditional token id")
+	balanceCmd.Flags().StringVar(&balanceSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe")
+	cmd.AddCommand(balanceCmd)
+
+	var updateBalanceOutput, updateBalanceAssetType, updateBalanceTokenID, updateBalanceSignatureType string
+	updateBalanceCmd := &cobra.Command{Use: "update-balance", Short: "Refresh CLOB balance and allowances", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(updateBalanceOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			sig, err := parseSignatureTypeFlag(updateBalanceSignatureType)
+			if err != nil {
+				return err
+			}
+			res, err := w.clob.UpdateBalanceAllowance(cmd.Context(), key, clob.BalanceAllowanceParams{
+				AssetType:     updateBalanceAssetType,
+				TokenID:       updateBalanceTokenID,
+				SignatureType: sig,
+			})
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, normalizeCollateralBalanceResponse(balanceResponseMap(res)))
+		},
+	}
+	addOutput(updateBalanceCmd, &updateBalanceOutput)
+	updateBalanceCmd.Flags().StringVar(&updateBalanceAssetType, "asset-type", "collateral", "asset type")
+	updateBalanceCmd.Flags().StringVar(&updateBalanceTokenID, "token-id", "", "conditional token id")
+	updateBalanceCmd.Flags().StringVar(&updateBalanceSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe")
+	cmd.AddCommand(updateBalanceCmd)
+
+	var ordersOutput string
+	ordersCmd := &cobra.Command{Use: "orders", Short: "List authenticated CLOB orders", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(ordersOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			rows, err := w.clob.ListOrders(cmd.Context(), key)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, rows)
+		},
+	}
+	addOutput(ordersCmd, &ordersOutput)
+	cmd.AddCommand(ordersCmd)
+
+	var tradesOutput string
+	tradesCmd := &cobra.Command{Use: "trades", Short: "List authenticated CLOB trades", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(tradesOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			rows, err := w.clob.ListTrades(cmd.Context(), key)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, rows)
+		},
+	}
+	addOutput(tradesCmd, &tradesOutput)
+	cmd.AddCommand(tradesCmd)
+
+	var createOrderOutput, createOrderToken, createOrderSide, createOrderPrice, createOrderSize, createOrderType, createOrderSignatureType string
+	createOrderCmd := &cobra.Command{Use: "create-order", Short: "Create a signed CLOB limit order", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(createOrderOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			sig, err := parseSignatureTypeFlag(createOrderSignatureType)
+			if err != nil {
+				return err
+			}
+			res, err := w.clob.CreateLimitOrder(cmd.Context(), key, clob.CreateOrderParams{
+				TokenID:       createOrderToken,
+				Side:          createOrderSide,
+				Price:         createOrderPrice,
+				Size:          createOrderSize,
+				OrderType:     createOrderType,
+				SignatureType: sig,
+			})
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, res)
+		},
+	}
+	addOutput(createOrderCmd, &createOrderOutput)
+	createOrderCmd.Flags().StringVar(&createOrderToken, "token", "", "CLOB token id")
+	createOrderCmd.Flags().StringVar(&createOrderSide, "side", "buy", "order side")
+	createOrderCmd.Flags().StringVar(&createOrderPrice, "price", "", "limit price")
+	createOrderCmd.Flags().StringVar(&createOrderSize, "size", "", "order size")
+	createOrderCmd.Flags().StringVar(&createOrderType, "order-type", "GTC", "order type")
+	createOrderCmd.Flags().StringVar(&createOrderSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe")
+	cmd.AddCommand(createOrderCmd)
+
+	var marketOrderOutput, marketOrderToken, marketOrderSide, marketOrderAmount, marketOrderPrice, marketOrderType, marketOrderSignatureType string
+	marketOrderCmd := &cobra.Command{Use: "market-order", Short: "Create a signed CLOB market/FOK order", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(marketOrderOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			sig, err := parseSignatureTypeFlag(marketOrderSignatureType)
+			if err != nil {
+				return err
+			}
+			res, err := w.clob.CreateMarketOrder(cmd.Context(), key, clob.MarketOrderParams{
+				TokenID:       marketOrderToken,
+				Side:          marketOrderSide,
+				Amount:        marketOrderAmount,
+				Price:         marketOrderPrice,
+				OrderType:     marketOrderType,
+				SignatureType: sig,
+			})
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, res)
+		},
+	}
+	addOutput(marketOrderCmd, &marketOrderOutput)
+	marketOrderCmd.Flags().StringVar(&marketOrderToken, "token", "", "CLOB token id")
+	marketOrderCmd.Flags().StringVar(&marketOrderSide, "side", "buy", "order side")
+	marketOrderCmd.Flags().StringVar(&marketOrderAmount, "amount", "", "USDC amount")
+	marketOrderCmd.Flags().StringVar(&marketOrderPrice, "price", "", "limit price")
+	marketOrderCmd.Flags().StringVar(&marketOrderType, "order-type", "FOK", "order type")
+	marketOrderCmd.Flags().StringVar(&marketOrderSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe")
+	cmd.AddCommand(marketOrderCmd)
+
+	var priceHistoryOutput, priceHistoryInterval string
+	priceHistoryCmd := &cobra.Command{Use: "price-history <token-id>", Short: "Get CLOB token price history", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(priceHistoryOutput); err != nil {
+				return err
+			}
+			history, err := w.clob.PricesHistory(cmd.Context(), &polytypes.PriceHistoryParams{
+				Market:   args[0],
+				Interval: priceHistoryInterval,
+			})
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, history)
+		},
+	}
+	addOutput(priceHistoryCmd, &priceHistoryOutput)
+	priceHistoryCmd.Flags().StringVar(&priceHistoryInterval, "interval", "1m", "history interval")
+	cmd.AddCommand(priceHistoryCmd)
+
+	var marketOutput string
+	marketCmd := &cobra.Command{Use: "market <condition-id>", Short: "Get CLOB market by condition ID", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(marketOutput); err != nil {
+				return err
+			}
+			market, err := w.clob.Market(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, market)
+		},
+	}
+	addOutput(marketCmd, &marketOutput)
+	cmd.AddCommand(marketCmd)
+
+	return cmd
+}
+
+func parseSignatureTypeFlag(value string) (int, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "proxy", "1":
+		return 1, nil
+	case "eoa", "0":
+		return 0, nil
+	case "safe", "gnosis", "gnosis-safe", "2":
+		return 2, nil
+	default:
+		return 0, fmt.Errorf("unsupported signature type %q", value)
+	}
+}
+
+func balanceResponseMap(res *clob.BalanceAllowanceResponse) map[string]interface{} {
+	out := map[string]interface{}{}
+	if res == nil {
+		return out
+	}
+	out["balance"] = res.Balance
+	if len(res.Allowances) > 0 {
+		out["allowances"] = res.Allowances
+	}
+	if strings.TrimSpace(res.Allowance) != "" {
+		out["allowance"] = res.Allowance
+	}
+	return out
+}
+
+func normalizeCollateralBalanceResponse(raw map[string]interface{}) map[string]interface{} {
+	out := make(map[string]interface{}, len(raw))
+	for key, value := range raw {
+		out[key] = value
+	}
+	balance, ok := out["balance"].(string)
+	if !ok {
+		return out
+	}
+	if scaled, ok := scaleBaseUnits(balance, 6); ok {
+		out["balance"] = scaled
+	}
+	return out
+}
+
+func scaleBaseUnits(value string, decimals int) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.Contains(value, ".") || decimals <= 0 {
+		return value, false
+	}
+	n := new(big.Int)
+	if _, ok := n.SetString(value, 10); !ok {
+		return value, false
+	}
+	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
+	whole := new(big.Int).Quo(new(big.Int).Set(n), scale)
+	frac := new(big.Int).Mod(new(big.Int).Set(n), scale).String()
+	if len(frac) < decimals {
+		frac = strings.Repeat("0", decimals-len(frac)) + frac
+	}
+	return whole.String() + "." + frac, true
+}
+
 func orderbookCmd(jsonOut bool) *cobra.Command {
 	w := newWire(jsonOut)
 	var tokenID string
 
 	cmd := commandGroup("orderbook", "Read CLOB order book data")
 
-	for _, spec := range []struct{ use, short string; fn func(context.Context, string) (interface{}, error) }{
+	for _, spec := range []struct {
+		use, short string
+		fn         func(context.Context, string) (interface{}, error)
+	}{
 		{"get", "Get L2 order book", func(ctx context.Context, tid string) (interface{}, error) { return w.clob.OrderBook(ctx, tid) }},
 		{"price", "Get best price (BUY side)", func(ctx context.Context, tid string) (interface{}, error) {
 			p, err := w.clob.Price(ctx, tid, "BUY")
