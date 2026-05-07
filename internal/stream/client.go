@@ -1,5 +1,3 @@
-// Package stream provides typed WebSocket clients for Polymarket CLOB streams.
-// Patterns stolen from polymarket-kit and polymarket-go-sdk.
 package stream
 
 import (

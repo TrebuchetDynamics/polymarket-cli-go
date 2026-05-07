@@ -1,6 +1,3 @@
-// Package dataapi provides read-only access to the Polymarket Data API.
-// Base URL: https://data-api.polymarket.com
-// Stolen patterns from ybina/polymarket-go and polymarket-kit.
 package dataapi
 
 import (
