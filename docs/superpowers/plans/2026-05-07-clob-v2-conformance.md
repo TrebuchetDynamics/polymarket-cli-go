@@ -4,7 +4,9 @@
 
 **Goal:** Close the gaps in polygolem's partially-landed CLOB V2 order signing so the V2 wire format reaches production correctly across all signature types and market kinds.
 
-**Architecture:** Surgical edits inside `internal/clob/orders.go` and `internal/clob/client.go`. No new packages. The V2 typed-data block already exists; the work is signing in the right place, wrapping POLY_1271 sigs per ERC-7739 with the `DepositWallet` domain, threading neg-risk through verifying-contract selection, and removing now-dead V1 paths.
+**Architecture:** Surgical edits inside `internal/clob/orders.go` and `internal/clob/client.go`. No new packages. The V2 typed-data block already exists; the work is signing in the right place, wrapping POLY_1271 sigs per ERC-7739 (OUTER domain = CTF Exchange V2, INNER struct inline domain = `DepositWallet`), threading neg-risk through verifying-contract selection, and removing now-dead V1 paths.
+
+**Note:** the original Task 4 description below had the wrapper outer/inner domains backwards; this was caught during operator probe research (post-T11) and fixed at commit `3c00f2d`. The corrected structure is documented in the spec at `docs/superpowers/specs/2026-05-07-clob-v2-conformance-design.md` §3.1. The skeleton inside Task 4 below reflects the OLD (incorrect) design — read it as the implementation history, not as guidance for new work.
 
 **Tech Stack:** Go 1.22+, `github.com/ethereum/go-ethereum/signer/core/apitypes`, `github.com/ethereum/go-ethereum/common`, golden-vectored unit tests against the `foxme666/Polymarket-golang` V2 fork.
 

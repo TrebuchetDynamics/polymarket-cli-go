@@ -226,3 +226,75 @@ The track's success criterion is: sigtype 0 returns the documented
 rejection (proving V2 signing reaches the backend) AND sigtype 3
 returns success once builder credentials and the deposit wallet are
 onboarded.
+
+### Verification run on 2026-05-07
+
+**sigtype 0 (EOA)** — documented rejection received as expected:
+
+```
+$ ./polygolem clob create-order \
+    --token 926377706175971731068420551849041218012736398250875962020506643091812084572 \
+    --side buy --price 0.01 --size 1 \
+    --signature-type eoa --json
+HTTP 400 https://clob.polymarket.com/order: {"error":"maker address not allowed, please use the deposit wallet flow"}
+```
+
+Token used: open YES-outcome of the regular (non-neg-risk) market
+"Will Bitcoin hit $X by …" cohort
+("Trump announces US blockade of Hormuz lifted by …", event 36173,
+market 1972137).
+
+**Reading of this result:** polygolem's sigtype-0 V2-signed order
+reached the production CLOB backend and was recognized as a
+well-formed V2 order at the EOA-signing layer. The backend rejected
+with the documented V2 enforcement message because the EOA is
+classified as a new API user that must use the deposit wallet path.
+
+**Scope of what was actually verified:** sigtypes 0 / 1 / 2
+(EOA / proxy / Safe) all share the same signing path — a single
+EIP-712 signature over the V2 Order typed-data, against the CTF
+Exchange V2 domain (regular or neg-risk per market). This probe
+exercises that path. **It says nothing about sigtype 3 (POLY_1271).**
+Sigtype 3 uses a different, more involved ERC-7739 wrapped signature
+which is structurally distinct.
+
+**sigtype 3 (deposit wallet) — not run.**
+
+Prerequisites missing:
+- Builder credentials not configured (B-6 still open). `./polygolem
+  deposit-wallet status` reports the missing env vars.
+- Deposit wallet at `0x21999a074344610057c9b2B362332388a44502D4` is
+  derived but not deployed/approved/funded.
+
+Running this step requires real on-chain transactions (deploy
+deposit wallet, fund with pUSD) and a real signed order against
+production. Operator should complete the onboarding flow
+(`./polygolem builder onboard` then `./polygolem deposit-wallet
+onboard --fund-amount <pUSD>` then `./polygolem clob update-balance
+--asset-type collateral --signature-type deposit`) before re-running
+the probe.
+
+**Status of the POLY_1271 wrapper implementation (corrected at
+`3c00f2d`):**
+
+The ERC-7739 envelope is now implemented per the canonical
+specification at `docs.polymarket.com/trading/deposit-wallets`:
+
+- OUTER `domSep` in `keccak256(0x1901 || domSep || hashStruct(...))` is the
+  CTF Exchange V2 domain (regular `0xE111…996B` or neg-risk
+  `0xe2222d2…0F59` per market).
+- INNER `TypedDataSign` struct's inline domain fields describe the
+  WALLET (`name = "DepositWallet"`, `version = "1"`, `chainId = 137`,
+  `verifyingContract = <deposit-wallet>`, `salt = 0`).
+
+Two earlier implementations had this backwards (T4 commit `b5bc00d`:
+both DepositWallet; T12 commit `7b3f2a2`: outer DepositWallet, inner
+Exchange — both wrong) before the correction at `3c00f2d`.
+
+**The wrapper has NOT yet been verified against a real
+`isValidSignature` check on a Polymarket deposit wallet contract.**
+The 4 golden vectors pin polygolem's own output as a regression guard
+but do not validate against a real V2 deposit-wallet verifier. Real
+sigtype-3 verification is a future step that requires the operator to
+complete the deposit-wallet onboarding flow above and post a small
+test order.

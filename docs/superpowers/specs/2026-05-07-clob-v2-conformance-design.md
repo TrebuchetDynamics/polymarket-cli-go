@@ -164,8 +164,14 @@ expecting a signed payload back. The fix:
    wallet) instead of `signer.Address()` (the EOA).
 3. Wrap the ECDSA signature into the **ERC-7739 `TypedDataSign`
    envelope** documented at
-   `docs.polymarket.com/trading/deposit-wallet-migration`. The wrapper
-   signs a separate EIP-712 typed-data message whose domain is:
+   `docs.polymarket.com/trading/deposit-wallets`. Per the docs, the
+   user signs a nested `TypedDataSign` payload **under the CTF
+   Exchange V2 domain** (regular or neg-risk per market). The OUTER
+   EIP-712 domain in
+   `keccak256(0x1901 || domSep || hashStruct(TypedDataSign))` is
+   therefore the Exchange domain. The INNER `TypedDataSign` struct's
+   inline domain fields describe the WALLET (the contract that will
+   validate via `isValidSignature`):
 
    ```
    name:              "DepositWallet"
@@ -177,9 +183,21 @@ expecting a signed payload back. The fix:
 
    The wrapped payload is what the deposit wallet's `isValidSignature`
    validates. Output length matches the failing test's pin:
-   `len(order.Signature) == 636`. The exact byte layout (header,
-   appended hashes, content-type bytes per ERC-7739) is implemented by
-   reference to the foxme666 fork after it is fetched.
+   `len(order.Signature) == 636`. Wire byte layout (per ERC-7739):
+
+   ```
+   innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186)
+   ```
+
+   where `appDomainSep` is the Exchange domSep (regular or neg-risk per
+   market) and `contents` is `hashStruct(Order)`.
+
+   **Common mistake (caught and fixed during this track):** the
+   outer/inner domains are NOT both DepositWallet, and they are NOT
+   both Exchange. The outer is Exchange; the inner struct's inline
+   domain fields are the wallet. Two earlier implementations
+   (commits `b5bc00d`, `7b3f2a2`) had this swapped before it was
+   corrected at commit `3c00f2d`.
 4. Remove the V1 branch (`clobVersion < 2` path) entirely.
 5. Drop the `clobVersion int64` parameter from
    `buildSignedOrderPayload`'s signature once V1 is gone — but keep the
@@ -444,7 +462,7 @@ CI does not need to run the operator-side step.
 | Structure | keep code in `internal/clob/orders.go` | Subpackage extraction was overkill; greenfield framing was wrong. File stays under 500 lines after V1 removal. |
 | Golden-vector source | foxme666/Polymarket-golang | April 2026 V2 fork. Cleanest reference. |
 | Fernet encryption | defer | Orthogonal. |
-| Sigtype 3 signature wrapping | ERC-7739 `TypedDataSign` envelope with `DepositWallet` domain | Per `docs.polymarket.com/trading/deposit-wallet-migration`. Test 2 length-pin (636) is consistent with this envelope. |
+| Sigtype 3 signature wrapping | ERC-7739 `TypedDataSign` envelope: OUTER domain = CTF Exchange V2 (regular or neg-risk per market), INNER struct inline domain = `DepositWallet` (wallet address as verifyingContract) | Per `docs.polymarket.com/trading/deposit-wallets`. Test 2 length-pin (636) is consistent with this envelope. Two earlier implementations had outer/inner swapped (commits `b5bc00d`, `7b3f2a2`) before being corrected at `3c00f2d`. |
 | Order field ordering | match docs ordering | Per `docs.polymarket.com/v2-migration`: `side, signatureType` precede `timestamp, metadata, builder`. EIP-712 type-encoding is order-sensitive. |
 | Safe-as-default for new bots | no | Official V2 docs treat Safe as legacy/grandfathered; deposit wallet is mandatory for new API users. The earlier "Safe-for-bots" intel was outdated. |
 | Deposit-wallet code | keep | Per V2 docs, mandatory for new API users. |
