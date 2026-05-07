@@ -347,6 +347,12 @@ func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, 
 	// 1. Extract appDomainSep and contents from the V2 order typed data.
 	//    TypedDataAndHash returns (hash, rawData, err) where rawData is a string:
 	//    \x19\x01 (2B) || domainSep (32B) || structHash (32B).
+	//
+	//    Per docs.polymarket.com/trading/deposit-wallets, the user signs a nested
+	//    TypedDataSign payload UNDER the CTF Exchange V2 domain — i.e. the OUTER
+	//    EIP-712 domain in the keccak256(0x1901 || domSep || hashStruct(...)) is
+	//    the Exchange domain (regular or neg-risk per market). The Exchange
+	//    domSep is exactly what TypedDataAndHash extracts at rawData[2:34].
 	_, rawDataStr, err := apitypes.TypedDataAndHash(orderTypedData)
 	if err != nil {
 		return "", fmt.Errorf("hash order typed data: %w", err)
@@ -355,69 +361,57 @@ func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, 
 	if len(rawData) != 66 {
 		return "", fmt.Errorf("unexpected rawData length %d", len(rawData))
 	}
-	appDomainSep := rawData[2:34]  // CTF Exchange V2 domain separator
+	appDomainSep := rawData[2:34]  // CTF Exchange V2 domain separator — used as OUTER
 	contents := rawData[34:66]     // hashStruct(Order)
 
-	// 2. Compute the DepositWallet domain separator (5-field, salt=0).
-	domainTypeHash := ethcrypto.Keccak256([]byte(
-		"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)"))
-	nameHash := ethcrypto.Keccak256([]byte("DepositWallet"))
-	versionHash := ethcrypto.Keccak256([]byte("1"))
-	chainIDBytes := common.LeftPadBytes(big.NewInt(polygonChainID).Bytes(), 32)
-	addrBytes := common.LeftPadBytes(common.HexToAddress(depositWallet).Bytes(), 32)
-	saltBytes := make([]byte, 32) // all zeros
-
-	dwDomainSep := ethcrypto.Keccak256(
-		domainTypeHash,
-		nameHash,
-		versionHash,
-		chainIDBytes,
-		addrBytes,
-		saltBytes,
-	)
-
-	// 3. TypedDataSign typehash.
+	// 2. TypedDataSign typehash.
 	typeHashStr := "TypedDataSign(Order contents,string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)" + contentsType
 	typedDataSignTypehash := ethcrypto.Keccak256([]byte(typeHashStr))
 
-	// 4. hashStruct(TypedDataSign{contents, name, version, chainId, verifyingContract, salt}).
-	//    Per ERC-7739 the inner struct's domain fields describe the APP domain the user
-	//    is authorizing (CTF Exchange V2), NOT the DepositWallet (account) domain.
-	//    Read the app domain directly from the order's TypedData so that the regular vs
-	//    neg-risk exchange address is handled implicitly.
-	appNameHash := ethcrypto.Keccak256([]byte(orderTypedData.Domain.Name))
-	appVerHash := ethcrypto.Keccak256([]byte(orderTypedData.Domain.Version))
-	appChainIDBigInt := (*big.Int)(orderTypedData.Domain.ChainId)
-	appChainIDBytes := common.LeftPadBytes(appChainIDBigInt.Bytes(), 32)
-	appAddrBytes := common.LeftPadBytes(common.HexToAddress(orderTypedData.Domain.VerifyingContract).Bytes(), 32)
-	appSaltBytes := make([]byte, 32) // zeros
+	// 3. hashStruct(TypedDataSign{contents, DepositWallet inline domain values}).
+	//    Per docs.polymarket.com/trading/deposit-wallets, the INNER struct's domain
+	//    fields describe the WALLET (the contract that will validate via
+	//    isValidSignature), NOT the app domain. The app/Exchange identity is
+	//    encoded by the OUTER domSep below.
+	//
+	//      name              = "DepositWallet"
+	//      version           = "1"
+	//      chainId           = 137 (Polygon mainnet)
+	//      verifyingContract = the deposit wallet address
+	//      salt              = bytes32(0)
+	dwNameHash := ethcrypto.Keccak256([]byte("DepositWallet"))
+	dwVerHash := ethcrypto.Keccak256([]byte("1"))
+	dwChainIDBytes := common.LeftPadBytes(big.NewInt(polygonChainID).Bytes(), 32)
+	dwAddrBytes := common.LeftPadBytes(common.HexToAddress(depositWallet).Bytes(), 32)
+	dwSaltBytes := make([]byte, 32) // zeros
 
 	tdsStruct := ethcrypto.Keccak256(
 		typedDataSignTypehash,
 		contents,
-		appNameHash,
-		appVerHash,
-		appChainIDBytes,
-		appAddrBytes,
-		appSaltBytes,
+		dwNameHash,
+		dwVerHash,
+		dwChainIDBytes,
+		dwAddrBytes,
+		dwSaltBytes,
 	)
 
-	// 5. finalHash = keccak256(0x1901 || dwDomainSep || tdsStruct).
+	// 4. finalHash = keccak256(0x1901 || appDomainSep || tdsStruct).
+	//    Outer is the CTF Exchange V2 domain — the app the user is authorizing.
 	finalHashInput := make([]byte, 0, 66)
 	finalHashInput = append(finalHashInput, 0x19, 0x01)
-	finalHashInput = append(finalHashInput, dwDomainSep...)
+	finalHashInput = append(finalHashInput, appDomainSep...)
 	finalHashInput = append(finalHashInput, tdsStruct...)
 	finalHashSum := ethcrypto.Keccak256(finalHashInput)
 	var finalHash [32]byte
 	copy(finalHash[:], finalHashSum)
 
-	// 6. ECDSA-sign the finalHash with the EOA private key.
+	// 5. ECDSA-sign the finalHash with the EOA private key.
 	innerSig, err := signer.SignRaw(finalHash)
 	if err != nil {
 		return "", fmt.Errorf("sign inner: %w", err)
 	}
 
-	// 7. Assemble: innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186).
+	// 6. Assemble: innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186).
 	var lenBuf [2]byte
 	binary.BigEndian.PutUint16(lenBuf[:], uint16(len(contentsType)))
 	sig := make([]byte, 0, 317)
