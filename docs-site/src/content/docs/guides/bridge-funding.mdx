@@ -1,0 +1,113 @@
+---
+title: Bridge & Funding
+description: Use the polygolem bridge command to inspect supported assets, get quotes, and create deposit addresses for Polymarket funding.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The `polygolem bridge` family wraps Polymarket's Bridge API. Use it to discover
+supported chains, request a quote, and create a deposit address that the bridge
+will sweep into Polygon-native USDC.
+
+<Aside type="caution">
+For accounts created **after May 2026**, bridging USDC to your EOA is _not_
+sufficient to enable trading. New API users must complete the
+[deposit wallet onboarding flow](/concepts/deposit-wallets); only pUSD held by
+the deposit wallet counts as CLOB buying power. See
+[`polygolem deposit-wallet onboard`](/concepts/deposit-wallets).
+</Aside>
+
+## Supported assets
+
+```bash
+polygolem bridge assets
+```
+
+```json
+{
+  "assets": [
+    { "chain": "ethereum", "symbol": "USDC", "decimals": 6 },
+    { "chain": "arbitrum", "symbol": "USDC", "decimals": 6 },
+    { "chain": "base",     "symbol": "USDC", "decimals": 6 }
+  ]
+}
+```
+
+## Get a quote
+
+Estimate fees and expected pUSD on the receiving side:
+
+```bash
+polygolem bridge quote \
+  --from-chain base \
+  --from-asset USDC \
+  --amount 50.00
+```
+
+```json
+{
+  "from_amount": "50.00",
+  "to_amount":   "49.92",
+  "fee":         "0.08",
+  "estimated_seconds": 90
+}
+```
+
+## Create a deposit address
+
+The bridge issues a one-shot address scoped to your destination wallet. Send
+USDC to this address from the chosen source chain, and the bridge sweeps it to
+Polygon:
+
+```bash
+polygolem bridge deposit-address \
+  --address 0xYourPolygonAddress \
+  --from-chain base \
+  --from-asset USDC
+```
+
+```json
+{
+  "deposit_address": "0x...",
+  "expires_at":      1746628800,
+  "chain":           "base",
+  "asset":           "USDC"
+}
+```
+
+## Check deposit status
+
+After you send funds, poll for sweep state:
+
+```bash
+polygolem bridge deposit-status --deposit-address 0x...
+```
+
+```json
+{
+  "status": "completed",
+  "tx_hash": "0x...",
+  "amount":  "49.92"
+}
+```
+
+## What's next after bridging
+
+For pre-May-2026 accounts, USDC on your EOA is enough to trade with signature
+type 0 (EOA) or 1 (proxy).
+
+For new accounts, complete the deposit-wallet flow:
+
+```bash
+POLYMARKET_PRIVATE_KEY="0x..." \
+  polygolem deposit-wallet onboard --fund-amount 0.71
+```
+
+Read [Deposit Wallets & Signature Types](/concepts/deposit-wallets) for the full
+explanation of why this extra step is mandatory.
+
+## Reference
+
+- `polygolem bridge --help` — every flag
+- [`docs/COMMANDS.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/COMMANDS.md) — canonical command list
+- [Deposit Wallets & Signature Types](/concepts/deposit-wallets) — required for post-May-2026 accounts

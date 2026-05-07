@@ -1,0 +1,83 @@
+---
+title: CLOB API
+description: The Polymarket Central Limit Order Book — read endpoints (book, midpoint, trades) plus authenticated order submission with EOA, proxy, Gnosis Safe, and POLY_1271 signature types.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The CLOB API (`https://clob.polymarket.com`) is Polymarket's order book and
+trading layer. It has two tiers:
+
+- **L0 / read-only** — order book depth, midpoint, spread, tick size, fee rate,
+  last trade. No authentication required.
+- **L1 / L2 / authenticated** — create order, cancel, query, trades, rewards,
+  scoring, balances. Requires an EOA private key + builder API credentials.
+
+Polygolem implements the full surface in `internal/clob`. Read-only access is
+also exposed via the public `pkg/bookreader` package.
+
+## Read-only commands
+
+```bash
+polygolem orderbook get        --token-id 71321045679...
+polygolem orderbook price      --token-id 71321045679...
+polygolem orderbook midpoint   --token-id 71321045679...
+polygolem orderbook spread     --token-id 71321045679...
+polygolem orderbook tick-size  --token-id 71321045679...
+polygolem orderbook fee-rate   --token-id 71321045679...
+polygolem orderbook last-trade --token-id 71321045679...
+```
+
+See [Orderbook Data](/guides/orderbook-data).
+
+## Authenticated commands
+
+```bash
+polygolem clob create-order ...
+polygolem clob cancel-order ...
+polygolem clob orders --status open
+polygolem clob trades
+polygolem clob update-balance --asset-type collateral
+```
+
+Every authenticated command requires `--signature-type`, which selects how the
+order is signed. The four supported types map to Polymarket's protocol:
+
+| Type | CLI alias | Used by |
+|------|-----------|---------|
+| 0 | `eoa` | Pre-2026 EOA users (blocked for new API users) |
+| 1 | `proxy` | Magic Link / email accounts |
+| 2 | `safe` / `gnosis-safe` | Browser wallet multisig |
+| 3 | `deposit` / `deposit-wallet` / `poly-1271` | **All new API users** |
+
+Polygolem's CLOB commands default to `--signature-type deposit`.
+
+<Aside type="caution">
+In May 2026, Polymarket **blocked EOA orders for new API users**. If your
+account was created after that, you must use signature type 3 (deposit wallet).
+See [Deposit Wallets & Signature Types](/concepts/deposit-wallets) for the full
+onboarding flow.
+</Aside>
+
+## Order envelope
+
+The full order JSON contract — fields, signing payload, validation rules — is
+documented in
+[`docs/JSON-CONTRACT.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/JSON-CONTRACT.md).
+
+## Upstream
+
+- Polymarket public docs: [docs.polymarket.com](https://docs.polymarket.com/)
+- Base URL: `https://clob.polymarket.com`
+
+<Aside type="note">
+**Source of truth** for `polygolem clob` flag semantics is
+[`docs/COMMANDS.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/COMMANDS.md)
+(see the `clob` section). Run `polygolem clob --help` for live help.
+</Aside>
+
+## Related
+
+- [Orderbook Data](/guides/orderbook-data) — read-only walkthrough
+- [Deposit Wallets & Signature Types](/concepts/deposit-wallets) — required for new accounts
+- [Polymarket API Overview](/concepts/polymarket-api) — every API in one place

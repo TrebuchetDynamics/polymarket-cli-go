@@ -1,0 +1,133 @@
+---
+title: Orderbook Data
+description: Read CLOB order books, prices, midpoints, spreads, tick sizes, fee rates, and last trades — no credentials required.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The `polygolem orderbook` family wraps the public CLOB market-data endpoints.
+Every command on this page is **read-only** — no API key, no wallet, no risk.
+
+<Aside type="note">
+You only need a CLOB token ID to use these commands. Find one with
+[`polygolem discover search`](/guides/market-discovery) or `discover enrich`.
+</Aside>
+
+## Get the order book
+
+Full L2 depth (top bids and asks):
+
+```bash
+polygolem orderbook get --token-id 71321045679252212594626385532706912750332728571942134274583709853755746957851
+```
+
+```json
+{
+  "market": "0x...",
+  "asset_id": "71321045679...",
+  "bids": [
+    { "price": "0.51", "size": "100" },
+    { "price": "0.50", "size": "250" }
+  ],
+  "asks": [
+    { "price": "0.53", "size": "75" },
+    { "price": "0.54", "size": "180" }
+  ],
+  "hash": "0x..."
+}
+```
+
+## Best bid / ask
+
+```bash
+polygolem orderbook price --token-id 71321045679252212594626385532706912750332728571942134274583709853755746957851
+```
+
+```json
+{ "best_bid": "0.51", "best_ask": "0.53" }
+```
+
+## Midpoint
+
+The CLOB-computed midpoint between best bid and best ask:
+
+```bash
+polygolem orderbook midpoint --token-id 71321045679252212594626385532706912750332728571942134274583709853755746957851
+```
+
+```json
+{ "mid": "0.52" }
+```
+
+## Spread
+
+```bash
+polygolem orderbook spread --token-id 71321045679252212594626385532706912750332728571942134274583709853755746957851
+```
+
+```json
+{ "spread": "0.02" }
+```
+
+## Tick size
+
+The minimum price increment and order size for a market. Required before placing
+any order:
+
+```bash
+polygolem orderbook tick-size --token-id 71321045679252212594626385532706912750332728571942134274583709853755746957851
+```
+
+```json
+{ "minimum_tick_size": "0.01", "minimum_order_size": "5" }
+```
+
+## Fee rate
+
+Maker/taker fees in basis points:
+
+```bash
+polygolem orderbook fee-rate --token-id 71321045679252212594626385532706912750332728571942134274583709853755746957851
+```
+
+```json
+{ "fee_rate_bps": 0 }
+```
+
+## Last trade
+
+The most recent fill on this token:
+
+```bash
+polygolem orderbook last-trade --token-id 71321045679252212594626385532706912750332728571942134274583709853755746957851
+```
+
+```json
+{
+  "price": "0.52",
+  "size": "100",
+  "side": "BUY",
+  "timestamp": 1746625200
+}
+```
+
+## Using the Go SDK
+
+If you want orderbook reads from a Go program, prefer the `pkg/bookreader`
+package over shelling out to the CLI:
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+
+reader := bookreader.NewReader("")
+book, err := reader.OrderBook(ctx, tokenID)
+// book.Bids[0].Price, book.Asks[0].Size, ...
+```
+
+See [Go-Bot Integration](/guides/go-bot-integration) for the full SDK story.
+
+## Reference
+
+- `polygolem orderbook --help` — flag-level reference for every subcommand
+- [`docs/COMMANDS.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/COMMANDS.md) — canonical command list
+- [CLOB API](/reference/clob-api) — endpoint surface

@@ -1,0 +1,42 @@
+---
+title: Safety Model
+description: Read-only by default, paper-mode locality, live gates, credential redaction — the four-layer safety guarantee in polygolem.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Polygolem is **read-only by default**. Every market-data and discovery command
+runs without credentials and cannot make a state-changing request. Paper mode
+is **local-only**: simulated orders are stored on disk and never reach an
+authenticated endpoint. Live commands require **all four gates** to pass —
+`POLYMARKET_LIVE_PROFILE=on`, `live_trading_enabled: true`, `--confirm-live`,
+and a successful `polygolem preflight`. Credentials are loaded only at the
+moment they are needed and are **redacted** in every log, error, and JSON
+output.
+
+If any gate fails, the command aborts with a structured error and a non-zero
+exit code. Polygolem will never silently downgrade a live command to paper mode
+or read-only — that would hide operator intent and break automation.
+
+<Aside type="note">
+**Source of truth:** the canonical safety policy lives in
+[`docs/SAFETY.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/SAFETY.md).
+This page is a summary; if anything here disagrees with the canonical doc,
+the canonical doc wins.
+</Aside>
+
+## The four gates, in order
+
+1. **`POLYMARKET_LIVE_PROFILE=on`** — environment opt-in.
+2. **`live_trading_enabled: true`** — config-file opt-in.
+3. **`--confirm-live`** — per-invocation flag.
+4. **`polygolem preflight` passes** — wallet readiness, auth readiness, network
+   consistency, API health.
+
+All four. No partial credit.
+
+## Related
+
+- [`docs/SAFETY.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/SAFETY.md) — canonical policy
+- [Paper Trading](/guides/paper-trading) — the local-only execution surface
+- [Architecture](/concepts/architecture) — where the gates live in code

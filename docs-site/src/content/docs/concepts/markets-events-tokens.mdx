@@ -1,0 +1,101 @@
+---
+title: Markets, Events & Tokens
+description: How Polymarket models prediction markets — events, markets, conditions, outcomes, and ERC-1155 token IDs.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Polymarket's data model has four core entities that polygolem surfaces across
+the Gamma and CLOB clients. Understanding the shape — and the relationship
+between Gamma's view and CLOB's view of the same market — is the single
+most important thing for anyone using this SDK.
+
+## The four entities
+
+| Entity | Lives in | What it represents |
+|--------|----------|--------------------|
+| **Event** | Gamma | A theme or topic. Groups one or more related markets. |
+| **Market** | Gamma + CLOB | A single tradable proposition, with one or more outcomes. |
+| **Condition** | Conditional Tokens Framework (CTF) on-chain | The settlement primitive. Identified by a `conditionID`. |
+| **Outcome / Token** | CTF on-chain | Each possible result is a separate ERC-1155 token under the condition. |
+
+## A concrete example
+
+Take the market **"Will Bitcoin be above $70,000 at 5 PM UTC?"**.
+
+- **Event** (Gamma): `"Bitcoin price intraday"` — groups multiple BTC markets
+  across different strikes and times.
+- **Market** (Gamma): `"Will Bitcoin be above $70,000 at 5 PM UTC?"` —
+  a single Yes/No proposition.
+- **Condition** (CTF): one `conditionID`, e.g. `0xbd31dc8a...`. This is the
+  on-chain settlement key.
+- **Outcomes / Tokens**: two ERC-1155 token IDs under the condition:
+  - `tokenID_yes` — pays $1 if BTC ≥ $70k at settlement, else $0
+  - `tokenID_no`  — pays $1 if BTC < $70k at settlement, else $0
+
+The two outcome tokens are **complementary**: their prices on a working market
+sum to ~$1 minus the bid-ask spread. Buying one Yes token and one No token at
+issuance equals buying $1 of redemption certainty, which is exactly how new
+shares are minted via the CTF.
+
+## Yes/No vs multi-outcome
+
+Most Polymarket markets are binary (Yes/No, two tokens). Some — like a
+presidential primary — are multi-outcome:
+
+- **Outcomes**: `["Trump", "Biden", "Other"]`
+- **Tokens**: three ERC-1155 token IDs, one per outcome
+- **Sum constraint**: prices still sum to ~$1, but split across three lines
+
+For multi-outcome neg-risk markets, the constraint is enforced by the neg-risk
+adapter contract rather than the bare CTF.
+
+## Gamma view vs CLOB view
+
+The same market shows up in two places, with different fields:
+
+| Aspect | Gamma | CLOB |
+|--------|-------|------|
+| Identifier | `marketID` (Gamma row PK), `slug` | `conditionID`, `tokenID` |
+| Best for | Discovery, search, metadata | Order book, fees, tick size, trades |
+| Contains | Question, description, outcomes, end date, image | Bid/ask depth, last trade, fee rate |
+| Auth | None (read-only) | None for L0; key+wallet for L1/L2 |
+
+`polygolem discover enrich --id <conditionID>` joins both views into a single
+JSON document — see [Market Discovery](/guides/market-discovery).
+
+## Token IDs are the trading primitive
+
+Every CLOB endpoint that touches market data takes a **token ID** (ERC-1155
+asset ID), not a condition ID:
+
+```bash
+polygolem orderbook get      --token-id 71321045679...
+polygolem orderbook tick-size --token-id 71321045679...
+polygolem clob create-order  --token-id 71321045679... --side BUY ...
+```
+
+The token ID is the integer encoding of the position in the CTF.
+
+<Aside type="note">
+A common bug: passing a `conditionID` (32-byte hex starting with `0x`) where a
+`tokenID` (decimal integer, often 70+ digits) is required. Polygolem rejects
+this at validation time, but you'll save a round-trip if you grab the right
+identifier from `discover enrich` first.
+</Aside>
+
+## How polygolem maps it
+
+| polygolem command / package | Operates on | Notes |
+|----------------------------|-------------|-------|
+| `discover search` / `discover market` | Gamma — markets, events | Returns Gamma fields. |
+| `discover enrich` | Gamma + CLOB | Joins by `conditionID`. |
+| `orderbook *` / `pkg/bookreader` | CLOB — by `tokenID` | Read-only L0. |
+| `clob create-order` | CLOB — by `tokenID` | Authenticated L2. |
+| `pkg/marketresolver.ResolveTokenIDs` | Gamma → both `tokenID`s | High-level resolver. |
+
+## Reference
+
+- [Gamma API](/reference/gamma-api) — full Gamma surface
+- [CLOB API](/reference/clob-api) — full CLOB surface
+- [Polymarket API Overview](/concepts/polymarket-api) — every API at a glance

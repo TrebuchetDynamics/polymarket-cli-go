@@ -1,0 +1,61 @@
+---
+title: Stream API
+description: Polygolem's WebSocket support for real-time CLOB market data — connection management, automatic reconnect, and message dedup.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Polymarket exposes a WebSocket at
+`wss://ws-subscriptions-clob.polymarket.com/ws/`. It has two channels:
+
+- **Market channel** — public, no auth. Streams order book updates, price
+  changes, and trade events.
+- **User channel** — authenticated. Streams personal order events.
+
+Polygolem implements the **market channel** today through `internal/stream`'s
+`MarketClient`. The client handles connection lifecycle, automatic reconnection
+with backoff, message normalization, and dedup of duplicate events that the
+upstream sometimes delivers across reconnects.
+
+## What's implemented
+
+| Feature | Status |
+|---------|--------|
+| Market channel subscribe (book / price / trade) | Implemented |
+| Automatic reconnect with backoff | Implemented |
+| Message dedup across reconnects | Implemented |
+| User channel (authenticated) | **Not implemented** |
+
+## CLI surface
+
+WebSocket subscriptions are surfaced through `polygolem stream` (or equivalent
+via the events command tree — see `polygolem events --help`). The CLI emits
+one JSON object per message on stdout, suitable for piping into `jq` or a
+downstream consumer.
+
+<Aside type="note">
+For latency-sensitive use cases, prefer the Go SDK directly over the CLI: the
+CLI adds a marshal/unmarshal hop that costs roughly a millisecond per message.
+</Aside>
+
+## Reconnect semantics
+
+When the upstream connection drops, the client:
+
+1. Closes any open goroutines tied to the old connection.
+2. Waits an exponentially increasing backoff (capped, with jitter).
+3. Re-establishes and re-subscribes to the same set of channels.
+4. Suppresses duplicate events for a short replay window using a content-hash
+   set, so consumers don't see the same trade twice.
+
+## Related
+
+- [Orderbook Data](/guides/orderbook-data) — REST equivalents for one-shot reads
+- [`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md) — `internal/stream` package boundary
+- [Polymarket API Overview](/concepts/polymarket-api) — every API in one place
+
+<Aside type="note">
+**Source of truth:** the canonical package-level description of `internal/stream`
+lives in
+[`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md).
+</Aside>

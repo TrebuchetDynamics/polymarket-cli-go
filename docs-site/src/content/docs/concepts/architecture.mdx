@@ -1,0 +1,37 @@
+---
+title: Architecture
+description: The polygolem package layout — public SDK under pkg/, implementation under internal/, CLI as a thin Cobra shell.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Polygolem is a Go protocol and automation stack for Polymarket with a thin
+Cobra-based CLI on top. The codebase is split into three layers:
+
+- **`cmd/polygolem`** — the binary entry point. Just wires Cobra and exits.
+- **`internal/` (21 packages)** — implementation: HTTP clients, signers,
+  config, paper executor, modes, output, errors. Not part of the public API.
+- **`pkg/` (5 packages)** — the stable public Go SDK: `bookreader`, `bridge`,
+  `gamma`, `marketresolver`, `pagination`. Semver-stable.
+
+Dependencies flow **inward only**: `cmd → internal → pkg`. Public SDK packages
+must not import internal packages, and internal packages must not depend on
+the CLI layer.
+
+The mode boundary (read-only / paper / live) is enforced in `internal/modes`
+and consumed by every command before any side-effecting code path. Live
+commands additionally route through `internal/execution` after the four-gate
+preflight check.
+
+<Aside type="note">
+**Source of truth:** the canonical architecture document is
+[`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md).
+It contains the full per-package table and dependency graph; this page is a
+high-level summary.
+</Aside>
+
+## Related
+
+- [`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md) — canonical package map
+- [Go SDK Reference](/reference/sdk) — every public type and method
+- [Safety Model](/concepts/safety) — how the mode boundary is enforced

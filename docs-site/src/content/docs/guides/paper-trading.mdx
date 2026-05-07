@@ -1,0 +1,105 @@
+---
+title: Paper Trading
+description: Simulate Polymarket orders against live data with zero risk — paper state is local, never reaches authenticated endpoints.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Paper mode lets you practice trading workflows against **real, live order books**
+without ever touching your wallet, the CLOB authenticated endpoints, or any
+on-chain operation.
+
+<Aside type="caution">
+Paper mode is local-only. Fills are simulated against the current top-of-book
+quote — there is no matching engine, no slippage model, no funding cost. Use it
+for workflow practice, not for strategy backtesting.
+</Aside>
+
+## How paper state works
+
+- All paper orders, fills, and positions are stored in a local file under
+  your config directory.
+- No HTTP requests with credentials are ever made.
+- A failing safety gate cannot accidentally promote a paper command to live —
+  the paper code path simply has no signer wired in.
+
+See [Safety Model](/concepts/safety) for the full guarantee.
+
+## A typical workflow
+
+### 1. Find a market
+
+```bash
+polygolem discover search --query "btc 5m" --limit 5
+```
+
+Note the `tokenID` of the outcome you want to bet on. For neg-risk Yes/No
+markets there are two token IDs (one per outcome); pick whichever side you want.
+
+### 2. Place a paper buy
+
+```bash
+polygolem paper buy \
+  --token-id 71321045679252212594626385532706912750332728571942134274583709853755746957851 \
+  --price 0.52 \
+  --size 10
+```
+
+Output:
+
+```json
+{
+  "order_id": "paper-1746625200-abc",
+  "status": "filled",
+  "filled_price": "0.52",
+  "filled_size": "10"
+}
+```
+
+### 3. Inspect positions
+
+```bash
+polygolem paper positions
+```
+
+```json
+[
+  {
+    "token_id": "713210...",
+    "side": "BUY",
+    "avg_price": "0.52",
+    "size": "10",
+    "unrealized_pnl": "0.00"
+  }
+]
+```
+
+### 4. Close it out with a paper sell
+
+```bash
+polygolem paper sell \
+  --token-id 71321045679252212594626385532706912750332728571942134274583709853755746957851 \
+  --price 0.55 \
+  --size 10
+```
+
+### 5. Reset between experiments
+
+Wipes all paper state — positions, fills, history:
+
+```bash
+polygolem paper reset
+```
+
+## What paper mode does *not* do
+
+- It does not call `clob create-order`, `clob cancel-order`, or any L2 endpoint.
+- It does not require, read, or accept `POLYMARKET_PRIVATE_KEY`.
+- It does not trigger preflight, builder-API checks, or deposit-wallet flows.
+- Paper PnL is not tax-reportable or reconciled against any external system.
+
+## Reference
+
+- `polygolem paper --help` — every flag
+- [`docs/COMMANDS.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/COMMANDS.md) — canonical command list
+- [Safety Model](/concepts/safety) — paper vs read-only vs live

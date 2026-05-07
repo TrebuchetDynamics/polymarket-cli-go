@@ -17,7 +17,7 @@ export default defineConfig({
         {
           label: "Getting Started",
           items: [
-            { label: "Introduction", slug: "" },
+            { label: "Introduction", link: "/" },
             { label: "Installation", slug: "getting-started/installation" },
             { label: "Quick Start", slug: "getting-started/quickstart" },
           ],
@@ -36,6 +36,7 @@ export default defineConfig({
           label: "Concepts",
           items: [
             { label: "Polymarket API Overview", slug: "concepts/polymarket-api" },
+            { label: "Deposit Wallets & Signature Types", slug: "concepts/deposit-wallets" },
             { label: "Markets, Events & Tokens", slug: "concepts/markets-events-tokens" },
             { label: "Safety Model", slug: "concepts/safety" },
             { label: "Architecture", slug: "concepts/architecture" },

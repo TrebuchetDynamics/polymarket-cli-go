@@ -1,0 +1,128 @@
+---
+title: Go-Bot Integration
+description: Embed polygolem's public Go SDK (pkg/*) in a downstream Go bot or service.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Polygolem ships a small, intentionally narrow public SDK under `pkg/`. The
+internal/ tree is **not** part of the stability promise and may change between
+minor releases — only depend on `pkg/*`.
+
+<Aside type="note">
+Stability promise: anything under `pkg/` follows semver. Breaking API changes
+require a major version bump. The internal/ tree is implementation detail.
+</Aside>
+
+## Install
+
+```bash
+go get github.com/TrebuchetDynamics/polygolem
+```
+
+Then import only the packages you need:
+
+```go
+import (
+    "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+    "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
+    "github.com/TrebuchetDynamics/polygolem/pkg/bridge"
+    "github.com/TrebuchetDynamics/polygolem/pkg/gamma"
+    "github.com/TrebuchetDynamics/polygolem/pkg/pagination"
+)
+```
+
+## Read an order book
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+
+    "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+)
+
+func main() {
+    ctx := context.Background()
+    reader := bookreader.NewReader("") // empty string = production CLOB
+
+    book, err := reader.OrderBook(ctx, "713210456792522125...")
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println("best bid:", book.Bids[0].Price)
+    fmt.Println("best ask:", book.Asks[0].Price)
+}
+```
+
+## Resolve a market by asset + timeframe
+
+`pkg/marketresolver` is purpose-built for the go-bot strategy layer's
+"give me the active BTC 5m market right now" question:
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
+
+resolver := marketresolver.NewResolver("")
+
+result := resolver.ResolveTokenIDs(ctx, "BTC", "5m")
+switch result.Status {
+case "available":
+    fmt.Println("Up token:", result.UpTokenID)
+    fmt.Println("Down token:", result.DownTokenID)
+case "unresolved":
+    fmt.Println("No active 5m market right now")
+}
+```
+
+## Search Gamma
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/gamma"
+
+client := gamma.NewClient("")
+markets, err := client.Markets(ctx, gamma.MarketsParams{
+    Active: true,
+    Closed: false,
+    Limit:  20,
+})
+```
+
+## Pagination helper
+
+When the upstream API uses cursors, `pkg/pagination.CollectAll` walks every
+page concurrently:
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/pagination"
+
+all, err := pagination.CollectAll(ctx, func(ctx context.Context, cursor string) ([]gamma.Market, string, error) {
+    resp, err := client.MarketsKeyset(ctx, gamma.MarketsKeysetParams{Cursor: cursor})
+    if err != nil {
+        return nil, "", err
+    }
+    return resp.Data, resp.NextCursor, nil
+})
+```
+
+## What the SDK does *not* expose
+
+- Authenticated CLOB order placement. Order signing lives in `internal/clob`
+  and `internal/auth`. If you need to sign and submit orders from a Go program,
+  shell out to `polygolem clob create-order` rather than re-implementing it.
+- Live execution gates. Those are CLI-layer concerns; embedding them would
+  bypass the operator confirmation surface.
+- Mutable global state. Every package returns its own client instance.
+
+<Aside type="note">
+Once the package is published, the canonical reference is at
+[pkg.go.dev/github.com/TrebuchetDynamics/polygolem](https://pkg.go.dev/github.com/TrebuchetDynamics/polygolem).
+</Aside>
+
+## Reference
+
+- [Go SDK Reference](/reference/sdk) — every method on every public type
+- [`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md) — package boundaries and dependency direction
+- [Architecture](/concepts/architecture) — high-level summary

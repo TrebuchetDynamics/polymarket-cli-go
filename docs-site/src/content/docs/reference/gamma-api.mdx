@@ -1,0 +1,55 @@
+---
+title: Gamma API
+description: Polymarket's read-only metadata API — markets, events, search, tags, profiles. Wrapped by polygolem's discover commands and pkg/gamma.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The Gamma API (`https://gamma-api.polymarket.com`) is Polymarket's **read-only
+metadata layer**. It serves markets, events, search, tags, series, sports
+metadata, comments, and public profiles. No authentication required.
+
+Polygolem wraps Gamma in two places:
+
+- **`internal/gamma`** — full typed HTTP client, used by every CLI command.
+- **`pkg/gamma`** — the public read-only surface that downstream Go consumers
+  can import. Strict subset of `internal/gamma` with stable types.
+
+The `polygolem discover` family is the CLI interface to Gamma:
+
+```bash
+polygolem discover search --query "btc 5m" --limit 10
+polygolem discover market --id    0xbd31dc8a...
+polygolem discover market --slug  will-btc-be-above
+polygolem discover enrich --id    0xbd31dc8a...   # joins Gamma + CLOB
+```
+
+## Endpoint categories
+
+| Category | Endpoints |
+|----------|-----------|
+| Markets  | List, by ID, by slug, by token ID |
+| Events   | List, by ID, by slug, keyset pagination |
+| Search   | Cross-entity (markets, events, profiles, tags) |
+| Tags     | List, by ID, by slug, related |
+| Series   | List, by ID |
+| Sports   | Teams, market types |
+| Comments | List, by ID, by user |
+| Profiles | Public profile by wallet |
+
+## Upstream
+
+- Polymarket public docs: [docs.polymarket.com](https://docs.polymarket.com/)
+- Base URL: `https://gamma-api.polymarket.com`
+
+<Aside type="note">
+**Source of truth** for `polygolem discover` flag semantics is
+[`docs/COMMANDS.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/COMMANDS.md)
+(see the `discover` section). Run `polygolem discover --help` for live help.
+</Aside>
+
+## Related
+
+- [Market Discovery](/guides/market-discovery) — task-oriented walkthrough
+- [Markets, Events & Tokens](/concepts/markets-events-tokens) — data model
+- [Polymarket API Overview](/concepts/polymarket-api) — every API in one place
