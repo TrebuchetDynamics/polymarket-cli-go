@@ -1,5 +1,18 @@
-// Package marketresolver resolves active Polymarket markets and token IDs.
-// Replaces go-bot's direct Gamma client and default token IDs per PRD Phase 0.
+// Package marketresolver resolves Polymarket market identifiers — slug,
+// asset, timeframe, or window-start time — into canonical token IDs.
+//
+// Use marketresolver when a downstream consumer (for example a trading
+// bot) needs to convert a human-friendly identifier into the up/down
+// token IDs and condition ID needed to place an order. The resolver
+// performs only Gamma reads; it does not sign or mutate anything.
+//
+// When not to use this package:
+//   - For full Gamma metadata access — use pkg/gamma directly.
+//   - For order book pricing — use pkg/bookreader.
+//
+// Stability: Resolver, NewResolver, the four Resolve methods,
+// ValidateToken, MarketStatus and its constants, ResolveResult, and
+// CryptoMarket are part of the polygolem public SDK and follow semver.
 package marketresolver
 
 import (
@@ -16,6 +29,9 @@ import (
 )
 
 // CryptoMarket represents a resolved crypto up/down market with token IDs.
+// Slug and Question come from the Gamma event payload. UpTokenID and
+// DownTokenID may be empty if the market's outcomes do not include both
+// "up"/"yes" and "down"/"no".
 type CryptoMarket struct {
 	ConditionID string
 	Asset       string
@@ -29,12 +45,20 @@ type CryptoMarket struct {
 }
 
 // Resolver finds active markets from the Gamma API.
+// Methods are safe for concurrent use; each call is independent.
 type Resolver struct {
 	gamma *gamma.Client
 }
 
-// NewResolver creates a market resolver.
+const defaultGammaBaseURL = "https://gamma-api.polymarket.com"
+
+// NewResolver creates a market resolver targeting the given Gamma base URL.
+// If gammaBaseURL is empty, the production Gamma URL is used.
 func NewResolver(gammaBaseURL string) *Resolver {
+	gammaBaseURL = strings.TrimSpace(gammaBaseURL)
+	if gammaBaseURL == "" {
+		gammaBaseURL = defaultGammaBaseURL
+	}
 	return &Resolver{
 		gamma: gamma.NewClient(gammaBaseURL, nil),
 	}
@@ -42,6 +66,8 @@ func NewResolver(gammaBaseURL string) *Resolver {
 
 // ResolveCryptoMarkets finds active CLOB-enabled up/down markets for an asset.
 // Returns only accepting, non-closed markets with valid token IDs.
+// asset is matched case-insensitively; concurrent Gamma searches are
+// fanned out per timeframe.
 func (r *Resolver) ResolveCryptoMarkets(ctx context.Context, asset string) ([]CryptoMarket, error) {
 	queries := cryptoQueries(strings.ToUpper(asset))
 
@@ -94,7 +120,8 @@ func (r *Resolver) ResolveCryptoMarkets(ctx context.Context, asset string) ([]Cr
 
 // ResolveTokenIDsAt resolves token IDs for a specific crypto window.
 // Crypto up/down markets use deterministic slugs such as
-// btc-updown-5m-1778114700, where the suffix is the UTC window start epoch.
+// btc-updown-5m-1778114700, where the suffix is the UTC window start
+// epoch. Falls back to ResolveTokenIDs when the slug lookup misses.
 func (r *Resolver) ResolveTokenIDsAt(ctx context.Context, asset, timeframe string, windowStart time.Time) ResolveResult {
 	if slug := cryptoWindowSlug(asset, timeframe, windowStart); slug != "" {
 		if evt, err := r.gamma.EventBySlug(ctx, slug); err == nil {
@@ -235,10 +262,12 @@ func extractTokenIDs(raw string) []string {
 
 func cryptoQueries(asset string) []string {
 	names := map[string][]string{
-		"BTC": {"bitcoin"},
-		"ETH": {"ethereum"},
-		"SOL": {"solana"},
-		"XRP": {"xrp"},
+		"BTC":  {"bitcoin"},
+		"ETH":  {"ethereum"},
+		"SOL":  {"solana"},
+		"XRP":  {"xrp"},
+		"DOGE": {"doge"},
+		"BNB":  {"bnb"},
 	}
 	nameList := names[asset]
 	if len(nameList) == 0 {
@@ -258,10 +287,12 @@ func cryptoWindowSlug(asset, timeframe string, windowStart time.Time) string {
 		return ""
 	}
 	prefixes := map[string]string{
-		"BTC": "btc",
-		"ETH": "eth",
-		"SOL": "sol",
-		"XRP": "xrp",
+		"BTC":  "btc",
+		"ETH":  "eth",
+		"SOL":  "sol",
+		"XRP":  "xrp",
+		"DOGE": "doge",
+		"BNB":  "bnb",
 	}
 	prefix := prefixes[strings.ToUpper(asset)]
 	if prefix == "" {
@@ -288,17 +319,27 @@ func inferTimeframe(slug, question string) string {
 	return ""
 }
 
-// MarketStatus classifies market availability.
+// MarketStatus classifies market availability returned by ResolveResult.
 type MarketStatus string
 
+// Market status values reported by ResolveResult.
 const (
-	StatusAvailable   MarketStatus = "available"
+	// StatusAvailable means the resolver found an accepting non-closed
+	// market with valid up/down token IDs.
+	StatusAvailable MarketStatus = "available"
+	// StatusUnavailable means the resolver found a market but it is not
+	// accepting orders (paused or closed).
 	StatusUnavailable MarketStatus = "unavailable"
-	StatusStaleToken  MarketStatus = "stale_token"
-	StatusUnresolved  MarketStatus = "unresolved"
+	// StatusStaleToken means a previously valid token ID can no longer
+	// be priced; use ResolveTokenIDs again to discover the current one.
+	StatusStaleToken MarketStatus = "stale_token"
+	// StatusUnresolved means no active matching market could be found.
+	StatusUnresolved MarketStatus = "unresolved"
 )
 
 // ResolveResult is the structured result of a market/token resolution.
+// Source identifies which Gamma path produced the answer (deterministic
+// slug, public search, or an error string).
 type ResolveResult struct {
 	Status      MarketStatus `json:"status"`
 	UpTokenID   string       `json:"up_token_id"`
@@ -311,6 +352,8 @@ type ResolveResult struct {
 
 // ResolveTokenIDs resolves token IDs for a given asset+timeframe.
 // Returns StatusUnresolved if no active accepting market is found.
+// Source records which Gamma path produced the result, useful for
+// debugging stale-token issues.
 func (r *Resolver) ResolveTokenIDs(ctx context.Context, asset, timeframe string) ResolveResult {
 	markets, err := r.ResolveCryptoMarkets(ctx, asset)
 	if err != nil {
@@ -333,8 +376,11 @@ func (r *Resolver) ResolveTokenIDs(ctx context.Context, asset, timeframe string)
 	}
 }
 
-// ValidateToken checks if a token ID is still valid by fetching its tick size.
-// Returns StatusStaleToken if the CLOB returns an error for the token.
+// ValidateToken checks if a token ID is still valid by basic format checks.
+// Returns StatusStaleToken if the CLOB returns an error for the token (a
+// fuller validation requires CLOB access in the bookreader layer); for
+// now it returns StatusUnresolved on empty/non-numeric token IDs and
+// StatusAvailable otherwise.
 func (r *Resolver) ValidateToken(ctx context.Context, tokenID string) MarketStatus {
 	// A simple approach: check that the token is non-empty.
 	// Full validation requires CLOB access which is in the bookreader layer.
