@@ -28,6 +28,12 @@ const (
 	signatureTypePoly1271    = 3
 )
 
+// Test seams: tests override these to make salt and timestamp deterministic.
+var (
+	orderSalt = generateOrderSalt
+	orderNow  = time.Now
+)
+
 type CreateOrderParams struct {
 	TokenID       string
 	Side          string
@@ -237,7 +243,7 @@ func (c *Client) signAndPostOrder(ctx context.Context, privateKey string, draft 
 	if err != nil {
 		return nil, fmt.Errorf("neg-risk lookup: %w", err)
 	}
-	unsigned, err := buildSignedOrderPayload(signer, draft, time.Now(), nr.NegRisk)
+	unsigned, err := buildSignedOrderPayload(signer, draft, orderNow(), nr.NegRisk)
 	if err != nil {
 		return nil, err
 	}
@@ -425,7 +431,7 @@ func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, 
 
 // buildSignedOrderPayload constructs a signed V2 order payload from a draft.
 func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts time.Time, negRisk bool) (signedOrderPayload, error) {
-	salt, err := generateOrderSalt()
+	salt, err := orderSalt()
 	if err != nil {
 		return signedOrderPayload{}, err
 	}
