@@ -22,7 +22,7 @@ func TestBuildSignedOrderPayloadV2UsesCurrentCLOBShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	tokenID := big.NewInt(12345)
-	payload, err := buildSignedOrderPayload(signer, orderDraft{
+	order, err := buildSignedOrderPayload(signer, orderDraft{
 		tokenID:       tokenID,
 		side:          "BUY",
 		makerAmount:   "700000",
@@ -30,13 +30,9 @@ func TestBuildSignedOrderPayloadV2UsesCurrentCLOBShape(t *testing.T) {
 		feeRateBps:    "0",
 		signatureType: 0,
 		orderType:     "FOK",
-	}, 2, time.UnixMilli(1778125000123), false)
+	}, time.UnixMilli(1778125000123), false)
 	if err != nil {
 		t.Fatal(err)
-	}
-	order, ok := payload.(signedOrderPayloadV2)
-	if !ok {
-		t.Fatalf("payload type=%T want signedOrderPayloadV2", payload)
 	}
 	if order.Timestamp != "1778125000123" || order.Metadata != bytes32Zero || order.Builder != bytes32Zero || order.Expiration != "0" {
 		t.Fatalf("v2 metadata fields not set: %+v", order)
@@ -60,7 +56,7 @@ func TestBuildSignedOrderPayloadV2DepositWalletUsesEOASignerWithDepositMaker(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	payload, err := buildSignedOrderPayload(signer, orderDraft{
+	order, err := buildSignedOrderPayload(signer, orderDraft{
 		tokenID:       big.NewInt(12345),
 		side:          "BUY",
 		makerAmount:   "700000",
@@ -68,13 +64,9 @@ func TestBuildSignedOrderPayloadV2DepositWalletUsesEOASignerWithDepositMaker(t *
 		feeRateBps:    "0",
 		signatureType: signatureTypePoly1271,
 		orderType:     "FOK",
-	}, 2, time.UnixMilli(1778125000123), false)
+	}, time.UnixMilli(1778125000123), false)
 	if err != nil {
 		t.Fatal(err)
-	}
-	order, ok := payload.(signedOrderPayloadV2)
-	if !ok {
-		t.Fatalf("payload type=%T want signedOrderPayloadV2", payload)
 	}
 	wantMaker := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
 	if !strings.EqualFold(order.Maker, wantMaker) || !strings.EqualFold(order.Signer, wantMaker) {
@@ -90,13 +82,9 @@ func TestBuildSignedOrderPayloadV2DepositWalletUsesEOASignerWithDepositMaker(t *
 
 func TestCreateMarketOrderPostsV2PayloadWhenCLOBVersionIsTwo(t *testing.T) {
 	var posted map[string]any
-	versionCalled := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/version":
-			versionCalled = true
-			_, _ = w.Write([]byte(`{"version":2}`))
 		case "/tick-size":
 			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.001"}`))
 		case "/fee-rate":
@@ -132,9 +120,6 @@ func TestCreateMarketOrderPostsV2PayloadWhenCLOBVersionIsTwo(t *testing.T) {
 	}
 	if !res.Success || res.OrderID != "0xabc" {
 		t.Fatalf("response=%+v", res)
-	}
-	if !versionCalled {
-		t.Fatal("expected CLOB /version lookup before signing")
 	}
 	order, ok := posted["order"].(map[string]any)
 	if !ok {
