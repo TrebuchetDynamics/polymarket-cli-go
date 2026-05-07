@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
@@ -18,8 +19,11 @@ import (
 )
 
 const (
-	clobExchangeAddress = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"
-	zeroAddress         = "0x0000000000000000000000000000000000000000"
+	clobExchangeAddress   = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E" // V1
+	clobExchangeAddressV2 = "0xE111180000d2663C0091e4f400237545B87B996B" // V2
+	zeroAddress           = "0x0000000000000000000000000000000000000000"
+	bytes32Zero           = "0x0000000000000000000000000000000000000000000000000000000000000000"
+	signatureTypePoly1271 = 3
 )
 
 type CreateOrderParams struct {
@@ -72,6 +76,32 @@ type sendOrderPayload struct {
 	Owner     string             `json:"owner"`
 	OrderType string             `json:"orderType"`
 	DeferExec bool               `json:"deferExec"`
+}
+
+// signedOrderPayloadV2 is the CLOB V2 order wire format.
+// Differs from V1: taker/nonce/feeRateBps removed, timestamp/metadata/builder added.
+// Expiration is in the POST body but NOT in the V2 EIP-712 signed struct.
+type signedOrderPayloadV2 struct {
+	Salt          uint64 `json:"salt"`
+	Maker         string `json:"maker"`
+	Signer        string `json:"signer"`
+	TokenID       string `json:"tokenId"`
+	MakerAmount   string `json:"makerAmount"`
+	TakerAmount   string `json:"takerAmount"`
+	Side          string `json:"side"`
+	Expiration    string `json:"expiration"`
+	SignatureType int    `json:"signatureType"`
+	Timestamp     string `json:"timestamp"`
+	Metadata      string `json:"metadata"`
+	Builder       string `json:"builder"`
+	Signature     string `json:"signature"`
+}
+
+type sendOrderPayloadV2 struct {
+	Order     signedOrderPayloadV2 `json:"order"`
+	Owner     string               `json:"owner"`
+	OrderType string               `json:"orderType"`
+	DeferExec bool                 `json:"deferExec"`
 }
 
 type orderDraft struct {
@@ -214,6 +244,19 @@ func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, param
 	return c.signAndPostOrder(ctx, privateKey, draft)
 }
 
+func (c *Client) CLOBVersion(ctx context.Context) int {
+	var result struct {
+		Version int `json:"version"`
+	}
+	if err := c.transport.Get(ctx, "/version", &result); err != nil {
+		return 2
+	}
+	if result.Version == 0 {
+		return 2
+	}
+	return result.Version
+}
+
 func (c *Client) signAndPostOrder(ctx context.Context, privateKey string, draft orderDraft) (*OrderPlacementResponse, error) {
 	signer, err := auth.NewPrivateKeySigner(privateKey, polygonChainID)
 	if err != nil {
@@ -231,6 +274,17 @@ func (c *Client) signAndPostOrder(ctx context.Context, privateKey string, draft 
 	if err != nil {
 		return nil, err
 	}
+
+	clobVersion := c.CLOBVersion(ctx)
+	switch {
+	case clobVersion >= 2:
+		return c.signAndPostOrderV2(ctx, privateKey, signer, &key, salt, maker, draft)
+	default:
+		return c.signAndPostOrderV1(ctx, privateKey, signer, &key, salt, maker, draft)
+	}
+}
+
+func (c *Client) signAndPostOrderV1(ctx context.Context, privateKey string, signer *auth.PrivateKeySigner, key *auth.APIKey, salt uint64, maker string, draft orderDraft) (*OrderPlacementResponse, error) {
 	unsigned := signedOrderPayload{
 		Salt:          salt,
 		Maker:         maker,
@@ -256,12 +310,49 @@ func (c *Client) signAndPostOrder(ctx context.Context, privateKey string, draft 
 		OrderType: draft.orderType,
 		DeferExec: false,
 	}
+	return c.postOrder(ctx, privateKey, key, payload, draft.orderType)
+}
+
+func (c *Client) signAndPostOrderV2(ctx context.Context, privateKey string, signer *auth.PrivateKeySigner, key *auth.APIKey, salt uint64, maker string, draft orderDraft) (*OrderPlacementResponse, error) {
+	orderSigner := signer.Address()
+	if draft.signatureType == signatureTypePoly1271 {
+		orderSigner = maker
+	}
+	unsigned := signedOrderPayloadV2{
+		Salt:          salt,
+		Maker:         maker,
+		Signer:        orderSigner,
+		TokenID:       draft.tokenID.String(),
+		MakerAmount:   draft.makerAmount,
+		TakerAmount:   draft.takerAmount,
+		Side:          draft.side,
+		Expiration:    "0",
+		SignatureType: draft.signatureType,
+		Timestamp:     fmt.Sprintf("%d", time.Now().UnixMilli()),
+		Metadata:      bytes32Zero,
+		Builder:       bytes32Zero,
+	}
+	signature, err := signCLOBOrderV2(signer, unsigned)
+	if err != nil {
+		return nil, err
+	}
+	unsigned.Signature = signature
+	payload := sendOrderPayloadV2{
+		Order:     unsigned,
+		Owner:     key.Key,
+		OrderType: draft.orderType,
+		DeferExec: false,
+	}
+	return c.postOrder(ctx, privateKey, key, payload, draft.orderType)
+}
+
+func (c *Client) postOrder(ctx context.Context, privateKey string, key *auth.APIKey, payload interface{}, orderType string) (*OrderPlacementResponse, error) {
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
 	body := string(bodyBytes)
-	headers, err := c.l2Headers(privateKey, &key, http.MethodPost, "/order", &body)
+	headers, err := c.l2Headers(privateKey, key, http.MethodPost, "/order", &body)
 	if err != nil {
 		return nil, err
 	}
@@ -333,6 +424,113 @@ func signCLOBOrder(signer *auth.PrivateKeySigner, order signedOrderPayload) (str
 		return "", err
 	}
 	return fmt.Sprintf("0x%x", sig), nil
+}
+
+func signCLOBOrderV2(signer *auth.PrivateKeySigner, order signedOrderPayloadV2) (string, error) {
+	sideInt := int64(0)
+	if order.Side == "SELL" {
+		sideInt = 1
+	}
+	tokenID, _ := new(big.Int).SetString(order.TokenID, 10)
+	makerAmount, _ := new(big.Int).SetString(order.MakerAmount, 10)
+	takerAmount, _ := new(big.Int).SetString(order.TakerAmount, 10)
+	timestamp, _ := new(big.Int).SetString(order.Timestamp, 10)
+	typed := apitypes.TypedData{
+		Types: apitypes.Types{
+			"EIP712Domain": {
+				{Name: "name", Type: "string"},
+				{Name: "version", Type: "string"},
+				{Name: "chainId", Type: "uint256"},
+				{Name: "verifyingContract", Type: "address"},
+			},
+			"Order": {
+				{Name: "salt", Type: "uint256"},
+				{Name: "maker", Type: "address"},
+				{Name: "signer", Type: "address"},
+				{Name: "tokenId", Type: "uint256"},
+				{Name: "makerAmount", Type: "uint256"},
+				{Name: "takerAmount", Type: "uint256"},
+				{Name: "side", Type: "uint8"},
+				{Name: "signatureType", Type: "uint8"},
+				{Name: "timestamp", Type: "uint256"},
+				{Name: "metadata", Type: "bytes32"},
+				{Name: "builder", Type: "bytes32"},
+			},
+		},
+		PrimaryType: "Order",
+		Domain: apitypes.TypedDataDomain{
+			Name:              "Polymarket CTF Exchange",
+			Version:           "2",
+			ChainId:           auth.EIP712ChainID(polygonChainID),
+			VerifyingContract: clobExchangeAddressV2,
+		},
+		Message: apitypes.TypedDataMessage{
+			"salt":          (*gethmath.HexOrDecimal256)(new(big.Int).SetUint64(order.Salt)),
+			"maker":         common.HexToAddress(order.Maker).Hex(),
+			"signer":        common.HexToAddress(order.Signer).Hex(),
+			"tokenId":       (*gethmath.HexOrDecimal256)(tokenID),
+			"makerAmount":   (*gethmath.HexOrDecimal256)(makerAmount),
+			"takerAmount":   (*gethmath.HexOrDecimal256)(takerAmount),
+			"side":          (*gethmath.HexOrDecimal256)(big.NewInt(sideInt)),
+			"signatureType": (*gethmath.HexOrDecimal256)(big.NewInt(int64(order.SignatureType))),
+			"timestamp":     (*gethmath.HexOrDecimal256)(timestamp),
+			"metadata":      common.HexToHash(order.Metadata).Hex(),
+			"builder":       common.HexToHash(order.Builder).Hex(),
+		},
+	}
+	sig, err := signer.SignEIP712(typed)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("0x%x", sig), nil
+}
+
+// buildSignedOrderPayload constructs a V2 order payload from a draft.
+func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, clobVersion int64, ts time.Time) (interface{}, error) {
+	salt, err := generateOrderSalt()
+	if err != nil {
+		return nil, err
+	}
+	maker, err := auth.MakerAddressForSignatureType(signer.Address(), polygonChainID, draft.signatureType)
+	if err != nil {
+		return nil, err
+	}
+	if clobVersion >= 2 {
+		payload := signedOrderPayloadV2{
+			Salt:          salt,
+			Maker:         maker,
+			Signer:        signer.Address(),
+			TokenID:       draft.tokenID.String(),
+			MakerAmount:   draft.makerAmount,
+			TakerAmount:   draft.takerAmount,
+			Side:          draft.side,
+			Expiration:    "0",
+			SignatureType: draft.signatureType,
+			Timestamp:     fmt.Sprintf("%d", ts.UnixMilli()),
+			Metadata:      bytes32Zero,
+			Builder:       bytes32Zero,
+		}
+		sig, err := signCLOBOrderV2(signer, payload)
+		if err != nil {
+			return nil, err
+		}
+		payload.Signature = sig
+		return payload, nil
+	}
+	return signedOrderPayload{
+		Salt:          salt,
+		Maker:         maker,
+		Signer:        signer.Address(),
+		Taker:         zeroAddress,
+		TokenID:       draft.tokenID.String(),
+		MakerAmount:   draft.makerAmount,
+		TakerAmount:   draft.takerAmount,
+		Side:          draft.side,
+		Expiration:    "0",
+		Nonce:         "0",
+		FeeRateBps:    draft.feeRateBps,
+		SignatureType: draft.signatureType,
+	}, nil
 }
 
 func (c *Client) marketOrderPrice(ctx context.Context, tokenID, side string, amount *big.Rat, orderType string) (*big.Rat, error) {
