@@ -1,0 +1,134 @@
+Polymarket-golang（fork）后续 Git 操作指南（清晰 + 不漏细节）
+
+前提约定
+- origin = 你的 fork（github.com/foxme666/Polymarket-golang）
+- upstream = 原作者仓库（github.com/0xNetuser/Polymarket-golang）
+- 默认分支：main
+
+一次性初始化（只做一次）
+1) 查看远端
+   git remote -v
+2) 添加 upstream（如果还没有）
+   git remote add upstream https://github.com/0xNetuser/Polymarket-golang.git
+3) 拉取所有远端信息
+   git fetch --all --tags
+
+建议（避免每次 pull 提示策略）
+- 推荐默认使用 rebase：
+    git config pull.rebase true
+- 或者仅对这个仓库设置（不影响全局）：
+    git config --local pull.rebase true
+
+日常：仅把本地 main 对齐到你自己的远端 origin/main（不涉及原作者更新）
+1) 切到 main 并确保干净
+   git checkout main
+   git status
+   如果 git status 显示不干净（有改动/未跟踪文件），二选一处理：
+   A) 我就是要把改动提交进去（推荐）
+      git add -A
+      git commit -m "wip"
+   B) 我暂时不想提交，只想先同步（推荐用于临时改动）
+      git stash push -u -m "wip"
+      # -u 会把未跟踪文件也一起 stash
+      # 同步结束后恢复：
+      git stash pop
+      # 如 pop 冲突：先解决冲突再 git add -A && git commit
+   C) 我确定这些改动是垃圾要丢（谨慎）
+      # 丢弃已跟踪文件的改动：
+      git restore .
+      # 删除未跟踪文件/目录（极危险，确认后再用）：
+      git clean -fd
+2) 拉取远端更新（推荐用 rebase，历史更线性）
+   git fetch origin
+   git rebase origin/main
+3) 有冲突时
+   - 手动解决冲突文件
+   - git add -A
+   - git rebase --continue
+   - 放弃本次 rebase：git rebase --abort
+4) 推送
+   git push origin main
+
+如果出现 “Need to specify how to reconcile divergent branches”
+- 不用 git pull，按下面做最稳：
+    git fetch origin
+    git rebase origin/main
+
+同步原作者更新（sync upstream/main → 你的 main）（推荐流程：新分支 + rebase）
+0) 先更新本地 main 到最新 origin/main（先做“日常对齐”那一段）
+
+1) 拉取 upstream
+   git fetch upstream
+
+2) 从当前 main 新建同步分支
+   git checkout -b sync-upstream-YYYYMMDD
+
+3) 把你的改动“放到”最新 upstream/main 之上（rebase）
+   git rebase upstream/main
+
+4) 冲突处理（最常见冲突点）
+   - go.mod 必须保留：
+       module github.com/foxme666/Polymarket-golang
+     不能被改回 github.com/0xNetuser/Polymarket-golang
+   - 代码 import 路径必须保留 foxme666 前缀
+   冲突解决后：
+     git add -A
+     git rebase --continue
+   放弃本次 rebase：
+     git rebase --abort
+
+5) 推送同步分支并在 GitHub 上提 PR 合并到 main
+   git push -u origin sync-upstream-YYYYMMDD
+
+6) PR 合并后，本地更新 main
+   git checkout main
+   git pull --rebase origin main
+
+如果你不想提 PR、只想本地直接合并到 main（仍推荐在分支上完成 rebase）
+1) 在 sync 分支 rebase 完成后，切回 main 并合并：
+   git checkout main
+   git merge sync-upstream-YYYYMMDD
+   git push origin main
+
+如果你“直接在 main 上 rebase upstream/main”（不推荐，但可以）
+- 因为 rebase 会改写历史，推送通常需要：
+    git push --force-with-lease origin main
+- 不要用 --force（优先 --force-with-lease）
+
+查看分叉情况（判断为什么 pull 会报 divergent）
+   git log --oneline --left-right main...origin/main
+说明：
+ - 左边 < 是本地独有提交
+ - 右边 > 是远端独有提交
+当两边都存在时，用 “fetch + rebase origin/main” 解决最稳。
+
+rebase 过程中常用命令
+- 查看当前卡在哪：
+    git status
+- 跳过某个补丁（确认这个提交的改动已经包含在上游时才用）：
+    git rebase --skip
+- 放弃这次 rebase：
+    git rebase --abort
+
+版本发布（Go 模块不需要“打包”，只需要打 tag）
+原则
+- 永远不要移动/重打已发布 tag（例如 v0.0.1）
+- 有新改动要给其它机器 go get 使用：打一个新 tag（例如 v0.0.2）
+
+发布新版本（例：v0.0.2）
+1) 确保 main 已 push 且是你要发布的状态
+   git checkout main
+   git pull --rebase origin main
+2) 打 tag 并推送
+   git tag -a v0.0.2 -m "sync upstream + changes"
+   git push origin v0.0.2
+3) 其它机器安装
+   go get github.com/foxme666/Polymarket-golang@v0.0.2
+
+如果你已经打过 v0.0.1
+- 永远不要再改动/重打 v0.0.1
+- 有任何新改动：用 v0.0.2 / v0.0.3 ... 递增
+
+紧急回滚/保底（可选）
+- rebase 前做一个备份分支
+   git branch backup/main-before-rebase-YYYYMMDD
