@@ -133,3 +133,96 @@ deposit wallet derived: 0x21999a074344610057c9b2B362332388a44502D4
 | `docs-site/src/content/docs/concepts/deposit-wallets.mdx` | Full signature type reference |
 | `docs-site/src/content/docs/concepts/secrets-management.mdx` | Secrets tiers |
 | `docs-site/src/content/docs/guides/deposit-wallet-lifecycle.mdx` | Lifecycle + recovery |
+
+## Post-hardening operator verification (procedure)
+
+The CLOB V2 hardening track ships a code-correct V2 implementation
+verified by golden-vector and httptest-mock unit tests. Manual
+end-to-end verification against the production V2 backend is the
+final acceptance gate. The operator runs the steps below once when
+they are ready to confirm the wire format reaches the backend
+correctly.
+
+This is **not** a CI step.
+
+### Step 1 — Build the latest binary
+
+```bash
+cd go-bot/polygolem
+go build -o polygolem ./cmd/polygolem
+```
+
+### Step 2 — Probe sigtype 0 (EOA) — expected to be rejected by docs design
+
+```bash
+POLYMARKET_PRIVATE_KEY=$(grep ^POLYMARKET_PRIVATE_KEY ../.env | cut -d= -f2) \
+./polygolem clob create-order \
+    --token-id <known-active-token-id> \
+    --side buy --price 0.01 --size 1 \
+    --signature-type eoa --json
+```
+
+Expected: HTTP 400 with `"maker address not allowed, please use the
+deposit wallet flow"`. Per
+docs.polymarket.com/trading/deposit-wallet-migration this rejection
+is the documented enforcement for new API users — it proves V2
+signing reaches the backend correctly.
+
+### Step 3 — Probe sigtype 3 (deposit wallet) — expected to succeed once funded
+
+Prerequisites:
+
+1. Builder credentials in `go-bot/.env.builder` (run `./polygolem
+   builder onboard` if absent).
+2. Deposit wallet deployed and funded:
+   ```bash
+   ./polygolem deposit-wallet onboard --fund-amount <pUSD-amount> --json
+   ```
+3. Allowances set:
+   ```bash
+   ./polygolem clob update-balance \
+       --asset-type collateral \
+       --signature-type deposit
+   ```
+
+Then post a tiny test order at a price far from market so it rests
+on the book without filling:
+
+```bash
+./polygolem clob create-order \
+    --token-id <known-active-token-id> \
+    --side buy --price 0.01 --size 1 \
+    --signature-type deposit --json
+```
+
+Expected: `{"success": true, "orderID": "0x…", "status": "live"}`.
+Cancel afterward to avoid an unintentional fill.
+
+### Step 4 — Record outputs
+
+After running steps 2 and 3, append the actual outputs (with
+sensitive values redacted as needed) under a new sub-section here in
+`BLOCKERS.md`:
+
+```markdown
+### Verification run on YYYY-MM-DD
+
+**sigtype 0 (EOA)** — expected docs-defined rejection:
+\`\`\`
+$ ./polygolem clob create-order --signature-type eoa ...
+{"error": "maker address not allowed, please use the deposit wallet flow"}
+\`\`\`
+
+**sigtype 3 (deposit wallet)** — expected success:
+\`\`\`
+$ ./polygolem clob create-order --signature-type deposit ...
+{"success": true, "orderID": "0x…"}
+\`\`\`
+
+V2 hardening track verified end-to-end.
+```
+
+The track's success criterion is: sigtype 0 returns the documented
+rejection (proving V2 signing reaches the backend) AND sigtype 3
+returns success once builder credentials and the deposit wallet are
+onboarded.
