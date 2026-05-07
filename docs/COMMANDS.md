@@ -1285,3 +1285,31 @@ polygolem --json paper sell
 
 Short-form `BUILDER_API_KEY` / `BUILDER_SECRET` / `BUILDER_PASS_PHRASE` are
 also accepted.
+
+## Automation
+
+Polygolem is designed to be driven from shell scripts and AI agents.
+
+**Recommended shell harness:**
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+```
+
+**Pair `--json` output with `jq`:**
+
+```bash
+polygolem --json version | jq -r '.data.version'
+polygolem --json discover search --query "btc" --limit 3 | jq '.data[].title'
+polygolem --json orderbook get --token-id "$TOKEN" | jq '.data.bids[0]'
+```
+
+**Exit codes:** A non-zero exit always indicates failure. Inspect the JSON
+`error.code` field for the specific failure category (see the JSON contract
+docs once they land).
+
+**Idempotency:** Read commands are idempotent. Mutation commands
+(`clob create-order`, `clob market-order`, `deposit-wallet onboard`,
+`deposit-wallet fund`) are not — never retry blindly without first checking
+state via the corresponding read command.

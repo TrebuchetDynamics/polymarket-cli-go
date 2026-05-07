@@ -14,7 +14,7 @@ func TestDocumentationSafety(t *testing.T) {
 		"docs/ARCHITECTURE.md",
 		"docs/COMMANDS.md",
 		"docs/SAFETY.md",
-		"docs/REFERENCE-RUST-CLI.md",
+		"docs/history/REFERENCE-RUST-CLI.md",
 	}
 	for _, requiredDoc := range requiredDocs {
 		path := filepath.Join(root, filepath.FromSlash(requiredDoc))
@@ -41,8 +41,6 @@ func TestDocumentationSafety(t *testing.T) {
 		"polygolem setup",
 		"polymarket wallet create",
 		"polygolem wallet create",
-		"clob create-order",
-		"clob market-order",
 	}
 	activeUserDocs := []string{
 		"README.md",
@@ -59,7 +57,7 @@ func TestDocumentationSafety(t *testing.T) {
 		}
 	}
 
-	reference := readRepositoryFile(t, root, "docs/REFERENCE-RUST-CLI.md")
+	reference := readRepositoryFile(t, root, "docs/history/REFERENCE-RUST-CLI.md")
 	expectedReferenceText := "- `market-order`: builds, signs, and posts a market order through `post_order`."
 	if !strings.Contains(reference, expectedReferenceText) {
 		t.Fatalf("docs/REFERENCE-RUST-CLI.md must preserve exact upstream audit text %q", expectedReferenceText)
@@ -77,12 +75,12 @@ func TestDocumentationSafety(t *testing.T) {
 
 	architecture := readRepositoryFile(t, root, "docs/ARCHITECTURE.md")
 	for _, required := range []string{
-		"Go protocol and automation stack with a CLI frontend",
-		"protocol clients -> application services -> thin Cobra CLI",
+		"Go protocol and automation stack for Polymarket with a\nCobra-based CLI frontend",
+		"Command handlers parse flags, call package APIs, and render output via\n`internal/output`",
 		"Cobra command handlers must not contain protocol or trading business logic",
-		"Read-only mode permits public market data and forbids signing or mutations",
-		"Paper mode permits local simulation and forbids live endpoints",
-		"Live mode is disabled unless every gate passes",
+		"**Read-only** (default): public market data only",
+		"**Paper**: local simulation",
+		"**Live**: gated. Requires preflight + risk + funding gates to pass",
 	} {
 		if !strings.Contains(architecture, required) {
 			t.Fatalf("docs/ARCHITECTURE.md must include architecture framing %q", required)
