@@ -356,10 +356,10 @@ Requirements:
   CLOB endpoints.
 - Builder attribution: optional separate builder headers for attributed order
   flow. Builder credentials must not be confused with user L2 credentials.
-- Signature types: EOA, Polymarket proxy/Magic wallet, Gnosis Safe, and
-  deposit wallet / `POLY_1271`. go-bot live execution must keep the EOA as the
-  owner/signer identity while using deposit-wallet maker/funder semantics when
-  CLOB requires the deposit flow.
+- Signature types: Deposit wallet / `POLY_1271` (type 3) is the **only**
+  supported mode. EOA, proxy, and Gnosis Safe are blocked by CLOB V2.
+  go-bot live execution keeps the EOA as owner/signer while using the
+  deposit-wallet address as maker/funder.
 - Funder, signer, and maker addresses must be represented separately.
 - Builder relayer auth must be a first-class, separate credential set for
   deposit-wallet `WALLET-CREATE` and `WALLET` batch flows; never reuse CLOB L2

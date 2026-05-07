@@ -93,10 +93,7 @@ polygolem bridge deposit-status --deposit-address 0x...
 
 ## What's next after bridging
 
-For pre-May-2026 accounts, USDC on your EOA is enough to trade with signature
-type 0 (EOA) or 1 (proxy).
-
-For new accounts, complete the deposit-wallet flow:
+The deposit wallet flow is required for all trading:
 
 ```bash
 POLYMARKET_PRIVATE_KEY="0x..." \
@@ -104,7 +101,7 @@ POLYMARKET_PRIVATE_KEY="0x..." \
 ```
 
 Read [Deposit Wallets & Signature Types](/concepts/deposit-wallets) for the full
-explanation of why this extra step is mandatory.
+explanation.
 
 ## Reference
 

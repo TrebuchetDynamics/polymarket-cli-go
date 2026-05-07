@@ -17,40 +17,34 @@ polygolem discover market --id "0xbd31dc8a..."
 polygolem discover enrich --id "0xbd31dc8a..."
 ```
 
-Output (JSON):
-```json
-{
-  "market": {
-    "question": "Bitcoin up in 5 minutes?",
-    "lastTradePrice": 0.52,
-    "bestBid": 0.51,
-    "bestAsk": 0.53,
-    "outcomes": ["Up", "Down"]
-  },
-  "tick_size": { "minimum_tick_size": "0.01", "minimum_order_size": "5" },
-  "neg_risk": false,
-  "fee_rate_bps": 0,
-  "order_book": {
-    "bids": [{"price": "0.51", "size": "100"}],
-    "asks": [{"price": "0.53", "size": "50"}]
-  }
-}
-```
+## 2. Onboard your deposit wallet (required for trading)
 
-## 2. Check if a market is tradable
+Polygolem's only supported trading mode is **deposit wallet (type 3 / POLY_1271)**.
+EOA, proxy, and Safe are blocked for new API users by CLOB V2.
 
 ```bash
-# Get tick size (minimum price increment)
-polygolem orderbook tick-size --token-id "123..."
+# Get builder credentials (free) at polymarket.com/settings?tab=builder
+# Then deploy, approve, and fund in one command:
+POLYMARKET_PRIVATE_KEY="0x..." \
+POLYMARKET_BUILDER_API_KEY="..." \
+POLYMARKET_BUILDER_SECRET="..." \
+POLYMARKET_BUILDER_PASSPHRASE="..." \
+  polygolem deposit-wallet onboard --fund-amount 14 --json
 
-# Get fee rate
-polygolem orderbook fee-rate --token-id "123..."
+# Sync CLOB balance
+polygolem clob update-balance --asset-type collateral --signature-type deposit
 
-# Get spread
-polygolem orderbook spread --token-id "123..."
+# Check your balance
+polygolem clob balance --asset-type collateral --signature-type deposit
 
-# Get real-time order book
-polygolem orderbook get --token-id "123..."
+# Place an order
+polygolem clob create-order \
+  --token "123..." \
+  --side buy \
+  --price 0.51 \
+  --size 10 \
+  --signature-type deposit \
+  --output json
 ```
 
 ## 3. Use as a Go SDK

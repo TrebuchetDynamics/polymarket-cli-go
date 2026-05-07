@@ -94,17 +94,18 @@ state.
 
 ## Signature types
 
-Live commands accept a `--signature-type` flag. Supported values:
+Polygolem supports **deposit wallet (POLY_1271 / type 3)** exclusively.
+EOA, proxy, and Gnosis Safe are blocked by CLOB V2 and are not supported.
 
-| Value | Description |
-|---|---|
-| `eoa` | Plain externally-owned account; rejected by Polymarket for new accounts after May 2026. Retained for legacy keys. |
-| `proxy` | Proxy-wallet signing. |
-| `gnosis-safe` | Gnosis Safe signing. |
-| `deposit` | Deposit wallet (POLY_1271). The supported path for new accounts after May 2026. See `docs/DEPOSIT-WALLET-MIGRATION.md`. |
+| Value | Status |
+|-------|--------|
+| `deposit` | ✅ Deposit wallet (POLY_1271). Required for all trading. |
+| `eoa` | ❌ Blocked by CLOB V2 |
+| `proxy` | ❌ Blocked by CLOB V2 |
+| `safe` / `gnosis-safe` | ❌ Blocked by CLOB V2 |
 
-Builder attribution for orders is handled in `internal/auth` and is
-orthogonal to the signature type.
+Builder credentials are required for deposit wallet deployment via the
+relayer. Order attribution uses the on-order `builder` bytes32 field (V2).
 
 ## Public SDK boundary
 

@@ -5,13 +5,15 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/TrebuchetDynamics/polygolem)](go.mod)
 [![Latest Release](https://img.shields.io/github/v/tag/TrebuchetDynamics/polygolem?label=release&sort=semver)](https://github.com/TrebuchetDynamics/polygolem/releases)
 
-Safe Polymarket SDK and CLI for Go. Read-only by default. No external SDKs —
-all types, signing, and protocol logic implemented from spec.
+Safe Polymarket SDK and CLI for Go — **deposit wallet (type 3 / POLY_1271) only.**
+Read-only by default. No external SDKs — all types, signing, and protocol logic
+implemented from spec. CLOB V2 with version-gated order signing, ERC-1967 CREATE2
+wallet derivation (verified against official Python SDK), relayer client, and
+full CLI for the deposit wallet lifecycle.
 
-**Solves the May 2026 Polymarket deposit wallet migration** — the breaking change
-that rejected EOA orders for new API users. Full tooling: derive, deploy via
-relayer, WALLET batch signing, approvals, on-chain funding, and POLY_1271 order
-placement.
+**EOA, proxy, and Gnosis Safe are not supported.** Polymarket CLOB V2 requires
+deposit wallet for new API users. Polygolem is built exclusively for type 3
+(POLY_1271) — the only mode that works on current production.
 
 ## One Command to Onboard a New Polymarket Account
 

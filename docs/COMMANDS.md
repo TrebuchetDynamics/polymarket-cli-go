@@ -13,6 +13,7 @@ Source of truth for flag semantics: `polygolem <cmd> --help`.
 - Authenticated commands consume environment variables; see
   [Environment Variables](#environment-variables).
 - Live-mutating commands require `--signature-type` and pass a gate check
+- **Deposit wallet (type 3 / POLY_1271) is the only supported mode.** EOA, proxy, and Safe are blocked by CLOB V2.
   before submitting.
 
 ## Commands
@@ -411,7 +412,7 @@ polygolem clob balance [flags]
 | `--asset-type` | string | `collateral` | Asset type. |
 | `-h, --help` | bool | `false` | Help for `balance`. |
 | `--output` | string | `json` | Output format (json). |
-| `--signature-type` | string | `eoa` | Signature type: `eoa`, `proxy`, `safe`, `deposit`. |
+| `--signature-type` | string | `deposit` | Signature type: `deposit` (only supported mode). |
 | `--token-id` | string | `""` | Conditional token id. |
 | `--json` | bool | `false` | Emit JSON output (global). |
 
@@ -488,7 +489,7 @@ polygolem clob create-order [flags]
 | `--output` | string | `json` | Output format (json). |
 | `--price` | string | `""` | Limit price. |
 | `--side` | string | `buy` | Order side. |
-| `--signature-type` | string | `eoa` | Signature type: `eoa`, `proxy`, `safe`, `deposit`. |
+| `--signature-type` | string | `deposit` | Signature type: `deposit` (only supported mode). |
 | `--size` | string | `""` | Order size. |
 | `--token` | string | `""` | CLOB token id. |
 | `--json` | bool | `false` | Emit JSON output (global). |
@@ -544,7 +545,7 @@ polygolem clob market-order [flags]
 | `--output` | string | `json` | Output format (json). |
 | `--price` | string | `""` | Limit price. |
 | `--side` | string | `buy` | Order side. |
-| `--signature-type` | string | `eoa` | Signature type: `eoa`, `proxy`, `safe`, `deposit`. |
+| `--signature-type` | string | `deposit` | Signature type: `deposit` (only supported mode). |
 | `--token` | string | `""` | CLOB token id. |
 | `--json` | bool | `false` | Emit JSON output (global). |
 
@@ -669,7 +670,7 @@ polygolem clob update-balance [flags]
 | `--asset-type` | string | `collateral` | Asset type. |
 | `-h, --help` | bool | `false` | Help for `update-balance`. |
 | `--output` | string | `json` | Output format (json). |
-| `--signature-type` | string | `eoa` | Signature type: `eoa`, `proxy`, `safe`, `deposit`. |
+| `--signature-type` | string | `deposit` | Signature type: `deposit` (only supported mode). |
 | `--token-id` | string | `""` | Conditional token id. |
 | `--json` | bool | `false` | Emit JSON output (global). |
 

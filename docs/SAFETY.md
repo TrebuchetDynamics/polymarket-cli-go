@@ -61,8 +61,9 @@ without printing secrets.
 
 ## Deposit Wallet Safety
 
-For new API users, Polymarket requires deposit wallet (POLY_1271 / signature type 3)
-orders. This introduces safety rules beyond the EOA model.
+Polymarket requires deposit wallet (POLY_1271 / signature type 3) for all
+trading. EOA, proxy, and Gnosis Safe are blocked by CLOB V2. This
+introduces safety rules beyond the direct EOA model.
 
 ### Signer vs Funder Separation
 

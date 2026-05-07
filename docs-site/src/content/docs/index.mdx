@@ -1,10 +1,14 @@
 ---
 title: Polygolem
-description: Safe Polymarket SDK and CLI for Go
+description: Safe Polymarket SDK and CLI for Go — deposit wallet (POLY_1271) only
 ---
 
 Polygolem is the single source of truth for **Polymarket protocol access** in Go.
 Read-only by default. No credentials needed to start.
+
+**Trading requires a deposit wallet (type 3 / POLY_1271).** EOA, proxy, and Safe
+are blocked for new API users by Polymarket's CLOB V2. Polygolem handles the
+full deposit wallet lifecycle: derive, deploy via relayer, fund, approve, trade.
 
 ```bash
 polygolem discover search --query "btc 5m" --limit 5
@@ -36,11 +40,9 @@ polygolem discover enrich --id "0x..."
 
 ## Ready to go deeper?
 
-import { Card, CardGrid } from "@astrojs/starlight/components";
-
 <CardGrid>
   <Card title="Installation" href="/getting-started/installation" />
   <Card title="Quick Start" href="/getting-started/quickstart" />
-  <Card title="Market Discovery" href="/guides/market-discovery" />
-  <Card title="Go-Bot Integration" href="/guides/go-bot-integration" />
+  <Card title="Deposit Wallet Lifecycle" href="/guides/deposit-wallet-lifecycle" />
+  <Card title="Signature Types" href="/concepts/deposit-wallets" />
 </CardGrid>
