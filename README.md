@@ -7,15 +7,13 @@
 
 **Production-safe Polymarket infrastructure for the deposit-wallet era.**
 
-A single Go binary and SDK for trading on Polymarket V2 — built specifically
-for the deposit-wallet signing path (Polymarket's current production model
-for new API users; sometimes called *type 3* or *POLY_1271* in the docs).
-No external SDKs. No Python runtime. No opaque signing wrappers. Wallet
-derivation, signing, relayer flows, and protocol logic are implemented
-directly from spec in Go.
+A single Go binary and SDK for trading on Polymarket V2. Built specifically
+for Polymarket's current production deposit-wallet model. No external SDKs.
+No Python runtime. No opaque signing wrappers.
 
 *For operators who want verifiable trading infrastructure instead of opaque
-wrappers.*
+wrappers — validated against live Polygon mainnet flows, not mocks or paper
+environments.*
 
 ---
 
@@ -31,13 +29,40 @@ appear in the book and never settle.
 
 polygolem only knows the production-safe path:
 
-- **Deposit-wallet only** — `signatureType=3` (`POLY_1271`) for every order
+- **Deposit-wallet only** — the current Polymarket production signing model
+  for every order (known in the Polymarket docs as `signatureType=3` /
+  `POLY_1271`, validated on-chain via ERC-1271)
 - **Local signing** — your private key never leaves the process
 - **Spec-implemented protocol** — no shimmed Python or JS SDKs in the trust path
 - **CREATE2 wallet derivation verified** against the official Polymarket Python SDK
 - **Read-only by default** — every authenticated command requires explicit credentials
 
 EOA, proxy, and Gnosis Safe paths are intentionally not supported.
+
+**Why Go?** A single static binary keeps the trust path inspectable: one
+language, one build, no hidden runtime layers, no transitive npm or pip
+dependencies that get to see your private key.
+
+The on-chain identity model the rest of this README is built around:
+
+```
+  EOA  ──signs──▶  Order
+   │              (signatureType=3, maker=DepositWallet, signer=DepositWallet)
+   │
+   ▼ derives (CREATE2)              ▼ submitted by
+ Deposit Wallet  ◀──holds pUSD──    Polymarket matching engine
+ (ERC-1967 proxy,                   (gas-sponsored fillOrders settlement)
+  validates signatures              ──┐
+  via ERC-1271)                       │
+                                      ▼
+ V2 Relayer  ──sponsors──▶  WALLET-CREATE + approval batch
+ (relayer-v2.polymarket.com)
+```
+
+The EOA signs; the deposit wallet holds funds and is the on-order maker;
+Polymarket-run services pay every gas fee except your single ERC-20 funding
+transfer. See [docs/LIVE-TRADE-WALKTHROUGH.md](docs/LIVE-TRADE-WALKTHROUGH.md)
+for the full lifecycle with real txes.
 
 ---
 
@@ -46,7 +71,8 @@ EOA, proxy, and Gnosis Safe paths are intentionally not supported.
 Verified end-to-end against Polygon mainnet on the 2026-05-08 reference run:
 
 - Headless V2 relayer onboarding + deposit-wallet deploy and funding
-- CLOB V2 limit and market orders (post-only / GTC / GTD / FOK) with cancels
+- CLOB V2 limit and market orders, with cancels (single, batch, all)
+- Advanced order types — post-only, GTC, GTD, FOK
 - Builder-code attribution (V2 bytes32 model)
 - Public market discovery + streaming (Gamma, CLOB, Data API, WebSocket)
 - Local risk controls — per-trade caps, daily loss limits, circuit breaker
@@ -96,30 +122,21 @@ sign-up. Read-only is the default for everything until you set
 
 ---
 
-## Demo Pipeline
+## Demo Pipeline (Planned)
 
-The planned `polygolem demo` command is the new-user showroom for the SDK and
-CLI. It should walk through the Polymarket API graph in one run, choosing live
-read-only data and explaining how Gamma, CLOB, Data, and CTF identifiers connect.
+A guided read-only walkthrough across Gamma, CLOB, Data API, and the public
+market stream — designed to show how Polymarket identifiers, markets, books,
+and analytics connect without requiring funding or order placement.
 
 ```bash
-polygolem demo              # default: L1 public, unauthenticated, read-only
-polygolem demo --layer l1   # explicit public API demo
-polygolem demo --layer l2   # authenticated CLOB L2 read-only account context
-polygolem demo --query btc --limit 5 --seed 123
-polygolem demo --json
+polygolem demo              # public API tour (no credentials)
+polygolem demo --layer l2   # add authenticated CLOB read-only account context
 ```
 
-`--layer l1` uses only public APIs. It lists a small set of active campaigns
-(Polymarket events/series/markets), shows their tags/categories, picks one
-market, then reads Gamma metadata, CLOB market/order-book/price/tick/history
-data, and Data API analytics. No signup, private key, funding, approvals,
-orders, or cancels are involved.
-
-`--layer l2` runs the same public pipeline and adds authenticated read-only
-CLOB context from configured L2 credentials: open orders, trade history, and
-balance/allowance. It must remain read-only: no `POST /order`, no cancels, no
-wallet deployment, no approvals, and no funding.
+`--layer l1` uses only public APIs (Gamma → CLOB → Data API → no signing).
+`--layer l2` adds authenticated read-only CLOB context (open orders, trade
+history, balance/allowance) and is enforced to be read-only — no `POST /order`,
+cancels, wallet deployment, approvals, or funding.
 
 ---
 
@@ -249,17 +266,12 @@ call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
 `v0.1.0` — production-validated against Polygon mainnet on **2026-05-08**
 ([reference run](docs/LIVE-TRADE-WALKTHROUGH.md)).
 
-**Current scope**
+**Core trading flows are operational today:** deposit-wallet lifecycle
+(derive, deploy, approve, fund), CLOB V2 trading (limit, market, post-only,
+GTC / GTD / FOK, cancels), builder-code attribution, and the universal SDK
+client over Gamma + CLOB + Data + Stream.
 
-- Deposit-wallet lifecycle (derive, deploy, approve, fund)
-- CLOB V2 trading (limit, market, post-only, GTC / GTD / FOK, cancels)
-- Builder-code attribution
-- Universal SDK client over Gamma + CLOB + Data + Stream
-
-**Still hardening**
-
-- Broader exchange abstractions
-- Release signing
-- Extended automation surfaces
+**Still hardening:** release signing, broader exchange abstractions, and
+extended automation surfaces.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for per-version detail.
