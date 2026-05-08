@@ -221,9 +221,9 @@ func L1HeaderMap(address string, signature [32]byte, timestamp string, nonce uin
 
 // TypedData is the top-level EIP-712 structure.
 type TypedData struct {
-	Types       TypedDataTypes `json:"types"`
-	PrimaryType string         `json:"primaryType"`
-	Domain      EIP712Domain   `json:"domain"`
+	Types       TypedDataTypes         `json:"types"`
+	PrimaryType string                 `json:"primaryType"`
+	Domain      EIP712Domain           `json:"domain"`
 	Message     map[string]interface{} `json:"message"`
 }
 

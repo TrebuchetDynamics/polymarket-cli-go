@@ -13,13 +13,13 @@ import (
 
 // Config holds WebSocket connection configuration.
 type Config struct {
-	URL                string
-	PingInterval       time.Duration
-	PongTimeout        time.Duration
-	Reconnect          bool
-	ReconnectDelay     time.Duration
-	ReconnectMaxDelay  time.Duration
-	ReconnectMax       int
+	URL               string
+	PingInterval      time.Duration
+	PongTimeout       time.Duration
+	Reconnect         bool
+	ReconnectDelay    time.Duration
+	ReconnectMaxDelay time.Duration
+	ReconnectMax      int
 }
 
 // DefaultConfig returns sensible defaults.
@@ -54,10 +54,10 @@ type PriceLevel struct {
 
 // PriceChangeMessage is a WebSocket price change event.
 type PriceChangeMessage struct {
-	EventType string              `json:"event_type"`
-	Market    string              `json:"market"`
-	Changes   []PriceChangeEntry  `json:"price_changes"`
-	Timestamp string              `json:"timestamp"`
+	EventType string             `json:"event_type"`
+	Market    string             `json:"market"`
+	Changes   []PriceChangeEntry `json:"price_changes"`
+	Timestamp string             `json:"timestamp"`
 }
 
 // PriceChangeEntry is a single price change.
@@ -92,10 +92,10 @@ type MarketClient struct {
 	reconnects int32
 
 	// Callbacks
-	OnBook         func(BookMessage)
-	OnPriceChange  func(PriceChangeMessage)
-	OnLastTrade    func(LastTradeMessage)
-	OnError        func(error)
+	OnBook        func(BookMessage)
+	OnPriceChange func(PriceChangeMessage)
+	OnLastTrade   func(LastTradeMessage)
+	OnError       func(error)
 }
 
 // NewMarketClient creates a public market WebSocket client.

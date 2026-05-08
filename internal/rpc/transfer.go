@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	polygonRPC     = "https://polygon-bor-rpc.publicnode.com"
-	pusdAddr       = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
+	polygonRPC      = "https://polygon-bor-rpc.publicnode.com"
+	pusdAddr        = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
 	defaultGasLimit = 100000
 )
 

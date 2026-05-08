@@ -34,25 +34,25 @@ type Position struct {
 }
 
 type ClosedPosition struct {
-	TokenID       string  `json:"token_id"`
-	ConditionID   string  `json:"condition_id"`
-	MarketID      string  `json:"market_id"`
-	Side          string  `json:"side"`
-	AvgPriceBuy   float64 `json:"avg_price_buy"`
-	AvgPriceSell  float64 `json:"avg_price_sell"`
-	Size          float64 `json:"size"`
-	RealizedPnl   float64 `json:"realized_pnl"`
+	TokenID      string  `json:"token_id"`
+	ConditionID  string  `json:"condition_id"`
+	MarketID     string  `json:"market_id"`
+	Side         string  `json:"side"`
+	AvgPriceBuy  float64 `json:"avg_price_buy"`
+	AvgPriceSell float64 `json:"avg_price_sell"`
+	Size         float64 `json:"size"`
+	RealizedPnl  float64 `json:"realized_pnl"`
 }
 
 type Trade struct {
-	ID        string  `json:"id"`
-	Market    string  `json:"market"`
-	AssetID   string  `json:"asset_id"`
-	Side      string  `json:"side"`
-	Price     float64 `json:"price"`
-	Size      float64 `json:"size"`
+	ID         string  `json:"id"`
+	Market     string  `json:"market"`
+	AssetID    string  `json:"asset_id"`
+	Side       string  `json:"side"`
+	Price      float64 `json:"price"`
+	Size       float64 `json:"size"`
 	FeeRateBps int     `json:"fee_rate_bps"`
-	CreatedAt string  `json:"created_at"`
+	CreatedAt  string  `json:"created_at"`
 }
 
 type Activity struct {
@@ -90,11 +90,11 @@ type OpenInterest struct {
 }
 
 type TraderLeaderboardEntry struct {
-	Rank    int     `json:"rank"`
-	User    string  `json:"user"`
-	Volume  float64 `json:"volume"`
-	Pnl     float64 `json:"pnl"`
-	ROI     float64 `json:"roi"`
+	Rank   int     `json:"rank"`
+	User   string  `json:"user"`
+	Volume float64 `json:"volume"`
+	Pnl    float64 `json:"pnl"`
+	ROI    float64 `json:"roi"`
 }
 
 type LiveVolumeEntry struct {
@@ -105,8 +105,8 @@ type LiveVolumeEntry struct {
 }
 
 type LiveVolumeResponse struct {
-	Total  int                `json:"total"`
-	Events []LiveVolumeEntry  `json:"events"`
+	Total  int               `json:"total"`
+	Events []LiveVolumeEntry `json:"events"`
 }
 
 // --- Methods ---

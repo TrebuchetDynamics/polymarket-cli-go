@@ -59,10 +59,10 @@ func depositWalletDeployOnchainCmd(jsonOut bool) *cobra.Command {
 					return err
 				}
 				return w.printJSON(cmd, map[string]interface{}{
-					"dryRun":            true,
-					"estimatedGas":      gas,
-					"deployGated":       false,
-					"note":              "EstimateGas succeeded — deploy() accepts EOA callers; on-chain path is available without builder credentials",
+					"dryRun":       true,
+					"estimatedGas": gas,
+					"deployGated":  false,
+					"note":         "EstimateGas succeeded — deploy() accepts EOA callers; on-chain path is available without builder credentials",
 				})
 			}
 
@@ -74,9 +74,9 @@ func depositWalletDeployOnchainCmd(jsonOut bool) *cobra.Command {
 				return err
 			}
 			return w.printJSON(cmd, map[string]string{
-				"txHash":          txHash,
-				"factoryAddress":  "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07",
-				"status":          "deployed",
+				"txHash":         txHash,
+				"factoryAddress": "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07",
+				"status":         "deployed",
 			})
 		},
 	}

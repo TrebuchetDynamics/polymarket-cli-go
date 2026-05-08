@@ -1,15 +1,15 @@
 package wallet
 
 import (
-	"math/big"
 	"golang.org/x/crypto/sha3"
+	"math/big"
 )
 
 // Contract addresses for Polygon mainnet (chainID 137).
 const (
-	ProxyFactoryAddr  = "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052"
-	SafeFactoryAddr   = "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b"
-	PolygonChainID    = 137
+	ProxyFactoryAddr = "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052"
+	SafeFactoryAddr  = "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b"
+	PolygonChainID   = 137
 
 	// CREATE2 init code hashes
 	proxyInitCodeHash = "0xd21df8dc65880a8606f09fe0ce3df9b8869287ab0b058be05aa9e8af6330a00b"
@@ -59,11 +59,11 @@ func deriveCreate2(factory string, salt []byte, initCodeHash string) string {
 
 // ReadyInfo holds wallet readiness information.
 type ReadyInfo struct {
-	ChainID       int64  `json:"chain_id"`
-	EOA           string `json:"eoa,omitempty"`
-	ProxyWallet   string `json:"proxy_wallet,omitempty"`
-	SafeWallet    string `json:"safe_wallet,omitempty"`
-	HasSigner     bool   `json:"has_signer"`
+	ChainID     int64  `json:"chain_id"`
+	EOA         string `json:"eoa,omitempty"`
+	ProxyWallet string `json:"proxy_wallet,omitempty"`
+	SafeWallet  string `json:"safe_wallet,omitempty"`
+	HasSigner   bool   `json:"has_signer"`
 }
 
 // Readiness returns wallet readiness info for the given EOA.

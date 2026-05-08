@@ -100,13 +100,13 @@ type Signer interface {
 
 // Status reports the current auth readiness without exposing secrets.
 type Status struct {
-	AccessLevel    AccessLevel `json:"access_level"`
-	HasSigner      bool        `json:"has_signer"`
-	HasAPIKey      bool        `json:"has_api_key"`
-	HasBuilder     bool        `json:"has_builder"`
-	SignerAddress  string      `json:"signer_address,omitempty"`
-	ChainID        int64       `json:"chain_id"`
-	SignatureType  string      `json:"signature_type"`
+	AccessLevel   AccessLevel `json:"access_level"`
+	HasSigner     bool        `json:"has_signer"`
+	HasAPIKey     bool        `json:"has_api_key"`
+	HasBuilder    bool        `json:"has_builder"`
+	SignerAddress string      `json:"signer_address,omitempty"`
+	ChainID       int64       `json:"chain_id"`
+	SignatureType string      `json:"signature_type"`
 }
 
 // AssertL1 returns an error if the access level is below L1.

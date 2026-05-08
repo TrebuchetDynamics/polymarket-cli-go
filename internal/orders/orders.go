@@ -14,20 +14,20 @@ import (
 
 // OrderIntent represents a user's order before building/signing.
 type OrderIntent struct {
-	TokenID      string              `json:"token_id"`
-	Side         polytypes.Side      `json:"side"`
-	Price        polytypes.Decimal   `json:"price"`
-	Size         polytypes.Decimal   `json:"size"`
-	AmountUSDC   polytypes.Decimal   `json:"amount_usdc,omitempty"`
-	OrderType    polytypes.OrderType `json:"order_type"`
-	SigType      polytypes.SignatureType `json:"signature_type"`
-	TickSize     polytypes.TickSize  `json:"tick_size"`
-	NegRisk      bool                `json:"neg_risk"`
-	FeeRateBps   int                 `json:"fee_rate_bps"`
-	Nonce        uint64              `json:"nonce,omitempty"`
-	Expiration   int64               `json:"expiration,omitempty"`
-	Funder       string              `json:"funder,omitempty"`
-	PostOnly     bool                `json:"post_only,omitempty"`
+	TokenID    string                  `json:"token_id"`
+	Side       polytypes.Side          `json:"side"`
+	Price      polytypes.Decimal       `json:"price"`
+	Size       polytypes.Decimal       `json:"size"`
+	AmountUSDC polytypes.Decimal       `json:"amount_usdc,omitempty"`
+	OrderType  polytypes.OrderType     `json:"order_type"`
+	SigType    polytypes.SignatureType `json:"signature_type"`
+	TickSize   polytypes.TickSize      `json:"tick_size"`
+	NegRisk    bool                    `json:"neg_risk"`
+	FeeRateBps int                     `json:"fee_rate_bps"`
+	Nonce      uint64                  `json:"nonce,omitempty"`
+	Expiration int64                   `json:"expiration,omitempty"`
+	Funder     string                  `json:"funder,omitempty"`
+	PostOnly   bool                    `json:"post_only,omitempty"`
 }
 
 // Validate checks that the order intent is well-formed.
@@ -59,23 +59,23 @@ func (oi *OrderIntent) Validate() error {
 type LifecycleState string
 
 const (
-	StateCreated  LifecycleState = "created"
-	StateAccepted LifecycleState = "accepted"
-	StateLive     LifecycleState = "live"
-	StatePartial  LifecycleState = "partial"
-	StateMatched  LifecycleState = "matched"
-	StateCanceled LifecycleState = "canceled"
-	StateRejected LifecycleState = "rejected"
-	StateFailed   LifecycleState = "failed"
-	StateMined    LifecycleState = "mined"
+	StateCreated   LifecycleState = "created"
+	StateAccepted  LifecycleState = "accepted"
+	StateLive      LifecycleState = "live"
+	StatePartial   LifecycleState = "partial"
+	StateMatched   LifecycleState = "matched"
+	StateCanceled  LifecycleState = "canceled"
+	StateRejected  LifecycleState = "rejected"
+	StateFailed    LifecycleState = "failed"
+	StateMined     LifecycleState = "mined"
 	StateConfirmed LifecycleState = "confirmed"
 )
 
 // SignedOrder represents a signed but unposted order.
 type SignedOrder struct {
-	Order     OrderData  `json:"order"`
-	Signature string     `json:"signature"`
-	Owner     string     `json:"owner"`
+	Order     OrderData           `json:"order"`
+	Signature string              `json:"signature"`
+	Owner     string              `json:"owner"`
 	OrderType polytypes.OrderType `json:"order_type"`
 }
 
@@ -96,11 +96,11 @@ type OrderData struct {
 
 // OrderResponse represents the CLOB response from posting an order.
 type OrderResponse struct {
-	Success    bool   `json:"success"`
-	OrderID    string `json:"order_id"`
-	Status     string `json:"status"`
-	ErrorMsg   string `json:"error_msg,omitempty"`
-	TxHash     string `json:"transaction_hash,omitempty"`
+	Success  bool   `json:"success"`
+	OrderID  string `json:"order_id"`
+	Status   string `json:"status"`
+	ErrorMsg string `json:"error_msg,omitempty"`
+	TxHash   string `json:"transaction_hash,omitempty"`
 }
 
 // ComputeAmounts calculates maker/taker amounts for an order.

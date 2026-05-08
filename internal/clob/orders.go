@@ -21,11 +21,11 @@ import (
 )
 
 const (
-	clobExchangeAddress    = "0xE111180000d2663C0091e4f400237545B87B996B"    // V2 regular
-	negRiskExchangeAddress = "0xe2222d279d744050d28e00520010520000310F59"    // V2 neg-risk
-	zeroAddress              = "0x0000000000000000000000000000000000000000"
-	bytes32Zero              = "0x0000000000000000000000000000000000000000000000000000000000000000"
-	signatureTypePoly1271    = 3
+	clobExchangeAddress    = "0xE111180000d2663C0091e4f400237545B87B996B" // V2 regular
+	negRiskExchangeAddress = "0xe2222d279d744050d28e00520010520000310F59" // V2 neg-risk
+	zeroAddress            = "0x0000000000000000000000000000000000000000"
+	bytes32Zero            = "0x0000000000000000000000000000000000000000000000000000000000000000"
+	signatureTypePoly1271  = 3
 )
 
 // Test seams: tests override these to make salt and timestamp deterministic.
@@ -71,21 +71,21 @@ type CancelOrdersResponse struct {
 
 // OrderRecord is a single order as returned by ListOrders.
 type OrderRecord struct {
-	ID             string  `json:"id"`
-	Status         string  `json:"status"`
-	Owner          string  `json:"owner"`
-	Market         string  `json:"market"`
-	AssetID        string  `json:"asset_id"`
-	Side           string  `json:"side"`
-	OriginalSize   string  `json:"original_size"`
-	SizeMatched    string  `json:"size_matched"`
-	Price          string  `json:"price"`
-	Outcome        string  `json:"outcome"`
-	Type           string  `json:"type"`
-	SignatureType  int     `json:"signature_type"`
-	CreatedAt      string  `json:"created_at"`
-	Expiration     string  `json:"expiration"`
-	MakerAddress   string  `json:"maker_address"`
+	ID              string   `json:"id"`
+	Status          string   `json:"status"`
+	Owner           string   `json:"owner"`
+	Market          string   `json:"market"`
+	AssetID         string   `json:"asset_id"`
+	Side            string   `json:"side"`
+	OriginalSize    string   `json:"original_size"`
+	SizeMatched     string   `json:"size_matched"`
+	Price           string   `json:"price"`
+	Outcome         string   `json:"outcome"`
+	Type            string   `json:"type"`
+	SignatureType   int      `json:"signature_type"`
+	CreatedAt       string   `json:"created_at"`
+	Expiration      string   `json:"expiration"`
+	MakerAddress    string   `json:"maker_address"`
 	AssociateTrades []string `json:"associate_trades,omitempty"`
 }
 
@@ -129,10 +129,10 @@ type signedOrderPayload struct {
 
 type sendOrderPayload struct {
 	Order     signedOrderPayload `json:"order"`
-	Owner     string               `json:"owner"`
-	OrderType string               `json:"orderType"`
-	PostOnly  bool                 `json:"postOnly"`
-	DeferExec bool                 `json:"deferExec"`
+	Owner     string             `json:"owner"`
+	OrderType string             `json:"orderType"`
+	PostOnly  bool               `json:"postOnly"`
+	DeferExec bool               `json:"deferExec"`
 }
 
 type orderDraft struct {
@@ -468,8 +468,8 @@ func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, 
 	if len(rawData) != 66 {
 		return "", fmt.Errorf("unexpected rawData length %d", len(rawData))
 	}
-	appDomainSep := rawData[2:34]  // CTF Exchange V2 domain separator — used as OUTER
-	contents := rawData[34:66]     // hashStruct(Order)
+	appDomainSep := rawData[2:34] // CTF Exchange V2 domain separator — used as OUTER
+	contents := rawData[34:66]    // hashStruct(Order)
 
 	// 2. TypedDataSign typehash.
 	typeHashStr := "TypedDataSign(Order contents,string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)" + contentsType

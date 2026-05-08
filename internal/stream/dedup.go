@@ -16,9 +16,9 @@ type Deduplicator struct {
 	size  int
 	ttlMs int64
 
-	In   atomic.Int64
-	Dup  atomic.Int64
-	Out  atomic.Int64
+	In  atomic.Int64
+	Dup atomic.Int64
+	Out atomic.Int64
 }
 
 // NewDeduplicator creates a deduplicator with the given capacity and TTL.

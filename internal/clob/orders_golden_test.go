@@ -73,12 +73,12 @@ func TestGoldenVectorsV2OrderSigning(t *testing.T) {
 	for _, fx := range goldenFixtures {
 		t.Run(fx.name, func(t *testing.T) {
 			payload, err := buildSignedOrderPayload(signer, orderDraft{
-				tokenID:     big.NewInt(12345),
-				side:        "BUY",
-				makerAmount: "700000",
-				takerAmount: "1400000",
+				tokenID:       big.NewInt(12345),
+				side:          "BUY",
+				makerAmount:   "700000",
+				takerAmount:   "1400000",
 				signatureType: fx.sigType,
-				orderType:   "GTC",
+				orderType:     "GTC",
 			}, time.UnixMilli(1778125000123), fx.negRisk)
 			if err != nil {
 				t.Fatal(err)

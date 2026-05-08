@@ -15,8 +15,8 @@ type Comment struct {
 
 // CommentUser represents a comment author.
 type CommentUser struct {
-	Address     string `json:"address"`
-	Pseudonym   string `json:"pseudonym"`
+	Address      string `json:"address"`
+	Pseudonym    string `json:"pseudonym"`
 	ProfileImage string `json:"profileImage"`
 }
 
@@ -44,31 +44,31 @@ type CommentsByUserQuery struct {
 
 // RewardsConfig represents active rewards configuration.
 type RewardsConfig struct {
-	Market          string  `json:"market"`
-	AssetAddress    string  `json:"asset_address"`
-	RewardsMinSize  float64 `json:"rewards_min_size"`
+	Market           string  `json:"market"`
+	AssetAddress     string  `json:"asset_address"`
+	RewardsMinSize   float64 `json:"rewards_min_size"`
 	RewardsMaxSpread float64 `json:"rewards_max_spread"`
-	Active          bool    `json:"active"`
+	Active           bool    `json:"active"`
 }
 
 // RawRewards represents raw rewards for a market.
 type RawRewards struct {
-	Market       string  `json:"market"`
-	Date         string  `json:"date"`
-	RewardsPaid  float64 `json:"rewards_paid"`
-	Volume       float64 `json:"volume"`
+	Market      string  `json:"market"`
+	Date        string  `json:"date"`
+	RewardsPaid float64 `json:"rewards_paid"`
+	Volume      float64 `json:"volume"`
 }
 
 // UserEarnings represents earnings for a user.
 type UserEarnings struct {
-	Date    string  `json:"date"`
+	Date     string  `json:"date"`
 	Earnings float64 `json:"earnings"`
-	Market  string  `json:"market,omitempty"`
+	Market   string  `json:"market,omitempty"`
 }
 
 // TotalEarnings represents total earnings.
 type TotalEarnings struct {
-	Date    string  `json:"date"`
+	Date     string  `json:"date"`
 	Earnings float64 `json:"earnings"`
 }
 
@@ -80,8 +80,8 @@ type RewardPercentages struct {
 
 // UserRewardsMarket represents user rewards by market.
 type UserRewardsMarket struct {
-	Market          string  `json:"market"`
-	TotalRewards    float64 `json:"total_rewards"`
+	Market           string  `json:"market"`
+	TotalRewards     float64 `json:"total_rewards"`
 	RewardPercentage float64 `json:"reward_percentage"`
 }
 
@@ -113,12 +113,12 @@ type SportsMarketType struct {
 
 // KeysetParams represents keyset pagination parameters.
 type KeysetParams struct {
-	Limit      int    `json:"limit,omitempty"`
-	KeysetID   string `json:"keyset_id,omitempty"`
-	Ascending  *bool  `json:"ascending,omitempty"`
-	Active     *bool  `json:"active,omitempty"`
-	Closed     *bool  `json:"closed,omitempty"`
-	Order      string `json:"order,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+	KeysetID  string `json:"keyset_id,omitempty"`
+	Ascending *bool  `json:"ascending,omitempty"`
+	Active    *bool  `json:"active,omitempty"`
+	Closed    *bool  `json:"closed,omitempty"`
+	Order     string `json:"order,omitempty"`
 }
 
 // KeysetResponse wraps a keyset-paginated response.
@@ -132,7 +132,7 @@ type KeysetResponse[T any] struct {
 
 // MarketByTokenResponse represents a market resolved by CLOB token ID.
 type MarketByTokenResponse struct {
-	Market   Market `json:"market"`
-	TokenID  string `json:"token_id"`
-	Outcome  string `json:"outcome"`
+	Market  Market `json:"market"`
+	TokenID string `json:"token_id"`
+	Outcome string `json:"outcome"`
 }

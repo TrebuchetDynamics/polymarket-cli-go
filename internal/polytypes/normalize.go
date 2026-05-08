@@ -57,9 +57,9 @@ func (ct NormalizedTime) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.Format(time.RFC3339))
 }
 
-func (ct NormalizedTime) Time() time.Time     { return time.Time(ct) }
-func (ct NormalizedTime) IsZero() bool         { return time.Time(ct).IsZero() }
-func (ct NormalizedTime) String() string        { return ct.Time().String() }
+func (ct NormalizedTime) Time() time.Time { return time.Time(ct) }
+func (ct NormalizedTime) IsZero() bool    { return time.Time(ct).IsZero() }
+func (ct NormalizedTime) String() string  { return ct.Time().String() }
 
 // StringOrArray handles Gamma fields that may arrive as JSON strings or arrays.
 // Copied from polymarket-go-gamma-client/types.go.

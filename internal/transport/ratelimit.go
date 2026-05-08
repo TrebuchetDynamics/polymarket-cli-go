@@ -90,5 +90,10 @@ func (rl *RateLimiter) refillTokens() {
 	rl.lastRefill = now
 }
 
-func (rl *RateLimiter) Capacity() int     { return rl.capacity }
-func (rl *RateLimiter) Available() int    { rl.mu.Lock(); defer rl.mu.Unlock(); rl.refillTokens(); return int(rl.tokens) }
+func (rl *RateLimiter) Capacity() int { return rl.capacity }
+func (rl *RateLimiter) Available() int {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	rl.refillTokens()
+	return int(rl.tokens)
+}

@@ -32,29 +32,29 @@ type PaperExecutor struct {
 
 // PaperPositions tracks local paper trading state.
 type PaperPositions struct {
-	Cash    polytypes.Decimal        `json:"cash"`
-	Orders  []PaperOrder             `json:"orders"`
-	Fills   []PaperFill              `json:"fills"`
+	Cash   polytypes.Decimal `json:"cash"`
+	Orders []PaperOrder      `json:"orders"`
+	Fills  []PaperFill       `json:"fills"`
 }
 
 // PaperOrder represents a simulated paper order.
 type PaperOrder struct {
-	OrderID    string              `json:"order_id"`
-	TokenID    string              `json:"token_id"`
-	Side       string              `json:"side"`
-	Price      string              `json:"price"`
-	Size       string              `json:"size"`
+	OrderID    string                `json:"order_id"`
+	TokenID    string                `json:"token_id"`
+	Side       string                `json:"side"`
+	Price      string                `json:"price"`
+	Size       string                `json:"size"`
 	Status     orders.LifecycleState `json:"status"`
-	FilledSize string              `json:"filled_size"`
+	FilledSize string                `json:"filled_size"`
 }
 
 // PaperFill represents a simulated paper fill.
 type PaperFill struct {
-	OrderID  string `json:"order_id"`
-	TokenID  string `json:"token_id"`
-	Side     string `json:"side"`
-	Price    string `json:"price"`
-	Size     string `json:"size"`
+	OrderID string `json:"order_id"`
+	TokenID string `json:"token_id"`
+	Side    string `json:"side"`
+	Price   string `json:"price"`
+	Size    string `json:"size"`
 }
 
 // NewPaperExecutor creates a paper executor with initial state.

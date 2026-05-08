@@ -144,10 +144,10 @@ func TestAssertL2(t *testing.T) {
 func TestEIP712HashTypedData(t *testing.T) {
 	domain := EIP712Domain{Name: "ClobAuthDomain", Version: "1", ChainID: 137}
 	msg := ClobAuthMessage{
-		Address: "0x2c7536E3605D9C16a7a3D7b1898e529396a65c23",
+		Address:   "0x2c7536E3605D9C16a7a3D7b1898e529396a65c23",
 		Timestamp: "1700000000",
-		Nonce: 0,
-		Message: "This message attests that I control the given wallet",
+		Nonce:     0,
+		Message:   "This message attests that I control the given wallet",
 	}
 	hash, err := HashTypedData(domain, msg)
 	if err != nil {
