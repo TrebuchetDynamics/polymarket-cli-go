@@ -146,13 +146,12 @@ type sendOrderPayload struct {
 }
 
 type orderDraft struct {
-	tokenID       *big.Int
-	side          string
-	makerAmount   string
-	takerAmount   string
-	signatureType int
-	orderType     string
-	expiration    string
+	tokenID     *big.Int
+	side        string
+	makerAmount string
+	takerAmount string
+	orderType   string
+	expiration  string
 }
 
 func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params CreateOrderParams) (*OrderPlacementResponse, error) {
@@ -185,13 +184,12 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 
 	makerAmount, takerAmount := limitFixedAmounts(side, price, size)
 	draft := orderDraft{
-		tokenID:       tokenID,
-		side:          side,
-		makerAmount:   makerAmount,
-		takerAmount:   takerAmount,
-		signatureType: signatureTypePoly1271,
-		orderType:     normalizeOrderType(params.OrderType, "GTC"),
-		expiration:    firstNonEmpty(params.Expiration, "0"),
+		tokenID:     tokenID,
+		side:        side,
+		makerAmount: makerAmount,
+		takerAmount: takerAmount,
+		orderType:   normalizeOrderType(params.OrderType, "GTC"),
+		expiration:  firstNonEmpty(params.Expiration, "0"),
 	}
 	return c.signAndPostOrder(ctx, privateKey, draft)
 }
@@ -414,12 +412,11 @@ func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, param
 		return nil, err
 	}
 	draft := orderDraft{
-		tokenID:       tokenID,
-		side:          side,
-		makerAmount:   fixedDecimal(amount, 6),
-		takerAmount:   fixedDecimal(taker, 6),
-		signatureType: signatureTypePoly1271,
-		orderType:     normalizeOrderType(params.OrderType, "FOK"),
+		tokenID:     tokenID,
+		side:        side,
+		makerAmount: fixedDecimal(amount, 6),
+		takerAmount: fixedDecimal(taker, 6),
+		orderType:   normalizeOrderType(params.OrderType, "FOK"),
 	}
 	return c.signAndPostOrder(ctx, privateKey, draft)
 }
@@ -629,43 +626,37 @@ func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, 
 }
 
 // buildSignedOrderPayload constructs a signed V2 order payload from a draft.
+// Sigtype is always 3 (POLY_1271, deposit wallet) — the only type Polymarket
+// V2 accepts since the 2026-04-28 cutover. Maker is the deposit wallet
+// derived from the EOA; signer is also the deposit wallet (validated via
+// ERC-1271 against the EOA's signature).
 func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts time.Time, negRisk bool) (signedOrderPayload, error) {
 	salt, err := orderSalt()
 	if err != nil {
 		return signedOrderPayload{}, err
 	}
-	maker, err := auth.MakerAddressForSignatureType(signer.Address(), polygonChainID, draft.signatureType)
+	maker, err := auth.MakerAddressForSignatureType(signer.Address(), polygonChainID, signatureTypePoly1271)
 	if err != nil {
 		return signedOrderPayload{}, err
-	}
-	orderSigner := signer.Address()
-	if draft.signatureType == signatureTypePoly1271 {
-		orderSigner = maker
 	}
 	payload := signedOrderPayload{
 		Salt:          salt,
 		Maker:         maker,
-		Signer:        orderSigner,
+		Signer:        maker,
 		TokenID:       draft.tokenID.String(),
 		MakerAmount:   draft.makerAmount,
 		TakerAmount:   draft.takerAmount,
 		Side:          draft.side,
 		Expiration:    firstNonEmpty(draft.expiration, "0"),
-		SignatureType: draft.signatureType,
+		SignatureType: signatureTypePoly1271,
 		Timestamp:     fmt.Sprintf("%d", ts.UnixMilli()),
 		Metadata:      bytes32Zero,
 		Builder:       bytes32Zero,
 	}
-	sig, err := signCLOBOrder(signer, payload, negRisk)
+	typedData := buildOrderTypedData(payload, negRisk)
+	sig, err := wrapPOLY1271Signature(signer, maker, typedData)
 	if err != nil {
 		return signedOrderPayload{}, err
-	}
-	if draft.signatureType == signatureTypePoly1271 {
-		typedData := buildOrderTypedData(payload, negRisk)
-		sig, err = wrapPOLY1271Signature(signer, maker, typedData)
-		if err != nil {
-			return signedOrderPayload{}, err
-		}
 	}
 	payload.Signature = sig
 	return payload, nil

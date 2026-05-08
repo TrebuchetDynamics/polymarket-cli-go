@@ -80,7 +80,7 @@ The CLOB maintains **separate balance/allowance records per signature type** for
 | `signature_type=2` (gnosis-safe) | Balance: $0.00, Allowances: MAX |
 | `signature_type=3` (deposit) | Balance: $0.00, Allowances: 0 |
 
-If your wallet was ever queried under multiple types, the CLOB cache can split. The fix is a full `update-balance --signature-type 3` after funding and approving the deposit wallet.
+If your wallet was ever queried under multiple types, the CLOB cache can split. The fix is a full `update-balance` after funding and approving the deposit wallet.
 
 ---
 
@@ -243,13 +243,13 @@ After funding and approvals, refresh the CLOB cache:
 
 ```bash
 POLYMARKET_PRIVATE_KEY="0x..." \
-  polygolem clob update-balance --asset-type collateral --signature-type deposit --json
+  polygolem clob update-balance --asset-type collateral --json
 ```
 
 Then verify the balance is visible:
 ```bash
 POLYMARKET_PRIVATE_KEY="0x..." \
-  polygolem clob balance --asset-type collateral --signature-type deposit --json
+  polygolem clob balance --asset-type collateral --json
 ```
 
 Expected output shows non-zero balance and non-zero allowances.
@@ -262,7 +262,7 @@ Orders must use:
 - `signer = depositWalletAddress`
 - ERC-7739 wrapped signature
 
-Polygolem handles this automatically when `--signature-type deposit` is used.
+Polygolem handles this automatically — sigtype 3 is the only type the SDK signs with.
 
 ---
 
@@ -284,21 +284,12 @@ Polygolem handles this automatically when `--signature-type deposit` is used.
 **Common causes**:
 - pUSD is still on EOA, not deposit wallet
 - Allowances were set on EOA but need to be set on deposit wallet via WALLET batch
-- CLOB cache is stale — run `update-balance --signature-type deposit`
+- CLOB cache is stale — run `update-balance`
 - Approved USDC.e instead of pUSD (V2 uses pUSD, not USDC.e)
 
-### 5.4 Split Cache (balance/allowance across signature types)
+### 5.4 Split Cache (legacy)
 
-If your wallet was used with multiple signature types, the CLOB may have cached balance under one type and allowances under another. Debug:
-
-```bash
-# Check each signature type separately
-polygolem clob balance --signature-type eoa --json
-polygolem clob balance --signature-type deposit --json
-polygolem clob balance --signature-type proxy --json
-```
-
-If you see split state, run `update-balance` under the correct type, fund the wallet properly, and approve under the correct type.
+Historical issue: pre-V2 wallets that were queried under multiple signature types could end up with a split CLOB cache (balance under one type, allowances under another). The V2 cutover removed `--signature-type` and forced sigtype 3 / deposit wallet, so this no longer applies. If you migrated a pre-V2 account, run `update-balance` once to repopulate the cache under sigtype 3.
 
 ### 5.5 V1 vs V2 Domain Mismatch
 
@@ -340,9 +331,9 @@ Builder profile creation at polymarket.com/settings is generally instant. No app
 | WALLET nonce fetch | `polygolem deposit-wallet nonce` |
 | Transaction status polling | `polygolem deposit-wallet status [--tx-id]` |
 | Deployment check | `polygolem deposit-wallet status` |
-| V2 order signing (POLY_1271) | `polygolem clob create-order --signature-type deposit` |
-| CLOB balance with sig type 3 | `polygolem clob balance --signature-type deposit` |
-| CLOB balance sync | `polygolem clob update-balance --signature-type deposit` |
+| V2 order signing (POLY_1271) | `polygolem clob create-order` |
+| CLOB balance with sig type 3 | `polygolem clob balance` |
+| CLOB balance sync | `polygolem clob update-balance` |
 | ERC-7739 wrapped signatures | Automatic for deposit wallet orders |
 
 ### ❌ Not Yet Implemented
@@ -411,7 +402,6 @@ If your bot is down with deposit wallet issues:
 - [ ] Run `polygolem deposit-wallet deploy --wait` — deploy the wallet
 - [ ] Transfer pUSD from EOA to deposit wallet address (ERC-20 transfer)
 - [ ] Approve trading contracts via Polymarket UI or WALLET batch
-- [ ] Run `polygolem clob update-balance --asset-type collateral --signature-type deposit`
-- [ ] Run `polygolem clob balance --asset-type collateral --signature-type deposit` to verify
-- [ ] Switch bot to `--signature-type deposit`
+- [ ] Run `polygolem clob update-balance --asset-type collateral`
+- [ ] Run `polygolem clob balance --asset-type collateral` to verify
 - [ ] Restart bot and verify no `"maker address not allowed"` errors

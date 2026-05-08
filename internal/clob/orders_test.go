@@ -23,12 +23,11 @@ func TestBuildSignedOrderPayloadV2UsesCurrentCLOBShape(t *testing.T) {
 	}
 	tokenID := big.NewInt(12345)
 	order, err := buildSignedOrderPayload(signer, orderDraft{
-		tokenID:       tokenID,
-		side:          "BUY",
-		makerAmount:   "700000",
-		takerAmount:   "1400000",
-		signatureType: 0,
-		orderType:     "FOK",
+		tokenID:     tokenID,
+		side:        "BUY",
+		makerAmount: "700000",
+		takerAmount: "1400000",
+		orderType:   "FOK",
 	}, time.UnixMilli(1778125000123), false)
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +35,7 @@ func TestBuildSignedOrderPayloadV2UsesCurrentCLOBShape(t *testing.T) {
 	if order.Timestamp != "1778125000123" || order.Metadata != bytes32Zero || order.Builder != bytes32Zero || order.Expiration != "0" {
 		t.Fatalf("v2 metadata fields not set: %+v", order)
 	}
-	if !strings.HasPrefix(order.Signature, "0x") || len(order.Signature) != 132 {
+	if !strings.HasPrefix(order.Signature, "0x") || len(order.Signature) != 636 {
 		t.Fatalf("signature shape=%q", order.Signature)
 	}
 	body, err := json.Marshal(order)
@@ -56,12 +55,11 @@ func TestBuildSignedOrderPayloadV2DepositWalletUsesEOASignerWithDepositMaker(t *
 		t.Fatal(err)
 	}
 	order, err := buildSignedOrderPayload(signer, orderDraft{
-		tokenID:       big.NewInt(12345),
-		side:          "BUY",
-		makerAmount:   "700000",
-		takerAmount:   "1400000",
-		signatureType: signatureTypePoly1271,
-		orderType:     "FOK",
+		tokenID:     big.NewInt(12345),
+		side:        "BUY",
+		makerAmount: "700000",
+		takerAmount: "1400000",
+		orderType:   "FOK",
 	}, time.UnixMilli(1778125000123), false)
 	if err != nil {
 		t.Fatal(err)

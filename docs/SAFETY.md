@@ -135,8 +135,8 @@ operations. These rules apply.
    `deposit-wallet status`.
 
 6. **POLY_1271 orders use the deployed wallet's signature path.**
-   `clob create-order --signature-type deposit` and
-   `clob market-order --signature-type deposit` sign with the deposit
+   `clob create-order` and
+   `clob market-order` sign with the deposit
    wallet's POLY_1271 path. Orders signed without the deposit signature
    type after the May 2026 cutoff will be rejected by Polymarket for
    new accounts.

@@ -245,8 +245,8 @@ Observed live-mode issues:
   See [DEPOSIT-WALLET-MIGRATION.md](./DEPOSIT-WALLET-MIGRATION.md) for the
   full migration survival guide, common pitfalls, and implementation status.
 - Live run blocker observed on 2026-05-07 after deposit-wallet order signing
-  was added: `polygolem clob balance --asset-type collateral --signature-type
-  deposit` returned CLOB pUSD balance `0.000000` and zero allowances, while the
+  was added: `polygolem clob balance --asset-type collateral` returned CLOB
+  pUSD balance `0.000000` and zero allowances, while the
   owner EOA still holds `0.709708` pUSD. Polymarket's migration guide is
   explicit that pUSD held by the EOA does not fund deposit-wallet orders.
   go-bot now blocks before submitting orders instead of generating more lost

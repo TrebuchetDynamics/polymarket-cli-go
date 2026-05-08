@@ -59,10 +59,10 @@ POLYMARKET_BUILDER_PASSPHRASE="..." \
 
 # Step 3 — Sync and trade
 POLYMARKET_PRIVATE_KEY="0x$(cat fresh_key.txt)" \
-  polygolem clob update-balance --asset-type collateral --signature-type deposit
+  polygolem clob update-balance --asset-type collateral
 
 POLYMARKET_PRIVATE_KEY="0x$(cat fresh_key.txt)" \
-  polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --signature-type deposit
+  polygolem clob create-order --token ID --side buy --price 0.5 --size 10
 ```
 
 > **Note:** Builder credentials are obtained programmatically via `polygolem builder auto`. See [BUILDER-AUTO.md](./BUILDER-AUTO.md) for the full sequence diagram and empirical proof.
@@ -286,7 +286,7 @@ Checks: deployment status, pUSD balance, allowance status, nonce.
 ### 4.2 Balance Sync
 
 ```bash
-polygolem clob update-balance --asset-type collateral --signature-type deposit
+polygolem clob update-balance --asset-type collateral
 ```
 
 Syncs the CLOB's cached balance with the on-chain state. Required after funding.
@@ -296,13 +296,11 @@ Syncs the CLOB's cached balance with the on-chain state. Required after funding.
 ```bash
 # Create limit order
 polygolem clob create-order \
-  --token ID --side buy --price 0.5 --size 10 \
-  --signature-type deposit
+  --token ID --side buy --price 0.5 --size 10
 
 # Market order
 polygolem clob market-order \
-  --token ID --side buy --amount 5 \
-  --signature-type deposit
+  --token ID --side buy --amount 5
 ```
 
 Orders are POLY_1271 signed — the deposit wallet's contract signature format.

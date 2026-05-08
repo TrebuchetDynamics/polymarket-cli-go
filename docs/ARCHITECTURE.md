@@ -125,8 +125,9 @@ leaderboards, open interest, and live volume.
 
 - Read-only is the default mode and is exercised by every public command.
 - Paper mode never calls authenticated endpoints.
-- Live commands require explicit signature-type, gates passing, and
-  builder credentials where applicable.
+- Live commands require gates passing and builder credentials where
+  applicable. Sigtype is hardcoded to 3 (POLY_1271, deposit wallet) — the
+  only type Polymarket V2 accepts.
 - Builder credentials and private keys are redacted by `internal/config`
   on every load.
 

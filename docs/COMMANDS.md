@@ -89,8 +89,9 @@ polygolem clob [command]
 
 **Authenticated mutation note:** `cancel`, `cancel-orders`, `cancel-market`,
 and `cancel-all` require `POLYMARKET_PRIVATE_KEY` to derive L2 credentials, but
-they reduce or remove open exposure. `create-order` and `market-order` default
-to `--signature-type deposit`.
+they reduce or remove open exposure. `create-order` and `market-order` always
+sign as sigtype 3 (POLY_1271, deposit wallet) — the only signature type
+Polymarket V2 accepts since the 2026-04-28 cutover.
 
 **Flags:**
 
@@ -475,14 +476,13 @@ polygolem clob balance [flags]
 | `--asset-type` | string | `collateral` | Asset type. |
 | `-h, --help` | bool | `false` | Help for `balance`. |
 | `--output` | string | `json` | Output format (json). |
-| `--signature-type` | string | `deposit` | Signature type: `deposit` (only supported mode). |
 | `--token-id` | string | `""` | Conditional token id. |
 | `--json` | bool | `false` | Emit JSON output (global). |
 
 **Example:**
 
 ```bash
-polygolem --json clob balance --asset-type collateral --signature-type deposit
+polygolem --json clob balance --asset-type collateral
 ```
 
 ### clob book
@@ -553,7 +553,6 @@ polygolem clob create-order [flags]
 | `--output` | string | `json` | Output format (json). |
 | `--price` | string | `""` | Limit price. |
 | `--side` | string | `buy` | Order side. |
-| `--signature-type` | string | `deposit` | Signature type: `deposit` (only supported mode). |
 | `--size` | string | `""` | Order size. |
 | `--token` | string | `""` | CLOB token id. |
 | `--json` | bool | `false` | Emit JSON output (global). |
@@ -562,10 +561,10 @@ polygolem clob create-order [flags]
 
 ```bash
 polygolem --json clob create-order \
-  --token <token-id> --side buy --price 0.51 --size 10 --signature-type deposit
+  --token <token-id> --side buy --price 0.51 --size 10
 polygolem --json clob create-order \
   --token <token-id> --side buy --price 0.51 --size 10 \
-  --order-type GTD --expiration 1778125000 --signature-type deposit
+  --order-type GTD --expiration 1778125000
 ```
 
 ### clob market
@@ -637,7 +636,6 @@ polygolem clob market-order [flags]
 | `--output` | string | `json` | Output format (json). |
 | `--price` | string | `""` | Limit price. |
 | `--side` | string | `buy` | Order side. |
-| `--signature-type` | string | `deposit` | Signature type: `deposit` (only supported mode). |
 | `--token` | string | `""` | CLOB token id. |
 | `--json` | bool | `false` | Emit JSON output (global). |
 
@@ -645,7 +643,7 @@ polygolem clob market-order [flags]
 
 ```bash
 polygolem --json clob market-order \
-  --token <token-id> --side buy --amount 5 --signature-type deposit
+  --token <token-id> --side buy --amount 5
 ```
 
 ### clob orders
@@ -885,14 +883,13 @@ polygolem clob update-balance [flags]
 | `--asset-type` | string | `collateral` | Asset type. |
 | `-h, --help` | bool | `false` | Help for `update-balance`. |
 | `--output` | string | `json` | Output format (json). |
-| `--signature-type` | string | `deposit` | Signature type: `deposit` (only supported mode). |
 | `--token-id` | string | `""` | Conditional token id. |
 | `--json` | bool | `false` | Emit JSON output (global). |
 
 **Example:**
 
 ```bash
-polygolem --json clob update-balance --asset-type collateral --signature-type deposit
+polygolem --json clob update-balance --asset-type collateral
 ```
 
 ### deposit-wallet approve
@@ -992,7 +989,6 @@ polygolem deposit-wallet derive [flags]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-h, --help` | bool | `false` | Help for `derive`. |
-| `--signature-type` | string | `deposit` | Signature type (must be `deposit`). |
 | `--json` | bool | `false` | Emit JSON output (global). |
 
 **Example:**
@@ -1061,7 +1057,7 @@ Run the complete deposit wallet setup sequence:
 4. Transfer pUSD from EOA to deposit wallet (requires `--fund-amount`).
 
 After onboarding, sync CLOB:
-`polygolem clob update-balance --asset-type collateral --signature-type deposit`.
+`polygolem clob update-balance --asset-type collateral`.
 
 **Usage:**
 

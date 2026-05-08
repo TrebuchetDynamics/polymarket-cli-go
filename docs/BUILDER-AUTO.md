@@ -196,7 +196,7 @@ So the canonical onboarding **today** is:
 | Deploy deposit wallet (`WALLET-CREATE` via `/submit`) | `polygolem deposit-wallet deploy` | ✅ headless after Builder Keys exist |
 | Approve V2 spenders (6× ERC-20/ERC-1155 approvals) | `polygolem deposit-wallet approve` | ✅ headless |
 | Mint a deposit-wallet-owned CLOB API key | (TBD — see below) | not yet wired |
-| Place orders (sigtype 3) | `polygolem clob create-order --signature-type deposit` | ✅ headless after the key swap |
+| Place orders (sigtype 3) | `polygolem clob create-order` | ✅ headless after the key swap |
 
 Earlier revisions of this doc claimed the first `/auth/api-key` POST
 lazy-created the full builder profile end-to-end. That was over-stated

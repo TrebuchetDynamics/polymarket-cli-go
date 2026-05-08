@@ -40,13 +40,12 @@ func TestGTD_ExpirationPassesThrough(t *testing.T) {
 	expirationUnix := "1778125000123"
 	tokenID := big.NewInt(12345)
 	order, err := buildSignedOrderPayload(signer, orderDraft{
-		tokenID:       tokenID,
-		side:          "BUY",
-		makerAmount:   "700000",
-		takerAmount:   "1400000",
-		signatureType: 0,
-		orderType:     "GTD",
-		expiration:    expirationUnix,
+		tokenID:     tokenID,
+		side:        "BUY",
+		makerAmount: "700000",
+		takerAmount: "1400000",
+		orderType:   "GTD",
+		expiration:  expirationUnix,
 	}, time.UnixMilli(1778125000123), false)
 	if err != nil {
 		t.Fatal(err)
@@ -63,13 +62,12 @@ func TestGTC_DefaultExpirationZero(t *testing.T) {
 	}
 	tokenID := big.NewInt(12345)
 	order, err := buildSignedOrderPayload(signer, orderDraft{
-		tokenID:       tokenID,
-		side:          "BUY",
-		makerAmount:   "700000",
-		takerAmount:   "1400000",
-		signatureType: 0,
-		orderType:     "GTC",
-		expiration:    "0",
+		tokenID:     tokenID,
+		side:        "BUY",
+		makerAmount: "700000",
+		takerAmount: "1400000",
+		orderType:   "GTC",
+		expiration:  "0",
 	}, time.UnixMilli(1778125000123), false)
 	if err != nil {
 		t.Fatal(err)
