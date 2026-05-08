@@ -175,6 +175,61 @@ func TestCreateMarketOrderPostsV2PayloadWhenCLOBVersionIsTwo(t *testing.T) {
 	}
 }
 
+func TestCreateLimitOrderUsesDepositWalletBoundL2Auth(t *testing.T) {
+	wantDepositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
+	var deriveAddress string
+	var orderAddress string
+	var posted map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/tick-size":
+			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.001","minimum_order_size":"1"}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		case "/auth/derive-api-key":
+			deriveAddress = r.Header.Get("POLY_ADDRESS")
+			_, _ = w.Write([]byte(`{"apiKey":"deposit-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/order":
+			orderAddress = r.Header.Get("POLY_ADDRESS")
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode order body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"success":true,"orderID":"0xabc","status":"live"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	_, err := client.CreateLimitOrder(context.Background(), testOrderPrivateKey, CreateOrderParams{
+		TokenID:   "12345",
+		Side:      "buy",
+		Price:     "0.500000",
+		Size:      "2.000000",
+		OrderType: "GTC",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.EqualFold(deriveAddress, wantDepositWallet) {
+		t.Fatalf("derive POLY_ADDRESS=%s want deposit wallet %s", deriveAddress, wantDepositWallet)
+	}
+	if !strings.EqualFold(orderAddress, wantDepositWallet) {
+		t.Fatalf("order POLY_ADDRESS=%s want deposit wallet %s", orderAddress, wantDepositWallet)
+	}
+	order, ok := posted["order"].(map[string]any)
+	if !ok {
+		t.Fatalf("posted order missing: %#v", posted)
+	}
+	if !strings.EqualFold(order["maker"].(string), wantDepositWallet) || !strings.EqualFold(order["signer"].(string), wantDepositWallet) {
+		t.Fatalf("maker/signer=%v/%v want deposit wallet %s", order["maker"], order["signer"], wantDepositWallet)
+	}
+}
+
 func TestCreateLimitOrderPostsConfiguredBuilderCode(t *testing.T) {
 	var posted map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -219,6 +274,122 @@ func TestCreateLimitOrderPostsConfiguredBuilderCode(t *testing.T) {
 	}
 	if order["builder"] != testBuilderCode {
 		t.Fatalf("posted builder=%#v want %s", order["builder"], testBuilderCode)
+	}
+}
+
+func TestCreateLimitOrderWithPostOnlyGTCIncludesPostOnlyInPayload(t *testing.T) {
+	var posted map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/tick-size":
+			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.001"}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/order":
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode order body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"success":true,"orderID":"0xabc","status":"live"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	_, err := client.CreateLimitOrder(context.Background(), testOrderPrivateKey, CreateOrderParams{
+		TokenID:   "12345",
+		Side:      "buy",
+		Price:     "0.500000",
+		Size:      "2.000000",
+		OrderType: "GTC",
+		PostOnly:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if posted["postOnly"] != true {
+		t.Fatalf("postOnly=%v want true", posted["postOnly"])
+	}
+}
+
+func TestCreateLimitOrderWithPostOnlyFOKRejectsValidation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/tick-size":
+			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.001"}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	_, err := client.CreateLimitOrder(context.Background(), testOrderPrivateKey, CreateOrderParams{
+		TokenID:   "12345",
+		Side:      "buy",
+		Price:     "0.500000",
+		Size:      "2.000000",
+		OrderType: "FOK",
+		PostOnly:  true,
+	})
+	if err == nil {
+		t.Fatal("expected error for PostOnly with FOK order type")
+	}
+	if !strings.Contains(err.Error(), "postOnly") {
+		t.Fatalf("expected postOnly validation error, got %v", err)
+	}
+}
+
+func TestCreateLimitOrderWithPostOnlyGTDSucceeds(t *testing.T) {
+	var posted map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/tick-size":
+			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.001"}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/order":
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode order body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"success":true,"orderID":"0xabc","status":"live"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	_, err := client.CreateLimitOrder(context.Background(), testOrderPrivateKey, CreateOrderParams{
+		TokenID:    "12345",
+		Side:       "buy",
+		Price:      "0.500000",
+		Size:       "2.000000",
+		OrderType:  "GTD",
+		Expiration: "1778125000",
+		PostOnly:   true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if posted["postOnly"] != true {
+		t.Fatalf("postOnly=%v want true", posted["postOnly"])
 	}
 }
 
@@ -286,6 +457,46 @@ func TestCancelOrdersDeletesBatchEndpointWithOrderIDs(t *testing.T) {
 	}
 }
 
+func TestCancelOrderUsesDepositWalletBoundL2Auth(t *testing.T) {
+	wantDepositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
+	var deriveAddress string
+	var cancelAddress string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			deriveAddress = r.Header.Get("POLY_ADDRESS")
+			_, _ = w.Write([]byte(`{"apiKey":"deposit-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/order":
+			cancelAddress = r.Header.Get("POLY_ADDRESS")
+			if r.Method != http.MethodDelete {
+				t.Fatalf("method=%s want DELETE", r.Method)
+			}
+			_, _ = w.Write([]byte(`{"canceled":["0x1"],"not_canceled":{}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	res, err := client.CancelOrder(context.Background(), testOrderPrivateKey, "0x1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Canceled) != 1 {
+		t.Fatalf("response=%+v", res)
+	}
+	if !strings.EqualFold(deriveAddress, wantDepositWallet) {
+		t.Fatalf("derive POLY_ADDRESS=%s want deposit wallet %s", deriveAddress, wantDepositWallet)
+	}
+	if !strings.EqualFold(cancelAddress, wantDepositWallet) {
+		t.Fatalf("cancel POLY_ADDRESS=%s want deposit wallet %s", cancelAddress, wantDepositWallet)
+	}
+}
+
 func TestCancelMarketDeletesMarketEndpointWithFilters(t *testing.T) {
 	var posted map[string]string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -319,6 +530,208 @@ func TestCancelMarketDeletesMarketEndpointWithFilters(t *testing.T) {
 	}
 	if posted["market"] != "0xmarket" || posted["asset_id"] != "123" || len(res.Canceled) != 1 {
 		t.Fatalf("posted=%#v response=%+v", posted, res)
+	}
+}
+
+func TestCreateBatchOrdersPostsArrayToOrdersEndpoint(t *testing.T) {
+	var posted []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/tick-size":
+			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.001"}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/orders":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method=%s want POST", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode batch body: %v", err)
+			}
+			_, _ = w.Write([]byte(`[{"success":true,"orderID":"0xabc","status":"live"},{"success":true,"orderID":"0xdef","status":"live"}]`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	res, err := client.CreateBatchOrders(context.Background(), testOrderPrivateKey, []CreateOrderParams{
+		{TokenID: "12345", Side: "buy", Price: "0.500000", Size: "2.000000", OrderType: "GTC"},
+		{TokenID: "12346", Side: "sell", Price: "0.600000", Size: "3.000000", OrderType: "GTC"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(posted) != 2 {
+		t.Fatalf("posted %d orders, want 2", len(posted))
+	}
+	if len(res.Orders) != 2 {
+		t.Fatalf("response orders=%d want 2", len(res.Orders))
+	}
+	if res.Orders[0].OrderID != "0xabc" || res.Orders[1].OrderID != "0xdef" {
+		t.Fatalf("order IDs=%v", []string{res.Orders[0].OrderID, res.Orders[1].OrderID})
+	}
+}
+
+func TestCreateBatchOrdersRejectsEmptyBatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	_, err := client.CreateBatchOrders(context.Background(), testOrderPrivateKey, nil)
+	if err == nil {
+		t.Fatal("expected error for empty batch")
+	}
+}
+
+func TestCreateBatchOrdersRejectsOversizedBatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	params := make([]CreateOrderParams, MaxBatchPostSize+1)
+	for i := range params {
+		params[i] = CreateOrderParams{TokenID: "12345", Side: "buy", Price: "0.5", Size: "1"}
+	}
+	_, err := client.CreateBatchOrders(context.Background(), testOrderPrivateKey, params)
+	if err == nil {
+		t.Fatal("expected error for oversized batch")
+	}
+	if !strings.Contains(err.Error(), "15") {
+		t.Fatalf("expected max size error, got %v", err)
+	}
+}
+
+func TestHeartbeatPostsToHeartbeatsEndpoint(t *testing.T) {
+	var posted map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/v1/heartbeats":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method=%s want POST", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode heartbeat body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	if err := client.Heartbeat(context.Background(), testOrderPrivateKey, ""); err != nil {
+		t.Fatal(err)
+	}
+	if posted["heartbeat_id"] != nil {
+		t.Fatalf("expected nil heartbeat_id, got %v", posted["heartbeat_id"])
+	}
+}
+
+func TestHeartbeatWithIDIncludesIDInBody(t *testing.T) {
+	var posted map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/v1/heartbeats":
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode heartbeat body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	if err := client.Heartbeat(context.Background(), testOrderPrivateKey, "hb-123"); err != nil {
+		t.Fatal(err)
+	}
+	if posted["heartbeat_id"] != "hb-123" {
+		t.Fatalf("heartbeat_id=%v want hb-123", posted["heartbeat_id"])
+	}
+}
+
+func TestAutoHeartbeatSendsMultiplePings(t *testing.T) {
+	var count int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/v1/heartbeats":
+			count++
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	cancel := client.AutoHeartbeat(context.Background(), testOrderPrivateKey, 50*time.Millisecond)
+	defer cancel()
+
+	time.Sleep(180 * time.Millisecond)
+	if count < 2 {
+		t.Fatalf("expected at least 2 heartbeats, got %d", count)
+	}
+}
+
+func TestAutoHeartbeatCancelStopsPings(t *testing.T) {
+	var count int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/v1/heartbeats":
+			count++
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	cancel := client.AutoHeartbeat(context.Background(), testOrderPrivateKey, 50*time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
+	cancel()
+
+	before := count
+	time.Sleep(120 * time.Millisecond)
+	if count != before {
+		t.Fatalf("heartbeat count changed after cancel: before=%d after=%d", before, count)
 	}
 }
 

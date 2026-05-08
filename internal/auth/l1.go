@@ -97,18 +97,13 @@ func BuildL1HeadersForDepositWallet(privateKeyHex string, chainID int64, timesta
 	}, nil
 }
 
-// BuildL1HeadersForAddress is the smart-wallet variant. When ownerAddress is
-// non-empty it overrides both POLY_ADDRESS and the typed-data value.address;
-// the EOA still produces the signature, but the CLOB validates it via
-// ERC-1271 against the smart-wallet contract (proxy / Safe / deposit-wallet).
+// BuildL1HeadersForAddress builds raw EOA-signed ClobAuth headers. When
+// ownerAddress is non-empty it overrides both POLY_ADDRESS and the typed-data
+// value.address, but the signature remains a raw EOA signature.
 //
-// Required for sigtype-3 deposit-wallet API-key minting: without the override,
-// the L2 key is bound to the EOA and the CLOB's "the order signer address has
-// to be the address of the API KEY" gate rejects sigtype-3 orders whose
-// signer is the deposit wallet.
-//
-// The smart-wallet must already be deployed at ownerAddress for ERC-1271
-// validation to succeed.
+// Do not use this helper for deposit-wallet-owned API-key minting; use
+// BuildL1HeadersForDepositWallet so POLY_SIGNATURE is the ERC-7739 wrapped
+// form validated through the deployed wallet's ERC-1271 hook.
 func BuildL1HeadersForAddress(privateKeyHex string, chainID int64, timestamp int64, nonce int64, ownerAddress string) (map[string]string, error) {
 	signer, err := NewPrivateKeySigner(privateKeyHex, chainID)
 	if err != nil {

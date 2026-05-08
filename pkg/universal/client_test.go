@@ -252,6 +252,37 @@ func TestCreateAPIKeyForAddress(t *testing.T) {
 	}
 }
 
+func TestDeriveAPIKeyForAddress(t *testing.T) {
+	var sawAddress string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/derive-api-key" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		sawAddress = r.Header.Get("POLY_ADDRESS")
+		json.NewEncoder(w).Encode(map[string]string{
+			"apiKey":     "owner-derived",
+			"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"passphrase": "owner-pass",
+		})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	key, err := c.DeriveAPIKeyForAddress(context.Background(), testPrivateKey, testDepositWallet)
+	if err != nil {
+		t.Fatalf("DeriveAPIKeyForAddress error: %v", err)
+	}
+	if sawAddress != testDepositWallet {
+		t.Fatalf("POLY_ADDRESS = %s, want %s", sawAddress, testDepositWallet)
+	}
+	if key.Key != "owner-derived" {
+		t.Errorf("expected owner-derived key, got %q", key.Key)
+	}
+}
+
 func TestDeriveAPIKey(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/auth/derive-api-key" {
@@ -365,6 +396,60 @@ func TestCancelMarketRoutes(t *testing.T) {
 	}
 	if len(resp.Canceled) != 1 {
 		t.Errorf("expected 1 canceled order, got %+v", resp)
+	}
+}
+
+func TestBatchOrdersAndHeartbeatRoutes(t *testing.T) {
+	var heartbeat map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "k-batch",
+				"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"passphrase": "pp-batch",
+			})
+		case "/neg-risk":
+			json.NewEncoder(w).Encode(map[string]bool{"neg_risk": false})
+		case "/orders":
+			if r.Method != http.MethodPost {
+				t.Errorf("expected POST, got %s", r.Method)
+			}
+			json.NewEncoder(w).Encode([]map[string]interface{}{
+				{"success": true, "orderID": "ord-1", "status": "live"},
+				{"success": true, "orderID": "ord-2", "status": "live"},
+			})
+		case "/v1/heartbeats":
+			if r.Method != http.MethodPost {
+				t.Errorf("expected POST, got %s", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&heartbeat); err != nil {
+				t.Fatalf("decode heartbeat: %v", err)
+			}
+			json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	batch, err := c.CreateBatchOrders(context.Background(), testPrivateKey, []sdkclob.CreateOrderParams{
+		{TokenID: "1234567890", Side: "BUY", Price: "0.50", Size: "10", OrderType: "GTC"},
+		{TokenID: "1234567891", Side: "SELL", Price: "0.60", Size: "5", OrderType: "GTC"},
+	})
+	if err != nil {
+		t.Fatalf("CreateBatchOrders error: %v", err)
+	}
+	if len(batch.Orders) != 2 {
+		t.Fatalf("expected 2 orders, got %+v", batch)
+	}
+	if err := c.Heartbeat(context.Background(), testPrivateKey, "hb-1"); err != nil {
+		t.Fatalf("Heartbeat error: %v", err)
+	}
+	if heartbeat["heartbeat_id"] != "hb-1" {
+		t.Fatalf("heartbeat_id=%#v want hb-1", heartbeat["heartbeat_id"])
 	}
 }
 

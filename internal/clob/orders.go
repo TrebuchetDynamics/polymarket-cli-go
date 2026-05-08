@@ -26,6 +26,7 @@ const (
 	zeroAddress            = "0x0000000000000000000000000000000000000000"
 	bytes32Zero            = "0x0000000000000000000000000000000000000000000000000000000000000000"
 	signatureTypePoly1271  = 3
+	MaxBatchPostSize       = 15
 )
 
 // Test seams: tests override these to make salt and timestamp deterministic.
@@ -44,6 +45,7 @@ type CreateOrderParams struct {
 	Size       string
 	OrderType  string
 	Expiration string // Unix timestamp; "0" = no expiration (GTC). Used by GTD.
+	PostOnly   bool   // Only valid for GTC and GTD order types.
 }
 
 // MarketOrderParams is the input to CreateMarketOrder. See note on
@@ -71,6 +73,11 @@ type OrderPlacementResponse struct {
 type CancelOrdersResponse struct {
 	Canceled    []string          `json:"canceled"`
 	NotCanceled map[string]string `json:"not_canceled"`
+}
+
+// BatchOrderResponse is returned by CreateBatchOrders.
+type BatchOrderResponse struct {
+	Orders []OrderPlacementResponse `json:"orders"`
 }
 
 type CancelMarketParams struct {
@@ -153,6 +160,7 @@ type orderDraft struct {
 	orderType   string
 	expiration  string
 	builderCode string
+	postOnly    bool
 }
 
 func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params CreateOrderParams) (*OrderPlacementResponse, error) {
@@ -175,6 +183,12 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 	if price.Sign() <= 0 || size.Sign() <= 0 {
 		return nil, fmt.Errorf("price and size must be positive")
 	}
+
+	orderType := normalizeOrderType(params.OrderType, "GTC")
+	if params.PostOnly && orderType != "GTC" && orderType != "GTD" {
+		return nil, fmt.Errorf("postOnly is only supported for GTC and GTD orders")
+	}
+
 	tick, err := c.TickSize(ctx, params.TokenID)
 	if err != nil {
 		return nil, fmt.Errorf("tick size lookup failed: %w", err)
@@ -189,10 +203,100 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 		side:        side,
 		makerAmount: makerAmount,
 		takerAmount: takerAmount,
-		orderType:   normalizeOrderType(params.OrderType, "GTC"),
+		orderType:   orderType,
 		expiration:  firstNonEmpty(params.Expiration, "0"),
+		postOnly:    params.PostOnly,
 	}
 	return c.signAndPostOrder(ctx, privateKey, draft)
+}
+
+// CreateBatchOrders posts multiple limit orders in a single request to
+// POST /orders. Each order is signed individually. Maximum batch size is
+// MaxBatchPostSize (15).
+func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, params []CreateOrderParams) (*BatchOrderResponse, error) {
+	if len(params) == 0 {
+		return nil, fmt.Errorf("no orders to post")
+	}
+	if len(params) > MaxBatchPostSize {
+		return nil, fmt.Errorf("batch size %d exceeds maximum of %d", len(params), MaxBatchPostSize)
+	}
+
+	signer, depositWallet, err := signerAndDepositWallet(privateKey)
+	if err != nil {
+		return nil, err
+	}
+	key, err := c.DeriveAPIKeyForAddress(ctx, privateKey, depositWallet)
+	if err != nil {
+		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
+	}
+
+	payloads := make([]sendOrderPayload, len(params))
+	for i, p := range params {
+		side, err := normalizeOrderSide(p.Side)
+		if err != nil {
+			return nil, fmt.Errorf("order %d: %w", i, err)
+		}
+		tokenID, err := parseTokenID(p.TokenID)
+		if err != nil {
+			return nil, fmt.Errorf("order %d: %w", i, err)
+		}
+		price, err := parseRat(p.Price, "price")
+		if err != nil {
+			return nil, fmt.Errorf("order %d: %w", i, err)
+		}
+		size, err := parseRat(p.Size, "size")
+		if err != nil {
+			return nil, fmt.Errorf("order %d: %w", i, err)
+		}
+		if price.Sign() <= 0 || size.Sign() <= 0 {
+			return nil, fmt.Errorf("order %d: price and size must be positive", i)
+		}
+		orderType := normalizeOrderType(p.OrderType, "GTC")
+		if p.PostOnly && orderType != "GTC" && orderType != "GTD" {
+			return nil, fmt.Errorf("order %d: postOnly is only supported for GTC and GTD orders", i)
+		}
+		makerAmount, takerAmount := limitFixedAmounts(side, price, size)
+		draft := orderDraft{
+			tokenID:     tokenID,
+			side:        side,
+			makerAmount: makerAmount,
+			takerAmount: takerAmount,
+			orderType:   orderType,
+			expiration:  firstNonEmpty(p.Expiration, "0"),
+			postOnly:    p.PostOnly,
+			builderCode: c.builderCode,
+		}
+		nr, err := c.NegRisk(ctx, draft.tokenID.String())
+		if err != nil {
+			return nil, fmt.Errorf("order %d: neg-risk lookup: %w", i, err)
+		}
+		unsigned, err := buildSignedOrderPayload(signer, draft, orderNow(), nr.NegRisk)
+		if err != nil {
+			return nil, fmt.Errorf("order %d: build signed payload: %w", i, err)
+		}
+		payloads[i] = sendOrderPayload{
+			Order:     unsigned,
+			Owner:     key.Key,
+			OrderType: draft.orderType,
+			PostOnly:  draft.postOnly,
+			DeferExec: false,
+		}
+	}
+
+	bodyBytes, err := json.Marshal(payloads)
+	if err != nil {
+		return nil, err
+	}
+	body := string(bodyBytes)
+	headers, err := c.l2HeadersForAddress(&key, http.MethodPost, "/orders", &body, depositWallet)
+	if err != nil {
+		return nil, err
+	}
+	var result []OrderPlacementResponse
+	if err := c.transport.PostWithHeaders(ctx, "/orders", payloads, headers, &result); err != nil {
+		return nil, fmt.Errorf("batch post orders: %w", err)
+	}
+	return &BatchOrderResponse{Orders: result}, nil
 }
 
 func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]OrderRecord, error) {
@@ -229,9 +333,9 @@ func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*
 	if orderID == "" {
 		return nil, fmt.Errorf("order ID is required")
 	}
-	key, err := c.DeriveAPIKey(ctx, privateKey)
+	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("derive api key: %w", err)
+		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
 	body := map[string]string{"orderID": orderID}
 	bodyBytes, err := json.Marshal(body)
@@ -239,7 +343,7 @@ func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*
 		return nil, err
 	}
 	compactBody := auth.CompactJSON(string(bodyBytes))
-	headers, err := c.l2Headers(privateKey, &key, http.MethodDelete, "/order", &compactBody)
+	headers, err := c.l2HeadersForAddress(&key, http.MethodDelete, "/order", &compactBody, polyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -258,9 +362,9 @@ func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs [
 	if len(ids) > 3000 {
 		return nil, fmt.Errorf("at most 3000 order IDs can be cancelled at once")
 	}
-	key, err := c.DeriveAPIKey(ctx, privateKey)
+	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("derive api key: %w", err)
+		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
 	body := map[string][]string{"orderIDs": ids}
 	bodyBytes, err := json.Marshal(body)
@@ -268,7 +372,7 @@ func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs [
 		return nil, err
 	}
 	compactBody := auth.CompactJSON(string(bodyBytes))
-	headers, err := c.l2Headers(privateKey, &key, http.MethodDelete, "/orders", &compactBody)
+	headers, err := c.l2HeadersForAddress(&key, http.MethodDelete, "/orders", &compactBody, polyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -280,11 +384,11 @@ func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs [
 }
 
 func (c *Client) CancelAll(ctx context.Context, privateKey string) (*CancelOrdersResponse, error) {
-	key, err := c.DeriveAPIKey(ctx, privateKey)
+	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("derive api key: %w", err)
+		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
-	headers, err := c.l2Headers(privateKey, &key, http.MethodDelete, "/cancel-all", nil)
+	headers, err := c.l2HeadersForAddress(&key, http.MethodDelete, "/cancel-all", nil, polyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -295,15 +399,67 @@ func (c *Client) CancelAll(ctx context.Context, privateKey string) (*CancelOrder
 	return &result, nil
 }
 
+// Heartbeat sends a keepalive ping to the CLOB. If heartbeats stop, the
+// server cancels all open orders after ~10 seconds.
+func (c *Client) Heartbeat(ctx context.Context, privateKey string, heartbeatID string) error {
+	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
+	if err != nil {
+		return fmt.Errorf("derive deposit-wallet api key: %w", err)
+	}
+	var body map[string]interface{}
+	if heartbeatID != "" {
+		body = map[string]interface{}{"heartbeat_id": heartbeatID}
+	} else {
+		body = map[string]interface{}{"heartbeat_id": nil}
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	compactBody := auth.CompactJSON(string(bodyBytes))
+	headers, err := c.l2HeadersForAddress(&key, http.MethodPost, "/v1/heartbeats", &compactBody, polyAddress)
+	if err != nil {
+		return err
+	}
+	var result map[string]interface{}
+	if err := c.transport.PostWithHeaders(ctx, "/v1/heartbeats", body, headers, &result); err != nil {
+		return fmt.Errorf("heartbeat: %w", err)
+	}
+	return nil
+}
+
+// AutoHeartbeat starts a background goroutine that sends heartbeats every
+// interval. Call the returned cancel function to stop. If interval is zero or
+// negative, it defaults to 5 seconds.
+func (c *Client) AutoHeartbeat(ctx context.Context, privateKey string, interval time.Duration) context.CancelFunc {
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_ = c.Heartbeat(ctx, privateKey, "")
+			}
+		}
+	}()
+	return cancel
+}
+
 func (c *Client) CancelMarket(ctx context.Context, privateKey string, params CancelMarketParams) (*CancelOrdersResponse, error) {
 	params.Market = strings.TrimSpace(params.Market)
 	params.Asset = strings.TrimSpace(params.Asset)
 	if params.Market == "" && params.Asset == "" {
 		return nil, fmt.Errorf("market or asset filter is required")
 	}
-	key, err := c.DeriveAPIKey(ctx, privateKey)
+	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("derive api key: %w", err)
+		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
 	body := map[string]string{}
 	if params.Market != "" {
@@ -317,7 +473,7 @@ func (c *Client) CancelMarket(ctx context.Context, privateKey string, params Can
 		return nil, err
 	}
 	compactBody := auth.CompactJSON(string(bodyBytes))
-	headers, err := c.l2Headers(privateKey, &key, http.MethodDelete, "/cancel-market-orders", &compactBody)
+	headers, err := c.l2HeadersForAddress(&key, http.MethodDelete, "/cancel-market-orders", &compactBody, polyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -329,11 +485,11 @@ func (c *Client) CancelMarket(ctx context.Context, privateKey string, params Can
 }
 
 func (c *Client) authenticatedRawGET(ctx context.Context, privateKey string, path string) (json.RawMessage, error) {
-	key, err := c.DeriveAPIKey(ctx, privateKey)
+	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("derive api key: %w", err)
+		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
-	headers, err := c.l2Headers(privateKey, &key, http.MethodGet, path, nil)
+	headers, err := c.l2HeadersForAddress(&key, http.MethodGet, path, nil, polyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -345,11 +501,11 @@ func (c *Client) authenticatedRawGET(ctx context.Context, privateKey string, pat
 }
 
 func (c *Client) authenticatedL2GET(ctx context.Context, privateKey string, path string, result interface{}) error {
-	key, err := c.DeriveAPIKey(ctx, privateKey)
+	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
 	if err != nil {
-		return fmt.Errorf("derive api key: %w", err)
+		return fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
-	headers, err := c.l2Headers(privateKey, &key, http.MethodGet, path, nil)
+	headers, err := c.l2HeadersForAddress(&key, http.MethodGet, path, nil, polyAddress)
 	if err != nil {
 		return err
 	}
@@ -423,13 +579,13 @@ func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, param
 }
 
 func (c *Client) signAndPostOrder(ctx context.Context, privateKey string, draft orderDraft) (*OrderPlacementResponse, error) {
-	signer, err := auth.NewPrivateKeySigner(privateKey, polygonChainID)
+	signer, depositWallet, err := signerAndDepositWallet(privateKey)
 	if err != nil {
 		return nil, err
 	}
-	key, err := c.DeriveAPIKey(ctx, privateKey)
+	key, err := c.DeriveAPIKeyForAddress(ctx, privateKey, depositWallet)
 	if err != nil {
-		return nil, fmt.Errorf("derive api key: %w", err)
+		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
 	nr, err := c.NegRisk(ctx, draft.tokenID.String())
 	if err != nil {
@@ -444,19 +600,19 @@ func (c *Client) signAndPostOrder(ctx context.Context, privateKey string, draft 
 		Order:     unsigned,
 		Owner:     key.Key,
 		OrderType: draft.orderType,
-		PostOnly:  false,
+		PostOnly:  draft.postOnly,
 		DeferExec: false,
 	}
-	return c.postOrder(ctx, privateKey, &key, payload, draft.orderType)
+	return c.postOrder(ctx, &key, depositWallet, payload, draft.orderType)
 }
 
-func (c *Client) postOrder(ctx context.Context, privateKey string, key *auth.APIKey, payload interface{}, orderType string) (*OrderPlacementResponse, error) {
+func (c *Client) postOrder(ctx context.Context, key *auth.APIKey, polyAddress string, payload interface{}, orderType string) (*OrderPlacementResponse, error) {
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
 	body := string(bodyBytes)
-	headers, err := c.l2Headers(privateKey, key, http.MethodPost, "/order", &body)
+	headers, err := c.l2HeadersForAddress(key, http.MethodPost, "/order", &body, polyAddress)
 	if err != nil {
 		return nil, err
 	}

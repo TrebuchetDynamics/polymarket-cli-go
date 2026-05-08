@@ -258,3 +258,45 @@ func TestCreateAPIKeyForAddressSendsOverridePolyAddress(t *testing.T) {
 		t.Fatalf("Key = %s", key.Key)
 	}
 }
+
+func TestBalanceAllowanceUsesDepositWalletBoundL2Auth(t *testing.T) {
+	wantDepositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
+	var deriveAddress string
+	var balanceAddress string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			deriveAddress = r.Header.Get("POLY_ADDRESS")
+			_, _ = w.Write([]byte(`{"apiKey":"deposit-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"pass"}`))
+		case "/balance-allowance":
+			balanceAddress = r.Header.Get("POLY_ADDRESS")
+			if got := r.URL.Query().Get("signature_type"); got != "3" {
+				t.Fatalf("signature_type=%q want 3", got)
+			}
+			_, _ = w.Write([]byte(`{"balance":"1000000","allowance":"999"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	resp, err := client.BalanceAllowance(context.Background(), builderFeeKeyTestPrivateKey, BalanceAllowanceParams{
+		AssetType: "COLLATERAL",
+	})
+	if err != nil {
+		t.Fatalf("BalanceAllowance returned error: %v", err)
+	}
+	if resp.Balance != "1000000" {
+		t.Fatalf("balance=%q", resp.Balance)
+	}
+	if !strings.EqualFold(deriveAddress, wantDepositWallet) {
+		t.Fatalf("derive POLY_ADDRESS=%s want deposit wallet %s", deriveAddress, wantDepositWallet)
+	}
+	if !strings.EqualFold(balanceAddress, wantDepositWallet) {
+		t.Fatalf("balance POLY_ADDRESS=%s want deposit wallet %s", balanceAddress, wantDepositWallet)
+	}
+}

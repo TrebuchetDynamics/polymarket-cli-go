@@ -22,6 +22,7 @@ package universal
 import (
 	"context"
 	"fmt"
+	"time"
 
 	internalclob "github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
@@ -285,6 +286,13 @@ func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (s
 	return c.clobRead.CreateOrDeriveAPIKey(ctx, privateKey)
 }
 
+// CreateOrDeriveAPIKeyForAddress creates or derives CLOB L2 credentials for
+// a deposit/smart wallet address while signing L1 auth with the controlling
+// EOA private key.
+func (c *Client) CreateOrDeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (sdkclob.APIKey, error) {
+	return c.clobRead.CreateOrDeriveAPIKeyForAddress(ctx, privateKey, ownerAddress)
+}
+
 // CreateAPIKeyForAddress creates CLOB L2 credentials for a deposit/smart
 // wallet address while signing L1 auth with the controlling EOA private key.
 func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (sdkclob.APIKey, error) {
@@ -303,6 +311,13 @@ func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (sd
 // caller is unsure whether an account has been provisioned yet.
 func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (sdkclob.APIKey, error) {
 	return c.clobRead.DeriveAPIKey(ctx, privateKey)
+}
+
+// DeriveAPIKeyForAddress derives existing CLOB L2 credentials for a
+// deposit/smart wallet address while signing L1 auth with the controlling EOA
+// private key.
+func (c *Client) DeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (sdkclob.APIKey, error) {
+	return c.clobRead.DeriveAPIKeyForAddress(ctx, privateKey, ownerAddress)
 }
 
 // BalanceAllowance returns the authenticated CLOB collateral or conditional
@@ -324,10 +339,26 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 	return c.clobRead.CreateLimitOrder(ctx, privateKey, params)
 }
 
+// CreateBatchOrders signs and submits multiple V2 limit orders to POST /orders.
+func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, params []sdkclob.CreateOrderParams) (*sdkclob.BatchOrderResponse, error) {
+	return c.clobRead.CreateBatchOrders(ctx, privateKey, params)
+}
+
 // CreateMarketOrder signs and submits a V2 market order. Use Amount instead
 // of Size on the params to express a fill-this-much budget.
 func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params sdkclob.MarketOrderParams) (*sdkclob.OrderPlacementResponse, error) {
 	return c.clobRead.CreateMarketOrder(ctx, privateKey, params)
+}
+
+// Heartbeat sends one CLOB heartbeat ping for open-order keepalive behavior.
+func (c *Client) Heartbeat(ctx context.Context, privateKey, heartbeatID string) error {
+	return c.clobRead.Heartbeat(ctx, privateKey, heartbeatID)
+}
+
+// AutoHeartbeat sends periodic CLOB heartbeats until the returned cancel
+// function is called.
+func (c *Client) AutoHeartbeat(ctx context.Context, privateKey string, interval time.Duration) context.CancelFunc {
+	return c.clobRead.AutoHeartbeat(ctx, privateKey, interval)
 }
 
 // --- CLOB: Metadata & Scoring ---

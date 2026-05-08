@@ -717,6 +717,7 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 	cmd.AddCommand(cancelMarketCmd)
 
 	var createOrderOutput, createOrderToken, createOrderSide, createOrderPrice, createOrderSize, createOrderType, createOrderExpiration, createOrderBuilderCode string
+	var createOrderPostOnly bool
 	createOrderCmd := &cobra.Command{Use: "create-order", Short: "Create a signed CLOB limit order", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := checkOutput(createOrderOutput); err != nil {
@@ -738,6 +739,7 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 				Size:       createOrderSize,
 				OrderType:  createOrderType,
 				Expiration: createOrderExpiration,
+				PostOnly:   createOrderPostOnly,
 			})
 			if err != nil {
 				return err
@@ -753,6 +755,7 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 	createOrderCmd.Flags().StringVar(&createOrderType, "order-type", "GTC", "order type")
 	createOrderCmd.Flags().StringVar(&createOrderExpiration, "expiration", "0", "unix timestamp for GTD orders (0 = no expiration)")
 	createOrderCmd.Flags().StringVar(&createOrderBuilderCode, "builder-code", "", "0x-prefixed bytes32 builder attribution code")
+	createOrderCmd.Flags().BoolVar(&createOrderPostOnly, "post-only", false, "post-only order (maker-only, rejected if it would take)")
 	cmd.AddCommand(createOrderCmd)
 
 	var marketOrderOutput, marketOrderToken, marketOrderSide, marketOrderAmount, marketOrderPrice, marketOrderType, marketOrderBuilderCode string

@@ -77,9 +77,33 @@ func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (a
 	return c.DeriveAPIKey(ctx, privateKey)
 }
 
+// CreateOrDeriveAPIKeyForAddress creates CLOB L2 credentials bound to a
+// deposit wallet, falling back to owner-scoped derivation when a key exists.
+func (c *Client) CreateOrDeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (auth.APIKey, error) {
+	key, err := c.createAPIKeyForAddress(ctx, privateKey, ownerAddress)
+	if err == nil {
+		return key, nil
+	}
+	return c.DeriveAPIKeyForAddress(ctx, privateKey, ownerAddress)
+}
+
 // DeriveAPIKey derives existing CLOB L2 credentials with L1 auth.
 func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (auth.APIKey, error) {
 	headers, err := auth.BuildL1HeadersFromPrivateKey(privateKey, polygonChainID, time.Now().Unix(), 0)
+	if err != nil {
+		return auth.APIKey{}, err
+	}
+	var raw apiKeyResponse
+	if err := c.transport.GetWithHeaders(ctx, "/auth/derive-api-key", headers, &raw); err != nil {
+		return auth.APIKey{}, err
+	}
+	return raw.apiKey(), nil
+}
+
+// DeriveAPIKeyForAddress derives existing CLOB L2 credentials bound to a
+// deposit wallet while signing L1 auth with the controlling EOA private key.
+func (c *Client) DeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (auth.APIKey, error) {
+	headers, err := auth.BuildL1HeadersForDepositWallet(privateKey, polygonChainID, time.Now().Unix(), 0, ownerAddress)
 	if err != nil {
 		return auth.APIKey{}, err
 	}
@@ -114,6 +138,10 @@ func (c *Client) createAPIKey(ctx context.Context, privateKey string) (auth.APIK
 // the on-chain `_verifyPoly1271Signature(signer == maker)` because all three
 // are the deposit wallet.
 func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (auth.APIKey, error) {
+	return c.createAPIKeyForAddress(ctx, privateKey, ownerAddress)
+}
+
+func (c *Client) createAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (auth.APIKey, error) {
 	headers, err := auth.BuildL1HeadersForDepositWallet(privateKey, polygonChainID, time.Now().Unix(), 0, ownerAddress)
 	if err != nil {
 		return auth.APIKey{}, err
@@ -218,12 +246,12 @@ func (c *Client) RevokeBuilderFeeKey(ctx context.Context, privateKey, builderKey
 
 // BalanceAllowance returns collateral or conditional token balance and allowances.
 func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params BalanceAllowanceParams) (*BalanceAllowanceResponse, error) {
-	key, err := c.DeriveAPIKey(ctx, privateKey)
+	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("derive api key: %w", err)
+		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
 	path := balanceAllowancePath("/balance-allowance", params)
-	headers, err := c.l2Headers(privateKey, &key, http.MethodGet, "/balance-allowance", nil)
+	headers, err := c.l2HeadersForAddress(&key, http.MethodGet, "/balance-allowance", nil, polyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -236,12 +264,12 @@ func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params
 
 // UpdateBalanceAllowance refreshes the CLOB balance/allowance cache.
 func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, params BalanceAllowanceParams) (*BalanceAllowanceResponse, error) {
-	key, err := c.DeriveAPIKey(ctx, privateKey)
+	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("derive api key: %w", err)
+		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
 	path := balanceAllowancePath("/balance-allowance/update", params)
-	headers, err := c.l2Headers(privateKey, &key, http.MethodGet, "/balance-allowance/update", nil)
+	headers, err := c.l2HeadersForAddress(&key, http.MethodGet, "/balance-allowance/update", nil, polyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -257,12 +285,40 @@ func (c *Client) l2Headers(privateKey string, key *auth.APIKey, method, path str
 	if err != nil {
 		return nil, err
 	}
+	return c.l2HeadersForAddress(key, method, path, body, signer.Address())
+}
+
+func (c *Client) l2HeadersForAddress(key *auth.APIKey, method, path string, body *string, polyAddress string) (map[string]string, error) {
 	headers, err := auth.BuildL2Headers(key, time.Now().Unix(), method, path, body)
 	if err != nil {
 		return nil, err
 	}
-	headers["POLY_ADDRESS"] = signer.Address()
+	headers["POLY_ADDRESS"] = polyAddress
 	return headers, nil
+}
+
+func signerAndDepositWallet(privateKey string) (*auth.PrivateKeySigner, string, error) {
+	signer, err := auth.NewPrivateKeySigner(privateKey, polygonChainID)
+	if err != nil {
+		return nil, "", err
+	}
+	depositWallet, err := auth.MakerAddressForSignatureType(signer.Address(), polygonChainID, signatureTypePoly1271)
+	if err != nil {
+		return nil, "", err
+	}
+	return signer, depositWallet, nil
+}
+
+func (c *Client) depositWalletAPIKey(ctx context.Context, privateKey string) (auth.APIKey, string, error) {
+	_, depositWallet, err := signerAndDepositWallet(privateKey)
+	if err != nil {
+		return auth.APIKey{}, "", err
+	}
+	key, err := c.DeriveAPIKeyForAddress(ctx, privateKey, depositWallet)
+	if err != nil {
+		return auth.APIKey{}, "", err
+	}
+	return key, depositWallet, nil
 }
 
 func balanceAllowancePath(base string, params BalanceAllowanceParams) string {

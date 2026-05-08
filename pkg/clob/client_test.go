@@ -173,6 +173,31 @@ func TestClientCreateAPIKeyForAddressReturnsPublicAPIKey(t *testing.T) {
 	}
 }
 
+func TestClientDeriveAPIKeyForAddressReturnsPublicAPIKey(t *testing.T) {
+	var sawAddress string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/derive-api-key" || r.Method != http.MethodGet {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		sawAddress = r.Header.Get("POLY_ADDRESS")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"owner-pass"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{BaseURL: server.URL})
+	key, err := client.DeriveAPIKeyForAddress(context.Background(), testPrivateKey, testDepositWallet)
+	if err != nil {
+		t.Fatalf("DeriveAPIKeyForAddress returned error: %v", err)
+	}
+	if sawAddress != testDepositWallet {
+		t.Fatalf("POLY_ADDRESS = %s, want %s", sawAddress, testDepositWallet)
+	}
+	if key.Key != "owner-key" || key.Passphrase != "owner-pass" {
+		t.Fatalf("unexpected key: %+v", key)
+	}
+}
+
 func TestClientBatchMarketDataParsesCurrentDTOs(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -353,6 +378,7 @@ func TestClientCreateLimitOrderUsesConfiguredBuilderCode(t *testing.T) {
 		Price:     "0.500000",
 		Size:      "1.400000",
 		OrderType: "GTC",
+		PostOnly:  true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -364,5 +390,77 @@ func TestClientCreateLimitOrderUsesConfiguredBuilderCode(t *testing.T) {
 	}
 	if order["builder"] != testBuilderCode {
 		t.Fatalf("posted builder=%#v want %s", order["builder"], testBuilderCode)
+	}
+	if posted["postOnly"] != true {
+		t.Fatalf("postOnly=%#v want true", posted["postOnly"])
+	}
+}
+
+func TestClientCreateBatchOrdersReturnsPublicResponses(t *testing.T) {
+	var posted []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"api-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"pass"}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		case "/orders":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method=%s want POST", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode orders body: %v", err)
+			}
+			_, _ = w.Write([]byte(`[{"success":true,"orderID":"0x1","status":"live"},{"success":true,"orderID":"0x2","status":"live"}]`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{BaseURL: server.URL})
+	res, err := client.CreateBatchOrders(context.Background(), testPrivateKey, []CreateOrderParams{
+		{TokenID: "12345", Side: "BUY", Price: "0.500000", Size: "1.000000", OrderType: "GTC"},
+		{TokenID: "12346", Side: "SELL", Price: "0.600000", Size: "2.000000", OrderType: "GTC", PostOnly: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Orders) != 2 || res.Orders[0].OrderID != "0x1" || res.Orders[1].OrderID != "0x2" {
+		t.Fatalf("unexpected batch response: %+v", res)
+	}
+	if len(posted) != 2 || posted[1]["postOnly"] != true {
+		t.Fatalf("unexpected posted batch: %#v", posted)
+	}
+}
+
+func TestClientHeartbeatPostsPublicRoute(t *testing.T) {
+	var posted map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"api-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"pass"}`))
+		case "/v1/heartbeats":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method=%s want POST", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode heartbeat body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{BaseURL: server.URL})
+	if err := client.Heartbeat(context.Background(), testPrivateKey, "hb-123"); err != nil {
+		t.Fatal(err)
+	}
+	if posted["heartbeat_id"] != "hb-123" {
+		t.Fatalf("heartbeat_id=%#v want hb-123", posted["heartbeat_id"])
 	}
 }

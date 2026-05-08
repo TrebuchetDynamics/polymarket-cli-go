@@ -2,6 +2,7 @@ package clob
 
 import (
 	"context"
+	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
 	internalclob "github.com/TrebuchetDynamics/polygolem/internal/clob"
@@ -37,6 +38,7 @@ type CreateOrderParams struct {
 	Size       string
 	OrderType  string
 	Expiration string
+	PostOnly   bool
 }
 
 // MarketOrderParams is the public input to CreateMarketOrder.
@@ -58,6 +60,11 @@ type OrderPlacementResponse struct {
 	ErrorMsg           string   `json:"errorMsg,omitempty"`
 	TransactionsHashes []string `json:"transactionsHashes,omitempty"`
 	TradeIDs           []string `json:"tradeIDs,omitempty"`
+}
+
+// BatchOrderResponse is returned by CreateBatchOrders.
+type BatchOrderResponse struct {
+	Orders []OrderPlacementResponse `json:"orders"`
 }
 
 // CancelOrdersResponse is returned by CLOB cancellation endpoints.
@@ -129,10 +136,32 @@ func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (A
 	return apiKeyFromInternal(key), nil
 }
 
+// CreateOrDeriveAPIKeyForAddress creates or derives CLOB L2 credentials for
+// a deposit/smart wallet address while signing L1 auth with the controlling
+// EOA private key.
+func (c *Client) CreateOrDeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (APIKey, error) {
+	key, err := c.inner.CreateOrDeriveAPIKeyForAddress(ctx, privateKey, ownerAddress)
+	if err != nil {
+		return APIKey{}, err
+	}
+	return apiKeyFromInternal(key), nil
+}
+
 // CreateAPIKeyForAddress creates CLOB L2 credentials for a deposit/smart
 // wallet address while signing L1 auth with the controlling EOA private key.
 func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (APIKey, error) {
 	key, err := c.inner.CreateAPIKeyForAddress(ctx, privateKey, ownerAddress)
+	if err != nil {
+		return APIKey{}, err
+	}
+	return apiKeyFromInternal(key), nil
+}
+
+// DeriveAPIKeyForAddress derives existing CLOB L2 credentials for a
+// deposit/smart wallet address while signing L1 auth with the controlling EOA
+// private key.
+func (c *Client) DeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (APIKey, error) {
+	key, err := c.inner.DeriveAPIKeyForAddress(ctx, privateKey, ownerAddress)
 	if err != nil {
 		return APIKey{}, err
 	}
@@ -270,6 +299,15 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 	return orderPlacementFromInternal(row), nil
 }
 
+// CreateBatchOrders signs and posts multiple V2 limit orders to POST /orders.
+func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, params []CreateOrderParams) (*BatchOrderResponse, error) {
+	row, err := c.inner.CreateBatchOrders(ctx, privateKey, createOrderParamsListToInternal(params))
+	if err != nil {
+		return nil, err
+	}
+	return batchOrderResponseFromInternal(row), nil
+}
+
 // CreateMarketOrder signs and submits a V2 buy-side market order.
 func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params MarketOrderParams) (*OrderPlacementResponse, error) {
 	row, err := c.inner.CreateMarketOrder(ctx, privateKey, marketOrderParamsToInternal(params))
@@ -277,6 +315,17 @@ func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, param
 		return nil, err
 	}
 	return orderPlacementFromInternal(row), nil
+}
+
+// Heartbeat sends a CLOB heartbeat ping for open-order keepalive behavior.
+func (c *Client) Heartbeat(ctx context.Context, privateKey, heartbeatID string) error {
+	return c.inner.Heartbeat(ctx, privateKey, heartbeatID)
+}
+
+// AutoHeartbeat sends periodic heartbeats until the returned cancel function
+// is called.
+func (c *Client) AutoHeartbeat(ctx context.Context, privateKey string, interval time.Duration) context.CancelFunc {
+	return c.inner.AutoHeartbeat(ctx, privateKey, interval)
 }
 
 func apiKeyFromInternal(row auth.APIKey) APIKey {
@@ -401,7 +450,16 @@ func createOrderParamsToInternal(params CreateOrderParams) internalclob.CreateOr
 		Size:       params.Size,
 		OrderType:  params.OrderType,
 		Expiration: params.Expiration,
+		PostOnly:   params.PostOnly,
 	}
+}
+
+func createOrderParamsListToInternal(params []CreateOrderParams) []internalclob.CreateOrderParams {
+	out := make([]internalclob.CreateOrderParams, len(params))
+	for i, param := range params {
+		out[i] = createOrderParamsToInternal(param)
+	}
+	return out
 }
 
 func marketOrderParamsToInternal(params MarketOrderParams) internalclob.MarketOrderParams {
@@ -412,6 +470,20 @@ func marketOrderParamsToInternal(params MarketOrderParams) internalclob.MarketOr
 		Price:     params.Price,
 		OrderType: params.OrderType,
 	}
+}
+
+func batchOrderResponseFromInternal(row *internalclob.BatchOrderResponse) *BatchOrderResponse {
+	if row == nil {
+		return nil
+	}
+	out := &BatchOrderResponse{Orders: make([]OrderPlacementResponse, len(row.Orders))}
+	for i := range row.Orders {
+		converted := orderPlacementFromInternal(&row.Orders[i])
+		if converted != nil {
+			out.Orders[i] = *converted
+		}
+	}
+	return out
 }
 
 func orderPlacementFromInternal(row *internalclob.OrderPlacementResponse) *OrderPlacementResponse {

@@ -36,6 +36,8 @@ import (
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
 
+const defaultPolygonRPC = "https://polygon-bor-rpc.publicnode.com"
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "FAIL: %v\n", err)
@@ -64,7 +66,9 @@ func run() error {
 		return fmt.Errorf("signer: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Three-minute window covers SIWE login + V2 mint + WALLET-CREATE submit
+	// + on-chain deploy confirm + wrapped L1 mint.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	session, err := auth.NewSIWESession(signer, "https://gamma-api.polymarket.com")
@@ -114,19 +118,92 @@ func run() error {
 	}
 	fmt.Printf("[probe] WALLET-CREATE accepted, depositWallet=%s tx=%s\n", depositWallet, txHash)
 
-	// Optional: poll for confirmation. Skip the wait — the order test below
-	// will tell us either way. If wallet isn't deployed yet, /order will
-	// return an ERC-1271 sig validation error (different from the API key
-	// error we want to investigate).
-	fmt.Println("[probe] not polling for tx confirmation; if deploy isn't done, sigtype-3 will fail at sig validation")
-
-	fmt.Println("[probe] minting CLOB L2 API key with EOA ...")
-	clobClient := clob.NewClient("https://clob.polymarket.com", nil)
-	clobKey, err := clobClient.CreateOrDeriveAPIKey(ctx, keyHex)
-	if err != nil {
-		return fmt.Errorf("CreateOrDeriveAPIKey: %w", err)
+	// Wait for the deposit wallet to be deployed on-chain before minting
+	// the L2 key — the wrapped L1 ClobAuth runs through the deposit
+	// wallet's isValidSignature, which requires the contract to exist.
+	fmt.Println("[probe] polling Polygon eth_getCode until the deposit wallet is on-chain ...")
+	deployStart := time.Now()
+	polygonRPC := firstNonEmpty(os.Getenv("POLYMARKET_RPC_URL"), defaultPolygonRPC)
+	for attempt := 1; attempt <= 60; attempt++ {
+		hasCode, derr := pollDepositWalletCode(ctx, http.DefaultClient, polygonRPC, depositWallet)
+		if derr != nil {
+			fmt.Printf("[probe] eth_getCode attempt %d error: %v\n", attempt, derr)
+		} else if hasCode {
+			fmt.Printf("[probe] deposit wallet deployed after %s\n", time.Since(deployStart).Round(time.Second))
+			break
+		}
+		if attempt == 60 {
+			return fmt.Errorf("deposit wallet not deployed after %d attempts", attempt)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
 	}
-	fmt.Printf("[probe] CLOB L2 API key minted: %s\n", clobKey.Key)
+
+	// Hypothesis A: re-mint the V2 relayer key AFTER the deposit wallet is deployed
+	// — maybe the response shape changes once the indexer sees the wallet.
+	fmt.Println("[probe] re-minting V2 relayer key after on-chain deploy ...")
+	v2KeyAfter, remintErr := relayer.MintV2APIKey(ctx, session.HTTPClient(), "https://relayer-v2.polymarket.com")
+	if remintErr != nil {
+		fmt.Printf("[probe] re-mint failed: %v\n", remintErr)
+	} else {
+		fmt.Printf("[probe] V2 re-mint key=%s addr=%s (orig was key=%s addr=%s)\n", v2KeyAfter.Key, v2KeyAfter.Address, v2Key.Key, v2Key.Address)
+		_ = v2KeyAfter // avoid unused if first-mint already had what we need
+	}
+
+	// Hypothesis B: forward the SIWE polymarketsession cookie to clob.polymarket.com
+	// alongside the wrapped L1 headers. The browser's fetch sends *.polymarket.com
+	// cookies cross-subdomain.
+	fmt.Println("[probe] minting CLOB L2 API key — wrapped L1 + SIWE cookies forwarded ...")
+	wrappedHeaders, err := auth.BuildL1HeadersForDepositWallet(keyHex, 137, time.Now().Unix(), 0, depositWallet)
+	if err != nil {
+		return fmt.Errorf("BuildL1HeadersForDepositWallet: %w", err)
+	}
+	gammaCookies := session.CookiesFor("https://gamma-api.polymarket.com/")
+	cookieHeader := buildCookieHeader(gammaCookies)
+	fmt.Printf("[probe] forwarding %d cookies to clob (manual Cookie header): %d bytes\n", len(gammaCookies), len(cookieHeader))
+
+	mintReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://clob.polymarket.com/auth/api-key", bytes.NewReader([]byte("")))
+	mintReq.Header.Set("Accept", "application/json")
+	mintReq.Header.Set("Content-Type", "application/json")
+	for k, v := range wrappedHeaders {
+		mintReq.Header.Set(k, v)
+	}
+	if cookieHeader != "" {
+		mintReq.Header.Set("Cookie", cookieHeader)
+	}
+	mintResp, err := http.DefaultClient.Do(mintReq)
+	if err != nil {
+		return fmt.Errorf("mint http: %w", err)
+	}
+	defer mintResp.Body.Close()
+	mintBody, _ := io.ReadAll(mintResp.Body)
+	fmt.Printf("[probe] mint with cookies → HTTP %d body=%s\n", mintResp.StatusCode, string(mintBody))
+
+	if mintResp.StatusCode < 200 || mintResp.StatusCode > 299 {
+		// Fallback: try without forwarding cookies (proves whether cookies were the missing piece)
+		fmt.Println("[probe] FALLBACK — minting without cookies (existing wrapped path) ...")
+		clobClient := clob.NewClient("https://clob.polymarket.com", nil)
+		clobKey, err := clobClient.CreateAPIKeyForAddress(ctx, keyHex, depositWallet)
+		if err != nil {
+			fmt.Printf("[probe] no-cookie mint also failed: %v\n", err)
+			return fmt.Errorf("CreateAPIKeyForAddress: %w", err)
+		}
+		fmt.Printf("[probe] no-cookie deposit-bound key: %s — but cookied path was supposed to work\n", clobKey.Key)
+	}
+	// If we reach here either the cookie path succeeded or fallback returned creds.
+	// Best-effort: parse a key from the response we got.
+	var clobKey struct {
+		APIKey     string `json:"apiKey"`
+		Secret     string `json:"secret"`
+		Passphrase string `json:"passphrase"`
+	}
+	_ = json.Unmarshal(mintBody, &clobKey)
+	if clobKey.APIKey != "" {
+		fmt.Printf("[probe] cookied mint SUCCESS — apiKey=%s\n", clobKey.APIKey)
+	}
 
 	fmt.Println("[probe] attempting sigtype-3 limit order on token 6932…517 (active 'Jesus' market) ...")
 	if err := probeCreateOrder(ctx, keyHex); err != nil {
@@ -281,4 +358,56 @@ func buildCookieHeader(cookies []*http.Cookie) string {
 		parts = append(parts, []byte(c.Name+"="+c.Value)...)
 	}
 	return string(parts)
+}
+
+// pollDepositWalletCode queries Polygon directly for contract code at addr.
+// Returns true once eth_getCode is non-empty (deploy mined). Bypasses the
+// relayer's /deployed endpoint, which silently returned false even after
+// on-chain confirm in earlier probe runs.
+func pollDepositWalletCode(ctx context.Context, client *http.Client, rpcURL, addr string) (bool, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	rpcURL = firstNonEmpty(rpcURL, defaultPolygonRPC)
+	body, _ := json.Marshal(map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  "eth_getCode",
+		"params":  []string{addr, "latest"},
+		"id":      1,
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, bytes.NewReader(body))
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	var out struct {
+		Result string `json:"result"`
+		Error  *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(respBody, &out); err != nil {
+		return false, err
+	}
+	if out.Error != nil {
+		return false, fmt.Errorf("rpc: %s", out.Error.Message)
+	}
+	// Empty contract code is "0x" or "0x0".
+	return len(out.Result) > 4, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
