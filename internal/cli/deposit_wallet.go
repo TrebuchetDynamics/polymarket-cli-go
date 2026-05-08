@@ -652,6 +652,5 @@ func firstEnv(names ...string) string {
 }
 
 func printJSON(cmd *cobra.Command, v interface{}) error {
-	w := newWire(true)
-	return w.printJSON(cmd, v)
+	return writeCommandJSON(cmd, v)
 }

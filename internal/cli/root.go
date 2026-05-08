@@ -15,7 +15,6 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/internal/dataapi"
 	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
 	"github.com/TrebuchetDynamics/polygolem/internal/marketdiscovery"
-	"github.com/TrebuchetDynamics/polygolem/internal/output"
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 	"github.com/TrebuchetDynamics/polygolem/internal/preflight"
 	"github.com/TrebuchetDynamics/polygolem/internal/stream"
@@ -46,7 +45,7 @@ type wire struct {
 }
 
 func (w *wire) printJSON(cmd *cobra.Command, v interface{}) error {
-	return output.WriteJSON(cmd.OutOrStdout(), v)
+	return writeCommandJSON(cmd, v)
 }
 
 func newWire(jsonOut bool) *wire {
@@ -86,7 +85,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		Use: "version", Short: "Print version", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if jsonOutput {
-				return output.WriteJSON(cmd.OutOrStdout(), map[string]string{"version": opts.Version})
+				return writeCommandJSON(cmd, map[string]string{"version": opts.Version})
 			}
 			_, err := fmt.Fprintf(cmd.OutOrStdout(), "polygolem %s\n", opts.Version)
 			return err
@@ -98,7 +97,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result := runLocalPreflight(cmd.Context(), opts.Version)
 			if jsonOutput {
-				return output.WriteJSON(cmd.OutOrStdout(), result)
+				return writeCommandJSON(cmd, result)
 			}
 			return writePreflight(cmd.OutOrStdout(), result)
 		},
@@ -125,6 +124,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 	root.AddCommand(commandGroup("live", "Inspect live gate status",
 		skeleton("status"),
 	))
+	installJSONContract(root)
 	return root
 }
 
@@ -1290,7 +1290,8 @@ func bridgeCmd(jsonOut bool) *cobra.Command {
 
 func commandGroup(use, short string, children ...*cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{Use: use, Short: short, Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
+		Annotations: map[string]string{commandGroupAnnotation: "true"},
+		RunE:        func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 	cmd.AddCommand(children...)
 	return cmd
@@ -1299,6 +1300,9 @@ func commandGroup(use, short string, children ...*cobra.Command) *cobra.Command 
 func skeleton(use string) *cobra.Command {
 	return &cobra.Command{Use: use, Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if jsonEnabled(cmd) {
+				return fmt.Errorf("%s: not implemented", commandName(cmd))
+			}
 			_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s: not implemented\n", cmd.CommandPath())
 			return err
 		},

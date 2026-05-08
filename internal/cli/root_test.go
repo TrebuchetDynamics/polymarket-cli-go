@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -12,6 +13,205 @@ import (
 
 	"github.com/gorilla/websocket"
 )
+
+type jsonEnvelopeForTest struct {
+	OK      bool            `json:"ok"`
+	Version string          `json:"version"`
+	Data    json.RawMessage `json:"data"`
+	Error   *struct {
+		Code     string `json:"code"`
+		Category string `json:"category"`
+		Message  string `json:"message"`
+		Hint     string `json:"hint,omitempty"`
+	} `json:"error,omitempty"`
+	Meta struct {
+		Command    string `json:"command"`
+		TS         string `json:"ts"`
+		DurationMS int64  `json:"duration_ms"`
+	} `json:"meta"`
+}
+
+func executeRootForTest(args ...string) (string, string, error) {
+	var stdout, stderr bytes.Buffer
+	root := NewRootCommand(Options{Version: "test-version", Stdout: &stdout, Stderr: &stderr})
+	root.SetArgs(args)
+	err := root.Execute()
+	return stdout.String(), stderr.String(), err
+}
+
+func parseJSONEnvelopeForTest(t *testing.T, body string) jsonEnvelopeForTest {
+	t.Helper()
+	var got jsonEnvelopeForTest
+	if err := json.Unmarshal([]byte(body), &got); err != nil {
+		t.Fatalf("output is not a JSON envelope: %v\n%s", err, body)
+	}
+	if got.Version != "1" {
+		t.Fatalf("version=%q, want 1\nenvelope=%s", got.Version, body)
+	}
+	if got.Meta.Command == "" {
+		t.Fatalf("meta.command missing\nenvelope=%s", body)
+	}
+	if got.Meta.TS == "" {
+		t.Fatalf("meta.ts missing\nenvelope=%s", body)
+	}
+	return got
+}
+
+func TestJSONVersionUsesSuccessEnvelope(t *testing.T) {
+	stdout, stderr, err := executeRootForTest("--json", "version")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v\nstderr:\n%s", err, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr=%q, want empty", stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false, want true\nenvelope=%s", stdout)
+	}
+	if got.Meta.Command != "version" {
+		t.Fatalf("meta.command=%q, want version", got.Meta.Command)
+	}
+	var data struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("data is not version payload: %v\n%s", err, got.Data)
+	}
+	if data.Version != "test-version" {
+		t.Fatalf("data.version=%q, want test-version", data.Version)
+	}
+}
+
+func TestJSONPreflightUsesSuccessEnvelope(t *testing.T) {
+	stdout, stderr, err := executeRootForTest("--json", "preflight")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false, want true\nenvelope=%s", stdout)
+	}
+	if got.Meta.Command != "preflight" {
+		t.Fatalf("meta.command=%q, want preflight", got.Meta.Command)
+	}
+	var data struct {
+		OK     bool `json:"ok"`
+		Checks []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"checks"`
+	}
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("data is not preflight payload: %v\n%s", err, got.Data)
+	}
+	if len(data.Checks) == 0 {
+		t.Fatalf("preflight checks empty\nenvelope=%s", stdout)
+	}
+}
+
+func TestJSONGroupCommandUsesUsageErrorEnvelope(t *testing.T) {
+	stdout, stderr, err := executeRootForTest("--json", "clob")
+	if err == nil {
+		t.Fatal("expected Execute to return usage error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout=%q, want empty", stdout)
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("ExitCode=%d, want 2", got)
+	}
+	if !ErrorAlreadyRendered(err) {
+		t.Fatalf("error should be marked rendered: %v", err)
+	}
+	got := parseJSONEnvelopeForTest(t, stderr)
+	if got.OK {
+		t.Fatalf("ok=true, want false\nenvelope=%s", stderr)
+	}
+	if got.Meta.Command != "clob" {
+		t.Fatalf("meta.command=%q, want clob", got.Meta.Command)
+	}
+	if got.Error == nil || got.Error.Code != "USAGE_SUBCOMMAND_UNKNOWN" || got.Error.Category != "usage" {
+		t.Fatalf("unexpected error envelope: %+v\n%s", got.Error, stderr)
+	}
+}
+
+func TestJSONSkeletonUsesInternalErrorEnvelope(t *testing.T) {
+	stdout, stderr, err := executeRootForTest("--json", "paper", "buy")
+	if err == nil {
+		t.Fatal("expected Execute to return internal error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout=%q, want empty", stdout)
+	}
+	if got := ExitCode(err); got != 9 {
+		t.Fatalf("ExitCode=%d, want 9", got)
+	}
+	got := parseJSONEnvelopeForTest(t, stderr)
+	if got.OK {
+		t.Fatalf("ok=true, want false\nenvelope=%s", stderr)
+	}
+	if got.Meta.Command != "paper buy" {
+		t.Fatalf("meta.command=%q, want paper buy", got.Meta.Command)
+	}
+	if got.Error == nil || got.Error.Code != "INTERNAL_UNIMPLEMENTED" || got.Error.Category != "internal" {
+		t.Fatalf("unexpected error envelope: %+v\n%s", got.Error, stderr)
+	}
+}
+
+func TestJSONMissingPrivateKeyUsesAuthErrorEnvelope(t *testing.T) {
+	t.Setenv("POLYMARKET_PRIVATE_KEY", "")
+
+	stdout, stderr, err := executeRootForTest("--json", "clob", "create-api-key")
+	if err == nil {
+		t.Fatal("expected Execute to return auth error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout=%q, want empty", stdout)
+	}
+	if got := ExitCode(err); got != 3 {
+		t.Fatalf("ExitCode=%d, want 3", got)
+	}
+	if !ErrorAlreadyRendered(err) {
+		t.Fatalf("error should be marked rendered: %v", err)
+	}
+	if !errors.Is(err, ErrExit) {
+		t.Fatalf("error should wrap ErrExit: %v", err)
+	}
+	got := parseJSONEnvelopeForTest(t, stderr)
+	if got.OK {
+		t.Fatalf("ok=true, want false\nenvelope=%s", stderr)
+	}
+	if got.Meta.Command != "clob create-api-key" {
+		t.Fatalf("meta.command=%q, want clob create-api-key", got.Meta.Command)
+	}
+	if got.Error == nil || got.Error.Code != "AUTH_PRIVATE_KEY_MISSING" || got.Error.Category != "auth" {
+		t.Fatalf("unexpected error envelope: %+v\n%s", got.Error, stderr)
+	}
+}
+
+func TestJSONMissingPositionalArgUsesUsageErrorEnvelope(t *testing.T) {
+	stdout, stderr, err := executeRootForTest("--json", "clob", "book")
+	if err == nil {
+		t.Fatal("expected Execute to return usage error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout=%q, want empty", stdout)
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("ExitCode=%d, want 2", got)
+	}
+	got := parseJSONEnvelopeForTest(t, stderr)
+	if got.OK {
+		t.Fatalf("ok=true, want false\nenvelope=%s", stderr)
+	}
+	if got.Meta.Command != "clob book" {
+		t.Fatalf("meta.command=%q, want clob book", got.Meta.Command)
+	}
+	if got.Error == nil || got.Error.Code != "USAGE_ARG_INVALID" || got.Error.Category != "usage" {
+		t.Fatalf("unexpected error envelope: %+v\n%s", got.Error, stderr)
+	}
+}
 
 func TestVersionCommandPrintsVersion(t *testing.T) {
 	var stdout bytes.Buffer
@@ -33,17 +233,21 @@ func TestJSONFlagIsAcceptedAndPreflightEmitsJSON(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	var got struct {
+	var got jsonEnvelopeForTest
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("preflight stdout is not valid JSON: %v\nstdout:\n%s", err, stdout.String())
+	}
+	var data struct {
 		OK     bool `json:"ok"`
 		Checks []struct {
 			Name   string `json:"name"`
 			Status string `json:"status"`
 		} `json:"checks"`
 	}
-	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
-		t.Fatalf("preflight stdout is not valid JSON: %v\nstdout:\n%s", err, stdout.String())
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("preflight data is not valid JSON: %v\nstdout:\n%s", err, stdout.String())
 	}
-	if len(got.Checks) == 0 {
+	if len(data.Checks) == 0 {
 		t.Fatalf("preflight JSON checks is empty: %s", stdout.String())
 	}
 }
@@ -280,13 +484,17 @@ func TestStreamMarketReadsFromLocalWebSocket(t *testing.T) {
 	if len(gotSubscription) != 1 || gotSubscription[0] != "token-1" {
 		t.Fatalf("subscription=%v, want [token-1]", gotSubscription)
 	}
+	var envelope jsonEnvelopeForTest
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("stream stdout is not valid JSON: %v\nstdout:\n%s", err, stdout.String())
+	}
 	var got struct {
 		EventType string `json:"event_type"`
 		AssetID   string `json:"asset_id"`
 		Market    string `json:"market"`
 	}
-	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
-		t.Fatalf("stream stdout is not valid JSON: %v\nstdout:\n%s", err, stdout.String())
+	if err := json.Unmarshal(envelope.Data, &got); err != nil {
+		t.Fatalf("stream data is not valid JSON: %v\nstdout:\n%s", err, stdout.String())
 	}
 	if got.EventType != "book" || got.AssetID != "token-1" || got.Market != "market-1" {
 		t.Fatalf("unexpected stream output: %+v", got)
