@@ -25,12 +25,13 @@ import (
 
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
 	"github.com/TrebuchetDynamics/polygolem/internal/clob"
-	"github.com/TrebuchetDynamics/polygolem/internal/dataapi"
 	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
 	"github.com/TrebuchetDynamics/polygolem/internal/marketdiscovery"
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 	"github.com/TrebuchetDynamics/polygolem/internal/stream"
 	"github.com/TrebuchetDynamics/polygolem/internal/transport"
+	sdkdata "github.com/TrebuchetDynamics/polygolem/pkg/data"
+	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 )
 
 const (
@@ -45,7 +46,7 @@ const (
 type Client struct {
 	gamma     *gamma.Client
 	clob      *clob.Client
-	data      *dataapi.Client
+	data      *sdkdata.Client
 	discovery *marketdiscovery.Service
 }
 
@@ -81,7 +82,7 @@ func NewClient(cfg Config) *Client {
 
 	gc := gamma.NewClient(cfg.GammaBaseURL, nil)
 	cc := clob.NewClient(cfg.CLOBBaseURL, nil)
-	dc := dataapi.NewClient(cfg.DataBaseURL, nil)
+	dc := sdkdata.NewClient(sdkdata.Config{BaseURL: cfg.DataBaseURL})
 
 	return &Client{
 		gamma:     gc,
@@ -385,17 +386,17 @@ func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor strin
 // --- Data API: Extended ---
 
 // ClosedPositions returns closed positions for a user.
-func (c *Client) ClosedPositions(ctx context.Context, user string) ([]dataapi.ClosedPosition, error) {
+func (c *Client) ClosedPositions(ctx context.Context, user string) ([]types.ClosedPosition, error) {
 	return c.data.ClosedPositions(ctx, user)
 }
 
 // ClosedPositionsWithLimit returns closed positions for a user with a row limit.
-func (c *Client) ClosedPositionsWithLimit(ctx context.Context, user string, limit int) ([]dataapi.ClosedPosition, error) {
+func (c *Client) ClosedPositionsWithLimit(ctx context.Context, user string, limit int) ([]types.ClosedPosition, error) {
 	return c.data.ClosedPositionsWithLimit(ctx, user, limit)
 }
 
 // MarketsTraded returns the count of markets traded by a user.
-func (c *Client) MarketsTraded(ctx context.Context, user string) (*dataapi.TotalMarketsTraded, error) {
+func (c *Client) MarketsTraded(ctx context.Context, user string) (*types.TotalMarketsTraded, error) {
 	return c.data.MarketsTraded(ctx, user)
 }
 
@@ -475,47 +476,47 @@ func (c *Client) CLOBMarket(ctx context.Context, conditionID string) (*polytypes
 }
 
 // CurrentPositions returns current open positions for a user.
-func (c *Client) CurrentPositions(ctx context.Context, user string) ([]dataapi.Position, error) {
+func (c *Client) CurrentPositions(ctx context.Context, user string) ([]types.Position, error) {
 	return c.data.CurrentPositions(ctx, user)
 }
 
 // CurrentPositionsWithLimit returns current open positions for a user with a row limit.
-func (c *Client) CurrentPositionsWithLimit(ctx context.Context, user string, limit int) ([]dataapi.Position, error) {
+func (c *Client) CurrentPositionsWithLimit(ctx context.Context, user string, limit int) ([]types.Position, error) {
 	return c.data.CurrentPositionsWithLimit(ctx, user, limit)
 }
 
 // Trades returns trades for a user.
-func (c *Client) Trades(ctx context.Context, user string, limit int) ([]dataapi.Trade, error) {
+func (c *Client) Trades(ctx context.Context, user string, limit int) ([]types.Trade, error) {
 	return c.data.Trades(ctx, user, limit)
 }
 
 // Activity returns recent activity for a user.
-func (c *Client) Activity(ctx context.Context, user string, limit int) ([]dataapi.Activity, error) {
+func (c *Client) Activity(ctx context.Context, user string, limit int) ([]types.Activity, error) {
 	return c.data.Activity(ctx, user, limit)
 }
 
 // TopHolders returns top holders for a token.
-func (c *Client) TopHolders(ctx context.Context, tokenID string, limit int) ([]dataapi.MetaHolder, error) {
+func (c *Client) TopHolders(ctx context.Context, tokenID string, limit int) ([]types.Holder, error) {
 	return c.data.TopHolders(ctx, tokenID, limit)
 }
 
 // TotalValue returns total portfolio value for a user.
-func (c *Client) TotalValue(ctx context.Context, user string) (*dataapi.TotalValue, error) {
+func (c *Client) TotalValue(ctx context.Context, user string) (*types.PortfolioValue, error) {
 	return c.data.TotalValue(ctx, user)
 }
 
 // OpenInterest returns open interest for a token.
-func (c *Client) OpenInterest(ctx context.Context, tokenID string) (*dataapi.OpenInterest, error) {
+func (c *Client) OpenInterest(ctx context.Context, tokenID string) (*types.OpenInterest, error) {
 	return c.data.OpenInterest(ctx, tokenID)
 }
 
 // TraderLeaderboard returns the trader leaderboard.
-func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]dataapi.TraderLeaderboardEntry, error) {
+func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]types.LeaderboardRow, error) {
 	return c.data.TraderLeaderboard(ctx, limit)
 }
 
 // LiveVolume returns live volume data.
-func (c *Client) LiveVolume(ctx context.Context, limit int) (*dataapi.LiveVolumeResponse, error) {
+func (c *Client) LiveVolume(ctx context.Context, limit int) (*types.LiveVolumeResponse, error) {
 	return c.data.LiveVolume(ctx, limit)
 }
 

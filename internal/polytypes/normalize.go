@@ -227,22 +227,20 @@ const (
 	OrderTypeFAK OrderType = "FAK"
 )
 
+// SignatureType is the on-wire `signatureType` enum. Polymarket V2
+// (2026-04-28 cutover) accepts only sigtype 3 (deposit wallet, POLY_1271).
+// Sigtypes 0/1/2 (EOA / proxy / Gnosis Safe) are dead — `clob/order` rejects
+// them with "maker address not allowed, please use the deposit wallet flow".
 type SignatureType int
 
 const (
-	SignatureEOA        SignatureType = 0
-	SignatureProxy      SignatureType = 1
-	SignatureGnosisSafe SignatureType = 2
+	SignaturePoly1271 SignatureType = 3
 )
 
 func (st SignatureType) String() string {
 	switch st {
-	case SignatureEOA:
-		return "EOA"
-	case SignatureProxy:
-		return "PROXY"
-	case SignatureGnosisSafe:
-		return "SAFE"
+	case SignaturePoly1271:
+		return "POLY_1271"
 	default:
 		return "UNKNOWN"
 	}

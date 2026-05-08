@@ -408,7 +408,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(createKeyCmd, &createKeyOutput)
 	cmd.AddCommand(createKeyCmd)
 
-	var balanceOutput, balanceAssetType, balanceTokenID, balanceSignatureType string
+	var balanceOutput, balanceAssetType, balanceTokenID string
 	balanceCmd := &cobra.Command{Use: "balance", Short: "Get CLOB balance and allowances", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := checkOutput(balanceOutput); err != nil {
@@ -418,14 +418,9 @@ func clobCmd(jsonOut bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			sig, err := parseSignatureTypeFlag(balanceSignatureType)
-			if err != nil {
-				return err
-			}
 			res, err := w.clob.BalanceAllowance(cmd.Context(), key, clob.BalanceAllowanceParams{
-				AssetType:     balanceAssetType,
-				TokenID:       balanceTokenID,
-				SignatureType: sig,
+				AssetType: balanceAssetType,
+				TokenID:   balanceTokenID,
 			})
 			if err != nil {
 				return err
@@ -436,10 +431,9 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(balanceCmd, &balanceOutput)
 	balanceCmd.Flags().StringVar(&balanceAssetType, "asset-type", "collateral", "asset type")
 	balanceCmd.Flags().StringVar(&balanceTokenID, "token-id", "", "conditional token id")
-	balanceCmd.Flags().StringVar(&balanceSignatureType, "signature-type", "deposit", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(balanceCmd)
 
-	var updateBalanceOutput, updateBalanceAssetType, updateBalanceTokenID, updateBalanceSignatureType string
+	var updateBalanceOutput, updateBalanceAssetType, updateBalanceTokenID string
 	updateBalanceCmd := &cobra.Command{Use: "update-balance", Short: "Refresh CLOB balance and allowances", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := checkOutput(updateBalanceOutput); err != nil {
@@ -449,14 +443,9 @@ func clobCmd(jsonOut bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			sig, err := parseSignatureTypeFlag(updateBalanceSignatureType)
-			if err != nil {
-				return err
-			}
 			res, err := w.clob.UpdateBalanceAllowance(cmd.Context(), key, clob.BalanceAllowanceParams{
-				AssetType:     updateBalanceAssetType,
-				TokenID:       updateBalanceTokenID,
-				SignatureType: sig,
+				AssetType: updateBalanceAssetType,
+				TokenID:   updateBalanceTokenID,
 			})
 			if err != nil {
 				return err
@@ -467,7 +456,6 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(updateBalanceCmd, &updateBalanceOutput)
 	updateBalanceCmd.Flags().StringVar(&updateBalanceAssetType, "asset-type", "collateral", "asset type")
 	updateBalanceCmd.Flags().StringVar(&updateBalanceTokenID, "token-id", "", "conditional token id")
-	updateBalanceCmd.Flags().StringVar(&updateBalanceSignatureType, "signature-type", "deposit", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(updateBalanceCmd)
 
 	var ordersOutput string
@@ -616,7 +604,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	cancelMarketCmd.Flags().StringVar(&cancelMarketAsset, "asset", "", "asset/token ID")
 	cmd.AddCommand(cancelMarketCmd)
 
-	var createOrderOutput, createOrderToken, createOrderSide, createOrderPrice, createOrderSize, createOrderType, createOrderSignatureType, createOrderExpiration string
+	var createOrderOutput, createOrderToken, createOrderSide, createOrderPrice, createOrderSize, createOrderType, createOrderExpiration string
 	createOrderCmd := &cobra.Command{Use: "create-order", Short: "Create a signed CLOB limit order", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := checkOutput(createOrderOutput); err != nil {
@@ -626,18 +614,13 @@ func clobCmd(jsonOut bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			sig, err := parseSignatureTypeFlag(createOrderSignatureType)
-			if err != nil {
-				return err
-			}
 			res, err := w.clob.CreateLimitOrder(cmd.Context(), key, clob.CreateOrderParams{
-				TokenID:       createOrderToken,
-				Side:          createOrderSide,
-				Price:         createOrderPrice,
-				Size:          createOrderSize,
-				OrderType:     createOrderType,
-				SignatureType: sig,
-				Expiration:    createOrderExpiration,
+				TokenID:    createOrderToken,
+				Side:       createOrderSide,
+				Price:      createOrderPrice,
+				Size:       createOrderSize,
+				OrderType:  createOrderType,
+				Expiration: createOrderExpiration,
 			})
 			if err != nil {
 				return err
@@ -651,11 +634,10 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	createOrderCmd.Flags().StringVar(&createOrderPrice, "price", "", "limit price")
 	createOrderCmd.Flags().StringVar(&createOrderSize, "size", "", "order size")
 	createOrderCmd.Flags().StringVar(&createOrderType, "order-type", "GTC", "order type")
-	createOrderCmd.Flags().StringVar(&createOrderSignatureType, "signature-type", "deposit", "signature type: eoa, proxy, safe, deposit")
 	createOrderCmd.Flags().StringVar(&createOrderExpiration, "expiration", "0", "unix timestamp for GTD orders (0 = no expiration)")
 	cmd.AddCommand(createOrderCmd)
 
-	var marketOrderOutput, marketOrderToken, marketOrderSide, marketOrderAmount, marketOrderPrice, marketOrderType, marketOrderSignatureType string
+	var marketOrderOutput, marketOrderToken, marketOrderSide, marketOrderAmount, marketOrderPrice, marketOrderType string
 	marketOrderCmd := &cobra.Command{Use: "market-order", Short: "Create a signed CLOB market/FOK order", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := checkOutput(marketOrderOutput); err != nil {
@@ -665,17 +647,12 @@ func clobCmd(jsonOut bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			sig, err := parseSignatureTypeFlag(marketOrderSignatureType)
-			if err != nil {
-				return err
-			}
 			res, err := w.clob.CreateMarketOrder(cmd.Context(), key, clob.MarketOrderParams{
-				TokenID:       marketOrderToken,
-				Side:          marketOrderSide,
-				Amount:        marketOrderAmount,
-				Price:         marketOrderPrice,
-				OrderType:     marketOrderType,
-				SignatureType: sig,
+				TokenID:   marketOrderToken,
+				Side:      marketOrderSide,
+				Amount:    marketOrderAmount,
+				Price:     marketOrderPrice,
+				OrderType: marketOrderType,
 			})
 			if err != nil {
 				return err
@@ -689,7 +666,6 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	marketOrderCmd.Flags().StringVar(&marketOrderAmount, "amount", "", "USDC amount")
 	marketOrderCmd.Flags().StringVar(&marketOrderPrice, "price", "", "limit price")
 	marketOrderCmd.Flags().StringVar(&marketOrderType, "order-type", "FOK", "order type")
-	marketOrderCmd.Flags().StringVar(&marketOrderSignatureType, "signature-type", "deposit", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(marketOrderCmd)
 
 	var priceHistoryOutput, priceHistoryInterval string
@@ -987,21 +963,6 @@ func streamCmd(jsonOut bool) *cobra.Command {
 	cmd.AddCommand(marketCmd)
 
 	return cmd
-}
-
-func parseSignatureTypeFlag(value string) (int, error) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "", "deposit", "deposit-wallet", "poly-1271", "3":
-		return 3, nil
-	case "proxy", "1":
-		return 1, nil
-	case "eoa", "0":
-		return 0, nil
-	case "safe", "gnosis", "gnosis-safe", "2":
-		return 2, nil
-	default:
-		return 0, fmt.Errorf("unsupported signature type %q", value)
-	}
 }
 
 func splitCSV(value string) []string {

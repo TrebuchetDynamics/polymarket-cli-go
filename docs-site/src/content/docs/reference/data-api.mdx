@@ -24,10 +24,15 @@ polygolem data live-volume --limit 20
 
 ## SDK
 
-`internal/dataapi` exposes typed methods for the CLI and the public
-`pkg/universal` client exposes matching read methods for downstream Go code:
+Use `pkg/data` when you only need Data API analytics. The public
+`pkg/universal` facade exposes the same Data API methods when a caller already
+uses one client for Gamma, CLOB, Data API, discovery, and streams. Both public
+surfaces return DTOs from `pkg/types`.
 
 ```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/data"
+
+client := data.NewClient(data.Config{})
 positions, err := client.CurrentPositionsWithLimit(ctx, user, 20)
 leaders, err := client.TraderLeaderboard(ctx, 20)
 volume, err := client.LiveVolume(ctx, 20)
@@ -36,4 +41,5 @@ volume, err := client.LiveVolume(ctx, 20)
 ## Related
 
 - [CLI Commands](/reference/cli)
+- [Go SDK Contracts](/reference/sdk)
 - [Polymarket API Overview](/concepts/polymarket-api)

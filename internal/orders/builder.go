@@ -9,14 +9,16 @@ type Builder struct {
 	err    error
 }
 
-// NewBuilder starts an order builder with required fields.
+// NewBuilder starts an order builder with required fields. SigType is fixed
+// to POLY_1271 (sigtype 3) — the only signature type accepted by Polymarket
+// V2 since the 2026-04-28 cutover.
 func NewBuilder(tokenID string, side polytypes.Side) *Builder {
 	return &Builder{
 		intent: OrderIntent{
 			TokenID:   tokenID,
 			Side:      side,
 			OrderType: polytypes.OrderTypeGTC,
-			SigType:   polytypes.SignatureEOA,
+			SigType:   polytypes.SignaturePoly1271,
 		},
 	}
 }
@@ -38,11 +40,6 @@ func (b *Builder) AmountUSDC(s string) *Builder {
 
 func (b *Builder) OrderType(ot polytypes.OrderType) *Builder {
 	b.intent.OrderType = ot
-	return b
-}
-
-func (b *Builder) SigType(st polytypes.SignatureType) *Builder {
-	b.intent.SigType = st
 	return b
 }
 

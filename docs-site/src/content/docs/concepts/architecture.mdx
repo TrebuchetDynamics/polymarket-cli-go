@@ -11,7 +11,7 @@ Cobra-based CLI on top.
 | Layer | Packages | Role |
 |-------|----------|------|
 | **`cmd/polygolem`** | 1 | Binary entry point. Wires Cobra and exits. |
-| **`pkg/`** | 7 | Public Go SDK contracts. Some type paths still need cleanup. |
+| **`pkg/`** | 9 | Public Go SDK contracts. Data API DTOs use public `pkg/types`; other type paths still need cleanup. |
 | **`internal/`** | 21 | Implementation. Not part of public API. |
 
 The CLI and public SDK both depend on the internal protocol implementation.
@@ -23,6 +23,8 @@ The `internal/` packages do not depend on `cmd/`.
 |---------|---------|
 | `pkg/universal` | Single client for Gamma + CLOB + Data API + Discovery + Stream |
 | `pkg/gamma` | Full Gamma API surface — 26 methods (markets, events, tags, comments, profiles) |
+| `pkg/data` | Read-only Data API analytics client returning `pkg/types` DTOs |
+| `pkg/types` | Public DTOs shared by SDK packages |
 | `pkg/bookreader` | Read-only CLOB order-book reader |
 | `pkg/marketresolver` | Market + token ID resolution |
 | `pkg/bridge` | Bridge API — supported assets, deposit addresses, quotes |

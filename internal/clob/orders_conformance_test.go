@@ -93,13 +93,12 @@ func TestEmptyOrderType_UsesFallback(t *testing.T) {
 
 func TestCreateOrderParams_HasExpirationField(t *testing.T) {
 	p := CreateOrderParams{
-		TokenID:       "123",
-		Side:          "BUY",
-		Price:         "0.5",
-		Size:          "10",
-		OrderType:     "GTD",
-		SignatureType: 3,
-		Expiration:    "1778125000123",
+		TokenID:    "123",
+		Side:       "BUY",
+		Price:      "0.5",
+		Size:       "10",
+		OrderType:  "GTD",
+		Expiration: "1778125000123",
 	}
 	if p.Expiration != "1778125000123" {
 		t.Fatalf("Expiration field not set: %s", p.Expiration)

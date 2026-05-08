@@ -24,11 +24,12 @@ type Client struct {
 const polygonChainID = 137
 
 // BalanceAllowanceParams are query parameters for CLOB balance-allowance.
+// Sigtype is hardcoded to 3 (POLY_1271, deposit wallet) — the only type
+// Polymarket V2 supports.
 type BalanceAllowanceParams struct {
-	Asset         string
-	AssetType     string
-	TokenID       string
-	SignatureType int
+	Asset     string
+	AssetType string
+	TokenID   string
 }
 
 // BalanceAllowanceResponse is the authenticated CLOB collateral/token balance.
@@ -173,12 +174,7 @@ func balanceAllowancePath(base string, params BalanceAllowanceParams) string {
 	if params.TokenID != "" {
 		q.Set("token_id", params.TokenID)
 	}
-	if params.SignatureType >= 0 {
-		q.Set("signature_type", strconv.Itoa(params.SignatureType))
-	}
-	if len(q) == 0 {
-		return base
-	}
+	q.Set("signature_type", strconv.Itoa(signatureTypePoly1271))
 	return base + "?" + q.Encode()
 }
 

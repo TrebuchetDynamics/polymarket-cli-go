@@ -106,12 +106,11 @@ func TestCreateMarketOrderPostsV2PayloadWhenCLOBVersionIsTwo(t *testing.T) {
 	client := NewClient(server.URL+"/", tc)
 
 	res, err := client.CreateMarketOrder(context.Background(), testOrderPrivateKey, MarketOrderParams{
-		TokenID:       "12345",
-		Side:          "buy",
-		Amount:        "0.700000",
-		Price:         "0.500000",
-		OrderType:     "FOK",
-		SignatureType: 0,
+		TokenID:   "12345",
+		Side:      "buy",
+		Amount:    "0.700000",
+		Price:     "0.500000",
+		OrderType: "FOK",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -251,7 +250,7 @@ func TestSignCLOBOrderUsesNegRiskExchangeAddressWhenFlagged(t *testing.T) {
 		MakerAmount:   "700000",
 		TakerAmount:   "1400000",
 		Side:          "BUY",
-		SignatureType: 0,
+		SignatureType: signatureTypePoly1271,
 		Timestamp:     "1778125000123",
 		Metadata:      bytes32Zero,
 		Builder:       bytes32Zero,

@@ -73,14 +73,21 @@ func newBuilderAutoCommand(jsonOut bool) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "auto",
-		Short: "Mint builder HMAC creds via ClobAuth signature",
+		Short: "Mint CLOB L2 creds via ClobAuth signature",
 		Long: `Signs the canonical ClobAuth EIP-712 message with the EOA loaded from
 POLYMARKET_PRIVATE_KEY, posts it to /auth/api-key, and persists the
 returned {apiKey, secret, passphrase} to a 0600 env file.
 
-The endpoint is idempotent per EOA and may lazy-create the account-side builder
-state needed for relayer auth. Use builder onboard only when you want the manual
-browser capture flow.`,
+These are CLOB L2 trading creds — they authenticate book/balance reads,
+relayer GETs (/nonce, /deployed), and orders signed by the same address.
+They are NOT Builder API Keys: the relayer's POST /submit (used by
+deposit-wallet deploy and approve flows) requires a separate triple
+minted via the "Create" button on polymarket.com/settings?tab=builder.
+A profiled EOA without that manual click will see relayer-write 401s
+even with valid CLOB L2 creds. See docs/BUILDER-AUTO.md.
+
+The endpoint is idempotent per EOA. Use 'builder onboard' for the
+manual browser-capture flow.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			privateKey := strings.TrimSpace(os.Getenv("POLYMARKET_PRIVATE_KEY"))

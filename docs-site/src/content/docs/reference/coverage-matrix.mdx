@@ -15,7 +15,7 @@ description: Polygolem coverage across Gamma, CLOB, Data API, Bridge, WebSocket,
 | CLOB placement | `internal/clob`, `pkg/universal` | `clob create-order`, `clob market-order` | Deposit wallet only |
 | CLOB V2 builder attribution | Internal signer field only | Not exposed | Gap: currently signs `builder = bytes32(0)` |
 | CLOB batch placement | Not exposed | Not exposed | Gap |
-| Data API | `internal/dataapi`, `pkg/universal` | `data *` | Covered |
+| Data API | `internal/dataapi`, `pkg/data`, `pkg/types`, `pkg/universal` | `data *` | Covered |
 | Bridge | `pkg/bridge` | `bridge assets`, `bridge deposit` | Covered |
 | Public WebSocket | `internal/stream`, `pkg/universal` | `stream market` | Covered |
 | User WebSocket | Planned | Planned | Gap |

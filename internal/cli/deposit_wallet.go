@@ -87,19 +87,11 @@ func depositWalletDeployOnchainCmd(jsonOut bool) *cobra.Command {
 
 func depositWalletDeriveCmd(jsonOut bool) *cobra.Command {
 	w := newWire(jsonOut)
-	var signatureType string
 	cmd := &cobra.Command{
 		Use:   "derive",
 		Short: "Derive the deterministic deposit wallet address",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sig, err := parseSignatureTypeFlag(signatureType)
-			if err != nil {
-				return err
-			}
-			if sig != 3 {
-				return fmt.Errorf("--signature-type must be deposit (got %q)", signatureType)
-			}
 			key, err := requirePrivateKey()
 			if err != nil {
 				return err
@@ -118,7 +110,6 @@ func depositWalletDeriveCmd(jsonOut bool) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&signatureType, "signature-type", "deposit", "signature type (must be deposit)")
 	return cmd
 }
 
@@ -525,7 +516,7 @@ func depositWalletOnboardCmd(jsonOut bool) *cobra.Command {
 4. Transfer pUSD from EOA to deposit wallet (requires --fund-amount)
 
 After onboarding, sync CLOB:
-  polygolem clob update-balance --asset-type collateral --signature-type deposit`,
+  polygolem clob update-balance --asset-type collateral`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bc, err := builderConfigFromEnv()
@@ -628,8 +619,8 @@ After onboarding, sync CLOB:
 			}
 
 			result["nextSteps"] = []string{
-				"Run: polygolem clob update-balance --asset-type collateral --signature-type deposit",
-				"Verify: polygolem clob balance --asset-type collateral --signature-type deposit",
+				"Run: polygolem clob update-balance --asset-type collateral",
+				"Verify: polygolem clob balance --asset-type collateral",
 			}
 			return printJSON(cmd, result)
 		},

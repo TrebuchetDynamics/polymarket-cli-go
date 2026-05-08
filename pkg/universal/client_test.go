@@ -356,8 +356,7 @@ func TestBalanceAllowance(t *testing.T) {
 
 	c := NewClient(Config{CLOBBaseURL: srv.URL})
 	resp, err := c.BalanceAllowance(context.Background(), testPrivateKey, clob.BalanceAllowanceParams{
-		AssetType:     "COLLATERAL",
-		SignatureType: 0,
+		AssetType: "COLLATERAL",
 	})
 	if err != nil {
 		t.Fatalf("BalanceAllowance error: %v", err)
@@ -424,12 +423,11 @@ func TestCreateLimitOrderRoutes(t *testing.T) {
 
 	c := NewClient(Config{CLOBBaseURL: srv.URL})
 	resp, err := c.CreateLimitOrder(context.Background(), testPrivateKey, clob.CreateOrderParams{
-		TokenID:       "1234567890",
-		Side:          "BUY",
-		Price:         "0.50",
-		Size:          "10",
-		OrderType:     "GTC",
-		SignatureType: 0,
+		TokenID:   "1234567890",
+		Side:      "BUY",
+		Price:     "0.50",
+		Size:      "10",
+		OrderType: "GTC",
 	})
 	if err != nil {
 		t.Fatalf("CreateLimitOrder error: %v", err)
@@ -472,11 +470,10 @@ func TestCreateMarketOrderRoutes(t *testing.T) {
 
 	c := NewClient(Config{CLOBBaseURL: srv.URL})
 	resp, err := c.CreateMarketOrder(context.Background(), testPrivateKey, clob.MarketOrderParams{
-		TokenID:       "1234567890",
-		Side:          "BUY",
-		Amount:        "5",
-		OrderType:     "FOK",
-		SignatureType: 0,
+		TokenID:   "1234567890",
+		Side:      "BUY",
+		Amount:    "5",
+		OrderType: "FOK",
 	})
 	if err != nil {
 		t.Fatalf("CreateMarketOrder error: %v", err)

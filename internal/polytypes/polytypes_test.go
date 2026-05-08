@@ -190,10 +190,10 @@ func TestSideEnum(t *testing.T) {
 }
 
 func TestSignatureTypeEnum(t *testing.T) {
-	if SignatureEOA.String() != "EOA" {
-		t.Fatalf("EOA = %s", SignatureEOA)
+	if SignaturePoly1271 != 3 {
+		t.Fatalf("SignaturePoly1271 = %d, want 3", SignaturePoly1271)
 	}
-	if SignatureGnosisSafe.String() != "SAFE" {
-		t.Fatalf("SAFE = %s", SignatureGnosisSafe)
+	if SignaturePoly1271.String() != "POLY_1271" {
+		t.Fatalf("SignaturePoly1271.String() = %s", SignaturePoly1271)
 	}
 }

@@ -12,10 +12,10 @@ The `internal/` packages are implementation detail. They are documented in
 same semver promise as the `pkg/` packages below.
 
 Some current `pkg/` method signatures still expose implementation types from
-`internal/polytypes`, `internal/clob`, `internal/dataapi`, or `internal/stream`.
-That is an SDK hygiene gap, not an upstream Polymarket requirement. The method
-surface is documented here so it is visible until those types are promoted or
-re-exported under public package paths.
+`internal/polytypes`, `internal/clob`, or `internal/stream`. That is an SDK
+hygiene gap, not an upstream Polymarket requirement. Data API DTOs have been
+promoted first: `pkg/data` and the Data API methods on `pkg/universal` return
+`pkg/types`.
 
 ## `pkg/bookreader` — Read-Only Order Book
 
@@ -102,6 +102,68 @@ func (c *Client) SportsMarketTypes(ctx context.Context) ([]polytypes.SportsMarke
 func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*polytypes.MarketByTokenResponse, error)
 func (c *Client) EventsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Event, string, error)
 func (c *Client) MarketsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Market, string, error)
+```
+
+## `pkg/types` — Public DTOs
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/types"
+```
+
+### Contract: Data API DTOs
+
+```go
+type Position struct
+type ClosedPosition struct
+type Trade struct
+type Activity struct
+type Holder struct
+type PortfolioValue struct
+type TotalMarketsTraded struct
+type OpenInterest struct
+type LeaderboardRow struct
+type LiveVolumeRow struct
+type LiveVolumeResponse struct
+```
+
+These types are intentionally public so SDK consumers do not need to import or
+name `internal/dataapi`.
+
+## `pkg/data` — Read-Only Data API Analytics
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/data"
+```
+
+### Contract: Constructors
+
+```go
+type Client struct { /* unexported fields */ }
+
+type Config struct {
+    BaseURL string
+}
+
+func NewClient(cfg Config) *Client
+func DefaultConfig() Config
+```
+
+### Contract: Methods
+
+```go
+func (c *Client) Health(ctx context.Context) error
+func (c *Client) CurrentPositions(ctx context.Context, user string) ([]types.Position, error)
+func (c *Client) CurrentPositionsWithLimit(ctx context.Context, user string, limit int) ([]types.Position, error)
+func (c *Client) ClosedPositions(ctx context.Context, user string) ([]types.ClosedPosition, error)
+func (c *Client) ClosedPositionsWithLimit(ctx context.Context, user string, limit int) ([]types.ClosedPosition, error)
+func (c *Client) Trades(ctx context.Context, user string, limit int) ([]types.Trade, error)
+func (c *Client) Activity(ctx context.Context, user string, limit int) ([]types.Activity, error)
+func (c *Client) TopHolders(ctx context.Context, tokenID string, limit int) ([]types.Holder, error)
+func (c *Client) TotalValue(ctx context.Context, user string) (*types.PortfolioValue, error)
+func (c *Client) MarketsTraded(ctx context.Context, user string) (*types.TotalMarketsTraded, error)
+func (c *Client) OpenInterest(ctx context.Context, tokenID string) (*types.OpenInterest, error)
+func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]types.LeaderboardRow, error)
+func (c *Client) LiveVolume(ctx context.Context, limit int) (*types.LiveVolumeResponse, error)
 ```
 
 ## `pkg/universal` — All Market Data, One Client
@@ -239,18 +301,18 @@ func (c *Client) RebatedFees(ctx context.Context) ([]polytypes.RebatedFees, erro
 ### Contract: Methods — Data API (12 methods)
 
 ```go
-func (c *Client) CurrentPositions(ctx context.Context, user string) ([]dataapi.Position, error)
-func (c *Client) CurrentPositionsWithLimit(ctx context.Context, user string, limit int) ([]dataapi.Position, error)
-func (c *Client) ClosedPositions(ctx context.Context, user string) ([]dataapi.ClosedPosition, error)
-func (c *Client) ClosedPositionsWithLimit(ctx context.Context, user string, limit int) ([]dataapi.ClosedPosition, error)
-func (c *Client) Trades(ctx context.Context, user string, limit int) ([]dataapi.Trade, error)
-func (c *Client) Activity(ctx context.Context, user string, limit int) ([]dataapi.Activity, error)
-func (c *Client) TopHolders(ctx context.Context, tokenID string, limit int) ([]dataapi.MetaHolder, error)
-func (c *Client) TotalValue(ctx context.Context, user string) (*dataapi.TotalValue, error)
-func (c *Client) MarketsTraded(ctx context.Context, user string) (*dataapi.TotalMarketsTraded, error)
-func (c *Client) OpenInterest(ctx context.Context, tokenID string) (*dataapi.OpenInterest, error)
-func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]dataapi.TraderLeaderboardEntry, error)
-func (c *Client) LiveVolume(ctx context.Context, limit int) (*dataapi.LiveVolumeResponse, error)
+func (c *Client) CurrentPositions(ctx context.Context, user string) ([]types.Position, error)
+func (c *Client) CurrentPositionsWithLimit(ctx context.Context, user string, limit int) ([]types.Position, error)
+func (c *Client) ClosedPositions(ctx context.Context, user string) ([]types.ClosedPosition, error)
+func (c *Client) ClosedPositionsWithLimit(ctx context.Context, user string, limit int) ([]types.ClosedPosition, error)
+func (c *Client) Trades(ctx context.Context, user string, limit int) ([]types.Trade, error)
+func (c *Client) Activity(ctx context.Context, user string, limit int) ([]types.Activity, error)
+func (c *Client) TopHolders(ctx context.Context, tokenID string, limit int) ([]types.Holder, error)
+func (c *Client) TotalValue(ctx context.Context, user string) (*types.PortfolioValue, error)
+func (c *Client) MarketsTraded(ctx context.Context, user string) (*types.TotalMarketsTraded, error)
+func (c *Client) OpenInterest(ctx context.Context, tokenID string) (*types.OpenInterest, error)
+func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]types.LeaderboardRow, error)
+func (c *Client) LiveVolume(ctx context.Context, limit int) (*types.LiveVolumeResponse, error)
 ```
 
 ### Contract: Utilities
@@ -395,7 +457,7 @@ The following are intentional gaps in the current stable `pkg/` contract:
 | Gap | Current Status |
 |---|---|
 | One-call deposit-wallet onboard SDK | Relayer primitives are public in `pkg/relayer`; full onboard orchestration remains CLI-only |
-| Public type ownership | Several signatures still reference `internal/*` implementation types; promote or re-export them before claiming a clean external SDK |
+| Public type ownership | Data API DTOs are public in `pkg/types`; Gamma, CLOB, and stream signatures still need promotion work before claiming a fully clean external SDK |
 | Non-zero V2 `builderCode` attribution | The signer emits `builder = bytes32(0)` today |
 | Batch order placement | Single-order placement and cancellation are exposed; batch placement is not |
 | Authenticated user WebSocket stream | Public market stream is exposed; user stream waits for L2 WebSocket auth tests |

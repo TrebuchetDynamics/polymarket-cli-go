@@ -117,12 +117,17 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 	}
 }
 
-func TestCLOBSignatureTypeDefaultsToDepositWallet(t *testing.T) {
+// TestCLOBSignatureTypeFlagRemoved verifies that the --signature-type flag
+// has been removed from every CLOB command. Polymarket V2 (post 2026-04-28
+// cutover) accepts only sigtype 3 (POLY_1271 / deposit wallet); exposing a
+// flag would only let callers pick a value that production rejects.
+func TestCLOBSignatureTypeFlagRemoved(t *testing.T) {
 	for _, args := range [][]string{
 		{"clob", "balance"},
 		{"clob", "update-balance"},
 		{"clob", "create-order"},
 		{"clob", "market-order"},
+		{"deposit-wallet", "derive"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			root := NewRootCommand(Options{Version: "test-version", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
@@ -130,12 +135,8 @@ func TestCLOBSignatureTypeDefaultsToDepositWallet(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Find returned error: %v", err)
 			}
-			flag := cmd.Flags().Lookup("signature-type")
-			if flag == nil {
-				t.Fatalf("signature-type flag missing")
-			}
-			if flag.DefValue != "deposit" {
-				t.Fatalf("default signature-type=%q, want deposit", flag.DefValue)
+			if flag := cmd.Flags().Lookup("signature-type"); flag != nil {
+				t.Fatalf("signature-type flag still present (default=%q); should be removed", flag.DefValue)
 			}
 		})
 	}

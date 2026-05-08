@@ -101,6 +101,13 @@ Create `pkg/types` or another clearly named public DTO package, then re-export
 or migrate stable structs out of `internal/polytypes`, `internal/dataapi`,
 `internal/clob`, and `internal/stream` where public packages expose them.
 
+Progress:
+
+- 2026-05-08: Data API DTOs were promoted first. `pkg/data` is the canonical
+  read-only public Data API client, and `pkg/universal` now returns
+  `pkg/types` for Data API positions, trades, activity, holders, portfolio
+  value, markets traded, open interest, leaderboard, and live volume.
+
 Verification:
 
 - `go doc ./pkg/...` does not show public methods whose callers must name `internal/*` types.

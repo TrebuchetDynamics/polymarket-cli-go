@@ -5,13 +5,17 @@
 
 ## TL;DR
 
-A single off-chain ECDSA signature plus one HTTP POST is the entire onboarding flow. No browser, no wallet UI, no on-chain transaction.
+`polygolem builder auto` headlessly mints **CLOB L2 trading creds** (HMAC `apiKey` / `secret` / `passphrase`) for any EOA. One ECDSA signature, one HTTP POST. No browser.
 
 ```
 polygolem builder auto
 ```
 
-reads `POLYMARKET_PRIVATE_KEY`, signs the canonical ClobAuth EIP-712 message, posts it to `https://clob.polymarket.com/auth/api-key`, validates the returned HMAC creds against the relayer, and persists them to `../go-bot/.env.builder` (mode `0600`).
+reads `POLYMARKET_PRIVATE_KEY`, signs the canonical ClobAuth EIP-712 message, posts it to `https://clob.polymarket.com/auth/api-key`, validates the returned creds against the relayer's read endpoints, and persists them to `../go-bot/.env.builder` (mode `0600`).
+
+**What this gets you:** L2 read access (book, balances, GET /nonce, GET /deployed) — and the *signing identity* needed by every subsequent step.
+
+**What this does NOT get you:** the ability to place orders. As of the 2026-04-28 V2 cutover, `POST /order` is gated on the **deposit-wallet flow** (sigtype 3 + an API key whose owner address is the deposit wallet, not the EOA). See [§ Production V2 reality check](#production-v2-reality-check-2026-05-07) below.
 
 ## Empirical proof
 
@@ -27,9 +31,42 @@ Signing ClobAuth and creating builder API key via https://clob.polymarket.com...
 
 The same call ran twice returned the same key — `/auth/api-key` is idempotent per EOA.
 
+## Production V2 reality check (2026-05-07)
+
+**Sigtype 3 (deposit wallet) is the only signature type accepted by `/order` in production.** The 2026-04-28 V2 cutover finished off sigtypes 0/1/2 (EOA / proxy / safe). The CLOB rejects them at the maker-address check before any balance or signing validation runs.
+
+Verified live against `clob.polymarket.com` from a profiled, builder-registered EOA on an open, accepting-orders market (`0x0b4cc3b7…d134bee`, 5-share buy at $0.01):
+
+```
+--signature-type eoa|proxy|safe → HTTP 400 maker address not allowed, please use the deposit wallet flow
+--signature-type deposit        → HTTP 400 the order signer address has to be the address of the API KEY
+```
+
+So the only working path is sigtype 3, and sigtype 3 has its own coupling: **the L2 API key has to be owned by the deposit-wallet address, not the EOA.** Calling `clob create-api-key` with `POLYMARKET_PRIVATE_KEY` mints a key owned by the EOA — that key signs valid HMAC headers, but `/order` rejects it because the order signer (the deposit wallet via ERC-1271) does not match the API-key owner (the EOA).
+
+The well-formed end-to-end path is therefore:
+
+1. Mint Builder API Keys (manual browser click — see below).
+2. Deploy the deposit wallet via `relayer-v2/submit`.
+3. Mint a CLOB API key **owned by the deposit wallet**, not the EOA.
+4. Submit orders signed by the deposit wallet (sigtype 3).
+
+## Two distinct cred types
+
+Polymarket has split write credentials into two pots, and only one of them is mintable headlessly:
+
+| Cred | What it authenticates | How to mint | `polygolem builder auto`? |
+| --- | --- | --- | --- |
+| **CLOB L2 creds** (`apiKey` / `secret` / `passphrase`) | Reads on `clob.polymarket.com` and `relayer-v2.polymarket.com` (book, balances, /nonce, /deployed). Order placement when API-key owner == order signer. | `POST /auth/api-key` (ClobAuth EIP-712) | ✅ headless |
+| **Builder API Keys** | `relayer-v2/submit` writes — `WALLET-CREATE`, `WALLET` batches, deposit-wallet deploy, V2 approval bundles, on-order builder attribution. | Manual browser flow at `polymarket.com/settings?tab=builder` → "Create" | ❌ browser only |
+
+The two are NOT the same triple. A profiled EOA that has registered a builder code but never clicked "Create" under **Builder Keys** will see `relayer-v2/submit` return `HTTP 401 invalid authorization` even with valid CLOB L2 creds. Verified live on `0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C` 2026-05-07.
+
 ## Full onboarding sequence
 
-The minimum the user provides end-to-end is **(1) an EOA private key** and **(2) one USDC/pUSD transfer**. Everything else — account, profile, builder code, HMAC creds, deposit-wallet deploy, V2 approvals — happens via signatures the app generates locally and HTTP calls the app makes on the user's behalf. The deploy and approval transactions are paid by the Polymarket relayer; only the funding transfer comes from the user.
+The minimum the user provides end-to-end is **(1) an EOA private key**, **(2) one click on `polymarket.com/settings?tab=builder` to mint Builder API Keys**, and **(3) one USDC/pUSD transfer**. Everything else — CLOB L2 creds, deposit-wallet deploy, V2 approvals — happens via signatures the app generates locally and HTTP calls the app makes on the user's behalf. The deploy and approval transactions are paid by the Polymarket relayer; only the funding transfer comes from the user.
+
+> The browser click in step 2 is the gate that the rest of polygolem cannot work around. Once the user has Builder API Keys, the remaining flow is fully automated — but until then, `deposit-wallet deploy` will return `HTTP 401 invalid authorization` from the relayer.
 
 ```mermaid
 sequenceDiagram
@@ -123,31 +160,49 @@ A new EOA's first signed `POST /auth/api-key` issues an HMAC triple
 endpoints (`GET /nonce`, `GET /deployed`). HMAC verifies on the server
 side; the EOA can poll its own nonce and deployment status.
 
-**Write access — gated.** The relayer's `POST /submit` endpoint (used
-for `WALLET-CREATE`, `WALLET` batches) returns
-`HTTP 401 invalid authorization` for fresh EOAs that have only the
-auto-minted creds. Empirically verified 2026-05-07 with throwaway EOA
-`0xf76Ca737f9c768fc3562fbFbF8A748A4718f2a61`: builder-auto succeeded,
-`/nonce` and `/deployed` returned 200, `/submit` rejected. To unlock
-relayer writes the EOA also needs a builder profile created via
-`polymarket.com/settings?tab=builder` — the browser-side flow that
-issues the bytes32 `builderCode` and registers the address as a
-write-capable builder.
+**Relayer writes — gated on Builder API Keys.** The relayer's
+`POST /submit` endpoint (used for `WALLET-CREATE`, `WALLET` batches)
+returns `HTTP 401 invalid authorization` for any EOA whose triple was
+issued by `/auth/api-key` rather than by the browser-side **Builder
+Keys** issuer. Verified 2026-05-07:
 
-So the canonical headless onboarding **today** is:
+- Throwaway EOA `0xf76Ca737f9c768fc3562fbFbF8A748A4718f2a61` (no
+  browser interaction): builder-auto succeeded, `/nonce` + `/deployed`
+  200, `/submit` 401.
+- Profiled EOA `0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C` (registered
+  builder code, builder enabled, **no Builder Keys minted**):
+  same result — `/submit` 401.
+
+The settings page makes the distinction explicit: "Builder Keys: No
+builder API keys yet. Create one to get started." The "Create" button
+is what mints relayer-write creds; `/auth/api-key` does not.
+
+**CLOB writes — sigtype 3 only.** `clob.polymarket.com/order` accepts
+sigtype 3 (deposit wallet) and nothing else; sigtypes 0/1/2 return
+`maker address not allowed, please use the deposit wallet flow`.
+Sigtype 3 additionally requires the order signer to match the API-key
+owner: since `builder auto` mints a key owned by the EOA, sigtype-3
+orders signed by the deposit wallet fail with `the order signer
+address has to be the address of the API KEY` until a fresh API key is
+minted from the deposit wallet itself.
+
+So the canonical onboarding **today** is:
 
 | Step | Mechanism | Coverage from polygolem |
 | --- | --- | --- |
-| Mint HMAC creds for L2 reads | `polygolem builder auto` | ✅ headless |
-| Authenticate relayer reads (nonce, deployed) | same creds | ✅ headless |
-| Register as a write-capable builder | manual at `polymarket.com/settings?tab=builder` | ❌ browser only |
-| Deploy / approve / trade via relayer | requires builder-profile creds | ✅ headless after step 3 |
+| Mint CLOB L2 creds (read access + signing identity) | `polygolem builder auto` | ✅ headless |
+| Authenticate relayer reads (`/nonce`, `/deployed`) | same creds | ✅ headless |
+| Mint **Builder API Keys** (relayer-write creds) | `polymarket.com/settings?tab=builder` → "Create" | ❌ browser only |
+| Deploy deposit wallet (`WALLET-CREATE` via `/submit`) | `polygolem deposit-wallet deploy` | ✅ headless after Builder Keys exist |
+| Approve V2 spenders (6× ERC-20/ERC-1155 approvals) | `polygolem deposit-wallet approve` | ✅ headless |
+| Mint a deposit-wallet-owned CLOB API key | (TBD — see below) | not yet wired |
+| Place orders (sigtype 3) | `polygolem clob create-order --signature-type deposit` | ✅ headless after the key swap |
 
 Earlier revisions of this doc claimed the first `/auth/api-key` POST
 lazy-created the full builder profile end-to-end. That was over-stated
 based on a single observation against an EOA that already had a
-manually-created profile. The corrected behaviour above is what the
-production relayer actually enforces.
+manually-created profile and Builder Keys. The corrected behaviour
+above is what production enforces today.
 
 ## Validation
 
@@ -188,14 +243,15 @@ production relayer actually enforces.
 | Item | Cost | Who Pays |
 |------|------|---------|
 | Generate EOA key | Free | N/A |
-| Builder profile + HMAC creds | Free | N/A |
+| CLOB L2 creds (`builder auto`) | Free, headless | N/A |
+| **Mint Builder API Keys** (one browser click on `polymarket.com/settings?tab=builder`) | Free, manual | User |
 | Wallet deploy | Free (gas sponsored) | Polymarket relayer |
 | 6 contract approvals | Free (gas sponsored) | Polymarket relayer |
 | Place orders | Free (gas sponsored) | Polymarket relayer |
 | **Fund wallet (one tx)** | **~$0.01 POL** | **User** |
 | pUSD to trade with | Whatever you deposit | User (your money) |
 
-**Total hard cost to user:** ~$0.01 in POL gas for one transfer. Everything else is free and automated.
+**Total hard cost to user:** ~$0.01 in POL gas for one transfer plus one browser click to mint Builder API Keys. Everything else is automated.
 
 ---
 
@@ -347,11 +403,12 @@ interface IDepositWalletFactory {
 
 ---
 
-## Why the old doc was wrong
+## What the old doc got right and wrong
 
-`docs/BUILDER-CREDENTIAL-ISSUANCE.md` asserted that builder creds are gated behind a Polymarket session cookie and that `/auth/api-key` only issues "CLOB L2" creds (a separate type from "Builder API Keys"). Both claims are false:
+`docs/BUILDER-CREDENTIAL-ISSUANCE.md` asserted that builder creds are gated behind a Polymarket session cookie and that `/auth/api-key` only issues "CLOB L2" creds (a separate type from "Builder API Keys").
 
-- There is one HMAC cred type. The same triple authenticates against `clob.polymarket.com` (L2 endpoints) and `relayer-v2.polymarket.com` (deposit-wallet/relay endpoints).
-- The "+ Create New" button under Settings → Builder Codes calls the same endpoint; the browser's wallet popup is signing the same ClobAuth payload polygolem now signs locally.
+**The two-cred-types observation was correct.** As of the V2 cutover, `/auth/api-key` issues CLOB L2 creds, and Builder API Keys are a distinct triple minted only by the browser flow at `polymarket.com/settings?tab=builder`. See § Two distinct cred types above for the empirical 401 evidence.
 
-**BUILDER-AUTO.md is the authoritative document. BUILD-CREDENTIAL-ISSUANCE.md is superseded and should be treated as historical investigation.**
+**The session-cookie claim was wrong.** The browser's wallet popup signs a standard ClobAuth EIP-712 payload identical to what polygolem signs in `builder auto`. There is no proprietary session-cookie handshake on the wire; the mint is gated by the **frontend's "Create" button calling a different endpoint**, not by anything that strictly needs a browser. A future polygolem revision could reach the same endpoint headlessly once we identify it; until then the manual step stands.
+
+**Bottom line:** `polygolem builder auto` is the headless half of the onboarding flow. Minting Builder API Keys is the manual half, and is currently load-bearing for every relayer-write code path (`deposit-wallet deploy/approve`, on-order builder attribution).

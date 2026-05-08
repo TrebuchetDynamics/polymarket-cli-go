@@ -35,23 +35,26 @@ var (
 	orderNow  = time.Now
 )
 
+// CreateOrderParams is the input to CreateLimitOrder. Polymarket V2 accepts
+// only sigtype 3 (POLY_1271, deposit wallet) on `/order` — the field is no
+// longer caller-controlled.
 type CreateOrderParams struct {
-	TokenID       string
-	Side          string
-	Price         string
-	Size          string
-	OrderType     string
-	SignatureType int
-	Expiration    string // Unix timestamp; "0" = no expiration (GTC). Used by GTD.
+	TokenID    string
+	Side       string
+	Price      string
+	Size       string
+	OrderType  string
+	Expiration string // Unix timestamp; "0" = no expiration (GTC). Used by GTD.
 }
 
+// MarketOrderParams is the input to CreateMarketOrder. See note on
+// CreateOrderParams about sigtype.
 type MarketOrderParams struct {
-	TokenID       string
-	Side          string
-	Amount        string
-	Price         string
-	OrderType     string
-	SignatureType int
+	TokenID   string
+	Side      string
+	Amount    string
+	Price     string
+	OrderType string
 }
 
 type OrderPlacementResponse struct {
@@ -186,7 +189,7 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 		side:          side,
 		makerAmount:   makerAmount,
 		takerAmount:   takerAmount,
-		signatureType: params.SignatureType,
+		signatureType: signatureTypePoly1271,
 		orderType:     normalizeOrderType(params.OrderType, "GTC"),
 		expiration:    firstNonEmpty(params.Expiration, "0"),
 	}
@@ -415,7 +418,7 @@ func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, param
 		side:          side,
 		makerAmount:   fixedDecimal(amount, 6),
 		takerAmount:   fixedDecimal(taker, 6),
-		signatureType: params.SignatureType,
+		signatureType: signatureTypePoly1271,
 		orderType:     normalizeOrderType(params.OrderType, "FOK"),
 	}
 	return c.signAndPostOrder(ctx, privateKey, draft)

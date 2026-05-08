@@ -74,7 +74,7 @@ func TestComputeAmountsSell(t *testing.T) {
 func TestFluentBuilder(t *testing.T) {
 	intent, err := NewBuilder("tok-123", polytypes.SideBuy).
 		Price("0.55").Size("10").TickSize("0.01").FeeRateBps(0).
-		OrderType(polytypes.OrderTypeGTC).SigType(polytypes.SignatureEOA).
+		OrderType(polytypes.OrderTypeGTC).
 		Build()
 	if err != nil {
 		t.Fatal(err)
