@@ -37,12 +37,7 @@ polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --signat
 
 **Total cost: ~$0.01 POL for one funding transfer. Everything else is sponsored.**
 
-| What You Set | What Polygolem Auto-Generates |
-|-------------|------------------------------|
-| `POLYMARKET_PRIVATE_KEY` | Builder profile + `BUILDER_API_KEY` + `BUILDER_SECRET` + `BUILDER_PASSPHRASE` |
-| | CLOB L2 `apiKey` / `secret` / `passphrase` |
-| | `bytes32` builder code |
-| | Deposit wallet address (CREATE2 local derivation) |
+under the hood, `builder auto` signs a local EIP-712 ClobAuth message and posts it to the CLOB API — this lazy-creates a builder profile, issues `BUILDER_API_KEY` + `BUILDER_SECRET` + `BUILDER_PASSPHRASE`, and assigns a `bytes32` builder code. the creds are persisted to an env file that downstream commands (`deposit-wallet`, `clob`) pick up automatically.
 
 ## Install
 
