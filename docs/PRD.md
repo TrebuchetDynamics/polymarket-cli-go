@@ -218,9 +218,10 @@ Observed live-mode issues:
   aliases.
 - Live run blocker observed on 2026-05-07 after market discovery was fixed:
   CLOB `/tick-size` can return only `minimum_tick_size`, omitting
-  `tick_size` and `minimum_order_size`; CLOB `/markets/{condition_id}` can
-  return token prices as numbers. Polygolem must preserve omitted fields as
-  empty strings, never stringify missing JSON fields as `"<nil>"`, and decode
+  `tick_size` and `minimum_order_size`; CLOB market and pricing endpoints can
+  return compact field names or JSON numbers (`/clob-markets/{condition_id}`,
+  `/price`, `/prices-history`). Polygolem must preserve omitted fields as empty
+  strings, never stringify missing JSON fields as `"<nil>"`, and decode
   numeric/string CLOB prices into stable string fields before CLI output or
   order construction.
 - Live run blocker observed on 2026-05-07 after metadata parsing was fixed:

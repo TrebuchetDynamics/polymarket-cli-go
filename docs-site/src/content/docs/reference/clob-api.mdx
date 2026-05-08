@@ -84,16 +84,16 @@ the upstream "omit both filters" behavior.
 |---|---|---|---|
 | `OrderBook` | `GET /book?token_id=...` | Public | L2 book depth for one token |
 | `OrderBooks` | `POST /books` | Public | Batch books |
-| `Price` / `Prices` | `GET /price`, `POST /prices-post` | Public | `Prices` falls back to `/prices` |
+| `Price` / `Prices` | `GET /price`, `POST /prices` | Public | Numeric and string prices normalize to SDK strings |
 | `Midpoint` / `Midpoints` | `GET /midpoint`, `POST /midpoints` | Public | Best-effort midpoint |
 | `Spread` | `GET /spread` | Public | Token spread |
-| `TickSize` | `GET /tick-size` | Public | Includes minimum tick/order fields when upstream returns them |
+| `TickSize` | `GET /tick-size?token_id=...` or `GET /tick-size/{token_id}` | Public | Includes minimum tick/order fields when upstream returns them |
 | `NegRisk` | `GET /neg-risk` | Public | Selects regular vs neg-risk exchange domain |
-| `FeeRateBps` | `GET /fee-rate` | Public | Legacy-shaped response; V2 fees are protocol-set at match time |
+| `FeeRateBps` | `GET /fee-rate` | Public | Accepts current `base_fee` and legacy `fee_rate_bps` response keys |
 | `LastTradePrice` | `GET /last-trade-price` | Public | Last trade price |
 | `PricesHistory` | `GET /prices-history` | Public | OHLCV/history query |
 | `Markets` | `GET /markets` | Public | Cursor pagination |
-| `Market` | `GET /markets/{condition_id}` | Public | One CLOB market |
+| `Market` | `GET /clob-markets/{condition_id}` | Public | One CLOB market with compact V2 fields expanded into SDK DTOs |
 | `CreateOrDeriveAPIKey` | `POST /auth/api-key`, then `GET /auth/derive-api-key` fallback | L1 | Returns L2 `{ apiKey, secret, passphrase }` |
 | `BalanceAllowance` | `GET /balance-allowance` | L2 | Use `signature_type=3` for deposit wallet balances |
 | `UpdateBalanceAllowance` | `GET /balance-allowance/update` | L2 | Refreshes CLOB balance cache |

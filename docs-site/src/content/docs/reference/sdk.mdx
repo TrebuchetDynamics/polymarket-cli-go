@@ -224,6 +224,7 @@ type CLOBOrderBook struct
 type CLOBOrderBookLevel struct
 type CLOBTickSize struct
 type CLOBNegRiskInfo struct
+type CLOBFeeDetails struct
 type CLOBMarket struct
 type CLOBToken struct
 type CLOBPaginatedMarkets struct
@@ -234,7 +235,9 @@ type CLOBPriceHistoryParams struct
 ```
 
 These types are intentionally public so SDK consumers do not need to import or
-name `internal/polytypes` for read-only CLOB market data.
+name `internal/polytypes` for read-only CLOB market data. The SDK normalizes
+compact V2 fields from `/clob-markets/{condition_id}` and numeric/string price
+payloads into stable Go DTO fields.
 
 ## `pkg/data` — Read-Only Data API Analytics
 

@@ -99,11 +99,23 @@ Polygolem currently emits `builder = bytes32(0)`.
 ## CLOB — Market Data
 
 ```go
+type CLOBFeeDetails struct {
+    Rate      float64 `json:"rate,omitempty"`
+    Exponent  float64 `json:"exponent,omitempty"`
+    TakerOnly bool    `json:"taker_only,omitempty"`
+}
+
 type CLOBMarket struct {
     ConditionID           string  `json:"condition_id"`
-    Question              string  `json:"question"`
-    EnableOrderBook       bool    `json:"enable_order_book"`
+    QuestionID            string  `json:"question_id"`
+    GameStartTime         string  `json:"game_start_time,omitempty"`
+    Tokens                []Token `json:"tokens"`
     OrderPriceMinTickSize float64 `json:"order_price_min_tick_size"`
+    OrderMinSize          float64 `json:"order_min_size"`
+    MakerBaseFee          int     `json:"maker_base_fee"`
+    TakerBaseFee          int     `json:"taker_base_fee"`
+    RFQEnabled            bool    `json:"rfq_enabled,omitempty"`
+    FeeDetails            CLOBFeeDetails `json:"fee_details,omitempty"`
     // ...additional fields
 }
 
