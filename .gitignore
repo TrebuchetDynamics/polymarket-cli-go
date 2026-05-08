@@ -22,5 +22,7 @@ opensource-projects/
 CLAUDE.md
 # indexer_probe binary + persistent throwaway-EOA state (keep cmd/indexer_probe/ source tracked)
 /indexer_probe
+/live_siwe_probe
+indexer_probe.pid
 indexer_probe.state.json
 indexer_probe.log
