@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -66,6 +67,10 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 		{"clob", "book"},
 		{"clob", "tick-size"},
 		{"clob", "create-api-key"},
+		{"clob", "create-api-key-for-address"},
+		{"clob", "create-builder-fee-key"},
+		{"clob", "list-builder-fee-keys"},
+		{"clob", "revoke-builder-fee-key"},
 		{"clob", "balance"},
 		{"clob", "update-balance"},
 		{"clob", "orders"},
@@ -115,6 +120,74 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCLOBCreateAPIKeyForAddressHasOwnerFlag(t *testing.T) {
+	root := NewRootCommand(Options{Version: "test-version", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	cmd, _, err := root.Find([]string{"clob", "create-api-key-for-address"})
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	flag := cmd.Flags().Lookup("owner")
+	if flag == nil {
+		t.Fatal("owner flag missing")
+	}
+	if flag.DefValue != "" {
+		t.Fatalf("default owner=%q, want empty", flag.DefValue)
+	}
+}
+
+func TestCLOBOrderCommandsHaveBuilderCodeFlag(t *testing.T) {
+	for _, args := range [][]string{
+		{"clob", "create-order"},
+		{"clob", "market-order"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			root := NewRootCommand(Options{Version: "test-version", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+			cmd, _, err := root.Find(args)
+			if err != nil {
+				t.Fatalf("Find returned error: %v", err)
+			}
+			flag := cmd.Flags().Lookup("builder-code")
+			if flag == nil {
+				t.Fatal("builder-code flag missing")
+			}
+			if flag.DefValue != "" {
+				t.Fatalf("default builder-code=%q, want empty", flag.DefValue)
+			}
+		})
+	}
+}
+
+func TestBuilderCodeFromFlagOrEnv(t *testing.T) {
+	envBuilderCode := "0x1111111111111111111111111111111111111111111111111111111111111111"
+	flagBuilderCode := "0x2222222222222222222222222222222222222222222222222222222222222222"
+	t.Setenv("POLYMARKET_BUILDER_CODE", envBuilderCode)
+
+	if got := builderCodeFromFlagOrEnv(""); got != envBuilderCode {
+		t.Fatalf("env builder code=%q, want %q", got, envBuilderCode)
+	}
+	if got := builderCodeFromFlagOrEnv(flagBuilderCode); got != flagBuilderCode {
+		t.Fatalf("flag builder code=%q, want %q", got, flagBuilderCode)
+	}
+}
+
+func TestPreflightRejectsInvalidBuilderCodeEnv(t *testing.T) {
+	t.Setenv("POLYMARKET_BUILDER_CODE", "0x1234")
+
+	result := runLocalPreflight(context.Background(), "test-version")
+	if result.OK {
+		t.Fatal("preflight should fail when POLYMARKET_BUILDER_CODE is malformed")
+	}
+	for _, check := range result.Checks {
+		if check.Name == "clob_builder_code" {
+			if check.Status != "fail" || !strings.Contains(check.Message, "builder") {
+				t.Fatalf("unexpected builder-code check: %+v", check)
+			}
+			return
+		}
+	}
+	t.Fatalf("clob_builder_code check missing: %+v", result.Checks)
 }
 
 // TestCLOBSignatureTypeFlagRemoved verifies that the --signature-type flag
