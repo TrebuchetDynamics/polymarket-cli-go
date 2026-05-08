@@ -488,7 +488,7 @@ Acceptance criteria:
 > with `signature_type=3` deposit-wallet support and human/raw decimal
 > normalization; `internal/dataapi` covers positions, trades, activity,
 > top holders, leaderboards, and live volume. Surfaced via
-> `polygolem clob balance|orders|trades`.
+> `polygolem clob balance|orders|order|trades` and `polygolem data *`.
 
 The SDK must expose read-oriented account state before any live trading path is
 enabled.
@@ -520,7 +520,7 @@ Acceptance criteria:
 
 > **Status:** Partial. `internal/stream` ships a public `MarketClient`
 > with reconnect, ping/pong, dedup, and `SubscribeAssets`, exposed via
-> `polygolem events list`. The authenticated user stream and RTDS-channel
+> `polygolem stream market`. The authenticated user stream and RTDS-channel
 > isolation described here are not yet implemented.
 
 The SDK must provide resilient typed streaming clients.

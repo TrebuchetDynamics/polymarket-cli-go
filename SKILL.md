@@ -100,8 +100,8 @@ also accepted by `internal/config`. The full list and aliases live in
 1. **Read-only is the default mode.** Every command in the `discover`,
    `orderbook`, `events`, `health`, `version`, `preflight`, `bridge assets`,
    `deposit-wallet derive`/`status`/`nonce`, and `clob book`/`market`/
-   `price-history`/`tick-size`/`trades` groups performs no signing and
-   requires no credentials.
+   `markets`/`price-history`/`tick-size`, `data *`, and `stream market`
+   groups performs no signing and requires no trading credentials.
 
 2. **Paper mode is local-only.** `paper buy` / `paper sell` / `paper
    positions` / `paper reset` write to a local store. They never call
@@ -111,9 +111,9 @@ also accepted by `internal/config`. The full list and aliases live in
    a transaction or places a real order requires:
    - `POLYMARKET_PRIVATE_KEY` in the environment (never embedded in scripts).
    - For deposit-wallet operations: builder credentials.
-   - For CLOB orders: `--signature-type` (`eoa`, `proxy`, `gnosis-safe`, or
-     `deposit`). After the May 2026 cutoff, only `deposit` is accepted for
-     new accounts.
+   - For CLOB orders: `--signature-type deposit` is the default and expected
+     production path. After the May 2026 cutoff, only `deposit` is accepted
+     for new accounts.
 
 4. **What the agent must not do, ever.**
    - Never read `POLYMARKET_PRIVATE_KEY` from user-pasted text or chat
@@ -124,6 +124,9 @@ also accepted by `internal/config`. The full list and aliases live in
      `clob create-order` / `clob market-order` without explicit user
      confirmation in the same session, with the amount and market echoed
      back.
+   - Never call `clob cancel-all` or `clob cancel-market` without explicit
+     user confirmation in the same session. These reduce exposure but still
+     mutate upstream order state.
    - Never bypass a `gate` error by retrying with different flags. A `gate`
      error means a safety check refused the action; the user must approve
      the override out-of-band.
@@ -245,7 +248,7 @@ Public Gamma + CLOB market discovery. Read-only. No credentials.
 
 **Purpose:** Fetch a single market by id, slug, or CLOB token id.
 
-**Required flags:** Exactly one of `--id`, `--slug`, or `--token-id`.
+**Required flags:** Exactly one of `--id` or `--slug`.
 
 **Env vars consumed:** None.
 
@@ -280,7 +283,7 @@ Public Gamma + CLOB market discovery. Read-only. No credentials.
   "error": {
     "code": "VALIDATION_MARKET_IDENTIFIER_AMBIGUOUS",
     "category": "validation",
-    "message": "Pass exactly one of --id, --slug, or --token-id",
+    "message": "Pass exactly one of --id or --slug",
     "hint": "Use `discover search` first to find the canonical slug."
   },
   "meta": { "command": "discover market", "ts": "2026-05-07T12:34:56Z", "duration_ms": 4 }
@@ -740,9 +743,10 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
   "version": "1",
   "data": {
     "subcommands": [
-      "balance", "book", "create-api-key", "create-order", "market",
-      "market-order", "orders", "price-history", "tick-size", "trades",
-      "update-balance"
+      "balance", "book", "cancel", "cancel-all", "cancel-market",
+      "cancel-orders", "create-api-key", "create-order", "market",
+      "market-order", "markets", "order", "orders", "price-history",
+      "tick-size", "trades", "update-balance"
     ]
   },
   "meta": { "command": "clob", "ts": "2026-05-07T12:34:56Z", "duration_ms": 1 }
@@ -1128,6 +1132,29 @@ optional flags: `--price`, `--side`, `--order-type`.)
 - An empty `orders` array is a valid success result; do not treat as an
   error.
 
+### Additional CLOB account commands
+
+Use these when reconciling or reducing live exposure:
+
+```bash
+./polygolem clob order <order-id> --json
+./polygolem clob cancel <order-id> --json
+./polygolem clob cancel-orders <order-id-1>,<order-id-2> --json
+./polygolem clob cancel-market --market <condition-id> --json
+./polygolem clob cancel-all --json
+./polygolem clob markets --cursor "" --json
+```
+
+Agent rules:
+
+- `order`, `orders`, `trades`, and all cancel commands consume
+  `POLYMARKET_PRIVATE_KEY` to derive L2 credentials.
+- `cancel`, `cancel-orders`, `cancel-market`, and `cancel-all` mutate
+  upstream order state. Prefer the narrowest cancel command that matches the
+  user's request.
+- Never invent order IDs or condition IDs. Resolve them from `clob orders`,
+  `clob order`, `discover market`, or `clob markets`.
+
 ### `clob price-history`
 
 **Purpose:** Get CLOB token price history at a configurable interval.
@@ -1314,6 +1341,47 @@ optional flags: `--price`, `--side`, `--order-type`.)
 
 - Run after `deposit-wallet onboard` to surface newly funded balances.
 - For deposit-wallet users, pass `--signature-type deposit`.
+
+### Command catalog — `data`
+
+Public Polymarket Data API analytics. Read-only. No credentials.
+
+Use `data` commands for account analytics, public trade/activity views,
+holder concentration, leaderboard rows, open interest, and live volume:
+
+```bash
+./polygolem data positions --user 0x... --json
+./polygolem data closed-positions --user 0x... --json
+./polygolem data trades --user 0x... --limit 20 --json
+./polygolem data activity --user 0x... --limit 20 --json
+./polygolem data holders --token-id "$TOKEN_ID" --limit 20 --json
+./polygolem data value --user 0x... --json
+./polygolem data markets-traded --user 0x... --json
+./polygolem data open-interest --token-id "$TOKEN_ID" --json
+./polygolem data leaderboard --limit 20 --json
+./polygolem data live-volume --limit 20 --json
+```
+
+Agent rules:
+
+- Do not treat `--user` as authentication. It is a public wallet address
+  filter, not a secret.
+- `data open-interest` currently requires `--token-id`; do not claim the CLI
+  can scan all markets through this command.
+
+### Command catalog — `stream`
+
+Public CLOB WebSocket stream. Read-only. No credentials.
+
+```bash
+./polygolem stream market --asset-ids "$TOKEN_ID" --max-messages 10 --json
+```
+
+Agent rules:
+
+- Use `--max-messages` for bounded automation and tests.
+- The authenticated user stream is not implemented yet. Do not ask for L2
+  WebSocket credentials or imply user order/trade stream support.
 
 ### Command catalog — `deposit-wallet`
 
@@ -2618,7 +2686,8 @@ Inspect live gate status.
 ```bash
 ./polygolem discover search --query "btc" --limit 5 --json | jq '.data.markets[] | {slug, question}'
 SLUG=$(./polygolem discover search --query "btc" --limit 1 --json | jq -r '.data.markets[0].slug')
-./polygolem discover enrich --slug "$SLUG" --json | jq '{tradeable: .data.tradeable, tickSize: .data.clob.tickSize}'
+MARKET_ID=$(./polygolem discover market --slug "$SLUG" --json | jq -r '.data.id')
+./polygolem discover enrich --id "$MARKET_ID" --json | jq '{tradeable: .data.tradeable, tickSize: .data.clob.tickSize}'
 ```
 
 Decision rule for the agent:
@@ -2682,10 +2751,10 @@ before any live order.
 # 1. confirm tradability
 ./polygolem orderbook tick-size --token-id "$TOKEN_ID" --json
 # 2. quote round-trip first
-./polygolem clob book --token-id "$TOKEN_ID" --json | jq '.data | {bestBid: .bids[0], bestAsk: .asks[0]}'
+./polygolem clob book "$TOKEN_ID" --json | jq '.data | {bestBid: .bids[0], bestAsk: .asks[0]}'
 # 3. live order — REQUIRES user confirmation in the same turn
 ./polygolem clob create-order \
-  --token-id "$TOKEN_ID" \
+  --token "$TOKEN_ID" \
   --side BUY --price 0.50 --size 10 \
   --signature-type deposit \
   --json
@@ -2693,7 +2762,7 @@ before any live order.
 
 Decision rule:
 
-- Echo `--token-id`, `--side`, `--price`, `--size`, and `--signature-type`
+- Echo `--token`, `--side`, `--price`, `--size`, and `--signature-type`
   back to the user verbatim before running step 3.
 - After the May 2026 cutoff, `--signature-type` other than `deposit` is
   rejected for new accounts; the agent must default to `deposit`.

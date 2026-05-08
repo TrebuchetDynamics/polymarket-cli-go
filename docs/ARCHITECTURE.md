@@ -122,3 +122,6 @@ SDK-level commitment to keep its API stable across minor versions.
   builder credentials where applicable.
 - Builder credentials and private keys are redacted by `internal/config`
   on every load.
+
+See [Architecture and Taxonomy Improvement Plan](ARCHITECTURE-TAXONOMY-PLAN.md)
+for the next SDK naming and public-boundary cleanup work.

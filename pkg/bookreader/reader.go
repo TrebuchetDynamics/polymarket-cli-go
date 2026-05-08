@@ -6,8 +6,8 @@
 // production implementation backed by the CLOB HTTP API.
 //
 // When not to use this package:
-//   - For authenticated CLOB operations (create or cancel orders) — those
-//     are not part of the public SDK.
+//   - For authenticated CLOB operations (create or cancel orders) — use
+//     pkg/universal or the CLI.
 //   - For low-latency streaming — use a WebSocket client instead.
 //
 // Stability: the Reader interface, OrderBook, Level, and NewReader are

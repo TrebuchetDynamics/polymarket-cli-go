@@ -13,9 +13,9 @@
 //
 // Stability: Client, NewClient, DefaultConfig, and every method on Client
 // are part of the polygolem public SDK and follow semver. Method
-// signatures currently expose protocol types defined inside polygolem;
-// those types may be re-homed in a future release without changing the
-// public method set.
+// signatures currently expose shared protocol types from internal packages;
+// those types should be promoted or re-exported before the SDK is considered
+// clean for external modules.
 package gamma
 
 import (

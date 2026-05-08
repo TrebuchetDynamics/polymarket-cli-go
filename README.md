@@ -66,11 +66,18 @@ cd polygolem && go build -o polygolem ./cmd/polygolem
 ### Public (no credentials needed)
 ```bash
 polygolem discover search --query "btc 5m" --limit 5
+polygolem discover markets --limit 20 --active
 polygolem discover market --id "0xbd31dc8..."
 polygolem discover enrich --id "0xbd31dc8..."
+polygolem discover tags --limit 100
+polygolem discover series --limit 20
+polygolem discover comments --entity-id 123 --entity-type market
 polygolem orderbook get --token-id "123..."
 polygolem orderbook price --token-id "123..."
 polygolem orderbook spread --token-id "123..."
+polygolem clob markets --cursor ""
+polygolem data leaderboard --limit 20
+polygolem data live-volume --limit 20
 polygolem health
 polygolem version
 ```
@@ -96,8 +103,32 @@ polygolem clob update-balance --asset-type collateral --signature-type deposit
 polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --signature-type deposit
 polygolem clob market-order --token ID --side buy --amount 5 --signature-type deposit
 polygolem clob orders
+polygolem clob order <order-id>
 polygolem clob trades
+polygolem clob cancel <order-id>
+polygolem clob cancel-orders <order-id-1,order-id-2>
+polygolem clob cancel-market --market <condition-id>
+polygolem clob cancel-all
 polygolem clob create-api-key
+```
+
+### Data API (public analytics)
+```bash
+polygolem data positions --user 0x...
+polygolem data closed-positions --user 0x...
+polygolem data trades --user 0x... --limit 20
+polygolem data activity --user 0x... --limit 20
+polygolem data holders --token-id 123... --limit 20
+polygolem data value --user 0x...
+polygolem data markets-traded --user 0x...
+polygolem data open-interest --token-id 123...
+polygolem data leaderboard --limit 20
+polygolem data live-volume --limit 20
+```
+
+### Streams
+```bash
+polygolem stream market --asset-ids 123...,456... --max-messages 10
 ```
 
 ### Bridge
@@ -119,7 +150,7 @@ polygolem paper reset
 |---------|-------------|
 | `internal/relayer` | Builder relayer client — WALLET-CREATE, WALLET batch, nonce, polling |
 | `internal/rpc` | Direct on-chain transfers (ERC-20 pUSD from EOA) |
-| `internal/clob` | CLOB API client — 17 methods + EIP-712 + POLY_1271 + ERC-7739 signing |
+| `internal/clob` | CLOB API client — market data, balances, order lookup, order placement, cancellation, EIP-712 + POLY_1271 signing |
 | `internal/auth` | L0/L1/L2 auth, EIP-712, deposit wallet CREATE2 derivation, builder attribution |
 | `internal/gamma` | Gamma API client — 18 methods (markets, events, search, tags, series) |
 | `internal/dataapi` | Data API client — 11 methods (positions, volume, leaderboards) |
@@ -166,4 +197,6 @@ Short-form `BUILDER_API_KEY` / `BUILDER_SECRET` / `BUILDER_PASS_PHRASE` also acc
 - [PRD](docs/PRD.md) — full requirements
 - [Safety](docs/SAFETY.md) — read-only default, deposit wallet safety rules
 - [Commands](docs/COMMANDS.md) — full command reference
+- [Coverage Matrix](docs/POLYMARKET-COVERAGE-MATRIX.md) — SDK/CLI/docs/tests coverage by API family
 - [Architecture](docs/ARCHITECTURE.md) — package boundaries
+- [Architecture Taxonomy Plan](docs/ARCHITECTURE-TAXONOMY-PLAN.md) — SDK naming and boundary cleanup plan
