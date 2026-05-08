@@ -42,7 +42,7 @@ polygolem --json version | jq .
 polygolem - Safe Polymarket SDK and CLI for Go
   auth - Inspect authentication readiness
     export-key - Display private key for wallet import (use with care)
-    headless-onboard - Run SIWE login + register profile + mint V2 Relayer API Key (no browser)
+    headless-onboard - Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key)
     status - Check authentication readiness and API key status
   bridge - Polymarket Bridge API
     assets - List supported bridge assets
@@ -181,7 +181,7 @@ polygolem auth [flags]
 | Command | Description |
 |---|---|
 | `polygolem auth export-key` | Display private key for wallet import (use with care) |
-| `polygolem auth headless-onboard` | Run SIWE login + register profile + mint V2 Relayer API Key (no browser) |
+| `polygolem auth headless-onboard` | Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key) |
 | `polygolem auth status` | Check authentication readiness and API key status |
 
 **Flags:**
@@ -227,7 +227,7 @@ polygolem auth export-key [flags]
 
 ### polygolem auth headless-onboard
 
-Run SIWE login + register profile + mint V2 Relayer API Key (no browser)
+Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key)
 
 Headless replacement for the polymarket.com signup flow. Steps:
 
