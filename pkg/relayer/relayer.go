@@ -1,13 +1,13 @@
 // Package relayer is the public Go SDK surface for the Polymarket Builder
 // Relayer V2 (https://relayer-v2.polymarket.com).
 //
-// Use this package after you've minted builder credentials with
-// pkg/universal.Client.CreateOrDeriveAPIKey — the same HMAC triple
-// authenticates every relayer request. The relayer pays gas for
-// deposit-wallet deploy and proxy/batch submission, so the only on-chain
-// cost the end user pays in the canonical onboarding flow is a single
-// pUSD/USDC.e transfer into the deployed deposit wallet. See
-// docs/BUILDER-AUTO.md for the full sequence diagram.
+// Use this package with builder relayer credentials accepted by the
+// Polymarket relayer. CLOB L2 credentials and builder relayer credentials
+// are separate auth concepts; callers should not assume they are
+// interchangeable unless they have validated that flow for the account.
+// The relayer pays gas for deposit-wallet deploy and proxy/batch
+// submission, so the only on-chain cost the end user pays in the canonical
+// onboarding flow is a single pUSD transfer into the deployed deposit wallet.
 //
 // The package re-exports types and constructors from internal/relayer and
 // internal/auth via type aliases — there is no behavioral wrapper layer,
@@ -26,8 +26,8 @@ import (
 // the POLY_BUILDER_* HMAC-SHA256 header set built from a [BuilderConfig].
 type Client = internalrelayer.Client
 
-// BuilderConfig holds the {API key, secret, passphrase} triple returned
-// by CLOB /auth/api-key. It is the only credential the relayer accepts.
+// BuilderConfig holds the builder relayer {API key, secret, passphrase}
+// triple used to authenticate relayer requests.
 type BuilderConfig = auth.BuilderConfig
 
 // PrivateKeySigner signs DepositWallet.Batch EIP-712 payloads from a raw
