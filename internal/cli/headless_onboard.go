@@ -36,7 +36,7 @@ func newAuthHeadlessOnboardCommand(jsonOut bool) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "headless-onboard",
-		Short: "Run SIWE login + register profile + mint V2 Relayer API Key (no browser)",
+		Short: "Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key)",
 		Long: `Headless replacement for the polymarket.com signup flow. Steps:
 
   1. Sign a Polymarket SIWE message with the EOA from POLYMARKET_PRIVATE_KEY.
