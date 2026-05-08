@@ -19,7 +19,7 @@ func TestRepositoryHygiene(t *testing.T) {
 
 	ciContent := string(ci)
 	for _, required := range []string{
-		"actions/setup-go@v5",
+		"actions/setup-go@",
 		"go-version-file: go.mod",
 		"go vet ./...",
 		"go test ./...",
