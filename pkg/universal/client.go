@@ -93,137 +93,137 @@ func NewClient(cfg Config) *Client {
 }
 
 // ActiveMarkets returns markets currently flagged active by Gamma.
-func (c *Client) ActiveMarkets(ctx context.Context) ([]polytypes.Market, error) {
+func (c *Client) ActiveMarkets(ctx context.Context) ([]types.Market, error) {
 	return c.gamma.ActiveMarkets(ctx)
 }
 
 // Markets lists markets matching the given filter parameters.
-func (c *Client) Markets(ctx context.Context, params *polytypes.GetMarketsParams) ([]polytypes.Market, error) {
+func (c *Client) Markets(ctx context.Context, params *types.GetMarketsParams) ([]types.Market, error) {
 	return c.gamma.Markets(ctx, params)
 }
 
 // MarketByID fetches a single market by its Gamma ID.
-func (c *Client) MarketByID(ctx context.Context, id string) (*polytypes.Market, error) {
+func (c *Client) MarketByID(ctx context.Context, id string) (*types.Market, error) {
 	return c.gamma.MarketByID(ctx, id)
 }
 
 // MarketBySlug fetches a single market by slug.
-func (c *Client) MarketBySlug(ctx context.Context, slug string) (*polytypes.Market, error) {
+func (c *Client) MarketBySlug(ctx context.Context, slug string) (*types.Market, error) {
 	return c.gamma.MarketBySlug(ctx, slug)
 }
 
 // Events lists events matching the given filter parameters.
-func (c *Client) Events(ctx context.Context, params *polytypes.GetEventsParams) ([]polytypes.Event, error) {
+func (c *Client) Events(ctx context.Context, params *types.GetEventsParams) ([]types.Event, error) {
 	return c.gamma.Events(ctx, params)
 }
 
 // EventByID fetches a single event by its Gamma ID.
-func (c *Client) EventByID(ctx context.Context, id string) (*polytypes.Event, error) {
+func (c *Client) EventByID(ctx context.Context, id string) (*types.Event, error) {
 	return c.gamma.EventByID(ctx, id)
 }
 
 // EventBySlug fetches a single event by slug.
-func (c *Client) EventBySlug(ctx context.Context, slug string) (*polytypes.Event, error) {
+func (c *Client) EventBySlug(ctx context.Context, slug string) (*types.Event, error) {
 	return c.gamma.EventBySlug(ctx, slug)
 }
 
 // Search performs Gamma's public search across events, markets, tags, and profiles.
-func (c *Client) Search(ctx context.Context, params *polytypes.SearchParams) (*polytypes.SearchResponse, error) {
+func (c *Client) Search(ctx context.Context, params *types.SearchParams) (*types.SearchResponse, error) {
 	return c.gamma.Search(ctx, params)
 }
 
 // Series lists market series matching the given filter parameters.
-func (c *Client) Series(ctx context.Context, params *polytypes.GetSeriesParams) ([]polytypes.Series, error) {
+func (c *Client) Series(ctx context.Context, params *types.GetSeriesParams) ([]types.Series, error) {
 	return c.gamma.Series(ctx, params)
 }
 
 // Tags lists tags matching the given filter parameters.
-func (c *Client) Tags(ctx context.Context, params *polytypes.GetTagsParams) ([]polytypes.Tag, error) {
+func (c *Client) Tags(ctx context.Context, params *types.GetTagsParams) ([]types.Tag, error) {
 	return c.gamma.Tags(ctx, params)
 }
 
 // SportsMetadata returns the current sports metadata catalog.
-func (c *Client) SportsMetadata(ctx context.Context) ([]polytypes.SportMetadata, error) {
+func (c *Client) SportsMetadata(ctx context.Context) ([]types.SportMetadata, error) {
 	return c.gamma.SportsMetadata(ctx)
 }
 
 // Comments returns comments matching the given query.
-func (c *Client) Comments(ctx context.Context, params *polytypes.CommentQuery) ([]polytypes.Comment, error) {
+func (c *Client) Comments(ctx context.Context, params *types.CommentQuery) ([]types.Comment, error) {
 	return c.gamma.Comments(ctx, params)
 }
 
 // MarketBySlug fetches a single market by slug.
-func (c *Client) GammaMarketBySlug(ctx context.Context, slug string) (*polytypes.Market, error) {
+func (c *Client) GammaMarketBySlug(ctx context.Context, slug string) (*types.Market, error) {
 	return c.gamma.MarketBySlug(ctx, slug)
 }
 
 // EventBySlug fetches a single event by slug.
-func (c *Client) GammaEventBySlug(ctx context.Context, slug string) (*polytypes.Event, error) {
+func (c *Client) GammaEventBySlug(ctx context.Context, slug string) (*types.Event, error) {
 	return c.gamma.EventBySlug(ctx, slug)
 }
 
 // SeriesByID fetches a single series by its ID.
-func (c *Client) SeriesByID(ctx context.Context, id string) (*polytypes.Series, error) {
+func (c *Client) SeriesByID(ctx context.Context, id string) (*types.Series, error) {
 	return c.gamma.SeriesByID(ctx, id)
 }
 
 // TagByID fetches a single tag by its ID.
-func (c *Client) TagByID(ctx context.Context, id string) (*polytypes.Tag, error) {
+func (c *Client) TagByID(ctx context.Context, id string) (*types.Tag, error) {
 	return c.gamma.TagByID(ctx, id)
 }
 
 // TagBySlug fetches a single tag by slug.
-func (c *Client) TagBySlug(ctx context.Context, slug string) (*polytypes.Tag, error) {
+func (c *Client) TagBySlug(ctx context.Context, slug string) (*types.Tag, error) {
 	return c.gamma.TagBySlug(ctx, slug)
 }
 
 // RelatedTagsByID returns tags related to the given tag ID.
-func (c *Client) RelatedTagsByID(ctx context.Context, tagID string) ([]polytypes.TagRelationship, error) {
+func (c *Client) RelatedTagsByID(ctx context.Context, tagID string) ([]types.TagRelationship, error) {
 	return c.gamma.RelatedTagsByID(ctx, tagID)
 }
 
 // RelatedTagsBySlug returns tags related to the given tag slug.
-func (c *Client) RelatedTagsBySlug(ctx context.Context, slug string) ([]polytypes.TagRelationship, error) {
+func (c *Client) RelatedTagsBySlug(ctx context.Context, slug string) ([]types.TagRelationship, error) {
 	return c.gamma.RelatedTagsBySlug(ctx, slug)
 }
 
 // Teams lists sports teams matching the given filter parameters.
-func (c *Client) Teams(ctx context.Context, params *polytypes.GetTeamsParams) ([]polytypes.Team, error) {
+func (c *Client) Teams(ctx context.Context, params *types.GetTeamsParams) ([]types.Team, error) {
 	return c.gamma.Teams(ctx, params)
 }
 
 // CommentByID fetches a single comment by its ID.
-func (c *Client) CommentByID(ctx context.Context, id string) (*polytypes.Comment, error) {
+func (c *Client) CommentByID(ctx context.Context, id string) (*types.Comment, error) {
 	return c.gamma.CommentByID(ctx, id)
 }
 
 // CommentsByUser fetches comments by a specific user address.
-func (c *Client) CommentsByUser(ctx context.Context, userAddress string, limit int) ([]polytypes.Comment, error) {
+func (c *Client) CommentsByUser(ctx context.Context, userAddress string, limit int) ([]types.Comment, error) {
 	return c.gamma.CommentsByUser(ctx, userAddress, limit)
 }
 
 // PublicProfile fetches a public profile by wallet address.
-func (c *Client) PublicProfile(ctx context.Context, walletAddress string) (*polytypes.Profile, error) {
+func (c *Client) PublicProfile(ctx context.Context, walletAddress string) (*types.Profile, error) {
 	return c.gamma.PublicProfile(ctx, walletAddress)
 }
 
 // SportsMarketTypes returns the current sports market types catalog.
-func (c *Client) SportsMarketTypes(ctx context.Context) ([]polytypes.SportsMarketType, error) {
+func (c *Client) SportsMarketTypes(ctx context.Context) ([]types.SportsMarketType, error) {
 	return c.gamma.SportsMarketTypes(ctx)
 }
 
 // MarketByToken fetches market metadata by CLOB token ID.
-func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*polytypes.MarketByTokenResponse, error) {
+func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*types.MarketByTokenResponse, error) {
 	return c.gamma.MarketByToken(ctx, tokenID)
 }
 
 // EventsKeyset returns events with keyset pagination.
-func (c *Client) EventsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Event, string, error) {
+func (c *Client) EventsKeyset(ctx context.Context, params *types.KeysetParams) ([]types.Event, string, error) {
 	return c.gamma.EventsKeyset(ctx, params)
 }
 
 // MarketsKeyset returns markets with keyset pagination.
-func (c *Client) MarketsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Market, string, error) {
+func (c *Client) MarketsKeyset(ctx context.Context, params *types.KeysetParams) ([]types.Market, string, error) {
 	return c.gamma.MarketsKeyset(ctx, params)
 }
 

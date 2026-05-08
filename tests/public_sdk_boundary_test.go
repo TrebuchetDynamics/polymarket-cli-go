@@ -31,17 +31,25 @@ import (
 	"testing"
 
 	"github.com/TrebuchetDynamics/polygolem/pkg/data"
+	"github.com/TrebuchetDynamics/polygolem/pkg/gamma"
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 	"github.com/TrebuchetDynamics/polygolem/pkg/universal"
 )
 
-func TestPublicDataSignatures(t *testing.T) {
+func TestPublicSDKSignatures(t *testing.T) {
 	var dataPositions func(*data.Client, context.Context, string) ([]types.Position, error) = (*data.Client).CurrentPositions
 	var universalPositions func(*universal.Client, context.Context, string) ([]types.Position, error) = (*universal.Client).CurrentPositions
 	var dataLeaderboard func(*data.Client, context.Context, int) ([]types.LeaderboardRow, error) = (*data.Client).TraderLeaderboard
 	var universalLiveVolume func(*universal.Client, context.Context, int) (*types.LiveVolumeResponse, error) = (*universal.Client).LiveVolume
+	var gammaMarkets func(*gamma.Client, context.Context, *types.GetMarketsParams) ([]types.Market, error) = (*gamma.Client).Markets
+	var gammaSearch func(*gamma.Client, context.Context, *types.SearchParams) (*types.SearchResponse, error) = (*gamma.Client).Search
+	var gammaComments func(*gamma.Client, context.Context, *types.CommentQuery) ([]types.Comment, error) = (*gamma.Client).Comments
+	var universalMarkets func(*universal.Client, context.Context, *types.GetMarketsParams) ([]types.Market, error) = (*universal.Client).Markets
+	var universalSearch func(*universal.Client, context.Context, *types.SearchParams) (*types.SearchResponse, error) = (*universal.Client).Search
+	var universalComments func(*universal.Client, context.Context, *types.CommentQuery) ([]types.Comment, error) = (*universal.Client).Comments
 
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
+	_, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments
 }
 `)
 

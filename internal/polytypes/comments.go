@@ -1,44 +1,12 @@
 package polytypes
 
-// --- Comments (Gamma) ---
+import "github.com/TrebuchetDynamics/polygolem/pkg/types"
 
-// Comment represents a Polymarket comment.
-type Comment struct {
-	ID        string         `json:"id"`
-	Body      string         `json:"body"`
-	User      CommentUser    `json:"user"`
-	CreatedAt NormalizedTime `json:"createdAt"`
-	UpdatedAt NormalizedTime `json:"updatedAt"`
-	ParentID  *int           `json:"parentId,omitempty"`
-	Replies   []Comment      `json:"replies,omitempty"`
-}
-
-// CommentUser represents a comment author.
-type CommentUser struct {
-	Address      string `json:"address"`
-	Pseudonym    string `json:"pseudonym"`
-	ProfileImage string `json:"profileImage"`
-}
-
-// CommentQuery represents query parameters for listing comments.
-type CommentQuery struct {
-	EntityID   *int    `json:"entity_id,omitempty"`
-	EntityType *string `json:"entity_type,omitempty"`
-	Limit      int     `json:"limit,omitempty"`
-	Offset     int     `json:"offset,omitempty"`
-}
-
-// CommentByIDQuery represents query parameters for a single comment.
-type CommentByIDQuery struct {
-	IncludeReplies *bool `json:"include_replies,omitempty"`
-}
-
-// CommentsByUserQuery represents query parameters for user comments.
-type CommentsByUserQuery struct {
-	UserAddress string `json:"user_address"`
-	Limit       int    `json:"limit,omitempty"`
-	Offset      int    `json:"offset,omitempty"`
-}
+type Comment = types.Comment
+type CommentUser = types.CommentUser
+type CommentQuery = types.CommentQuery
+type CommentByIDQuery = types.CommentByIDQuery
+type CommentsByUserQuery = types.CommentsByUserQuery
 
 // --- Rewards (CLOB) ---
 
@@ -100,39 +68,7 @@ type RebatedFees struct {
 	Date         string  `json:"date"`
 }
 
-// --- Sports Market Types (Gamma) ---
-
-// SportsMarketType represents a valid sports market type.
-type SportsMarketType struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
-// --- Keyset Pagination (Gamma) ---
-
-// KeysetParams represents keyset pagination parameters.
-type KeysetParams struct {
-	Limit     int    `json:"limit,omitempty"`
-	KeysetID  string `json:"keyset_id,omitempty"`
-	Ascending *bool  `json:"ascending,omitempty"`
-	Active    *bool  `json:"active,omitempty"`
-	Closed    *bool  `json:"closed,omitempty"`
-	Order     string `json:"order,omitempty"`
-}
-
-// KeysetResponse wraps a keyset-paginated response.
-type KeysetResponse[T any] struct {
-	Data       []T    `json:"data"`
-	NextCursor string `json:"next_cursor"`
-	HasMore    bool   `json:"has_more"`
-}
-
-// --- Market by Token (Gamma) ---
-
-// MarketByTokenResponse represents a market resolved by CLOB token ID.
-type MarketByTokenResponse struct {
-	Market  Market `json:"market"`
-	TokenID string `json:"token_id"`
-	Outcome string `json:"outcome"`
-}
+type SportsMarketType = types.SportsMarketType
+type KeysetParams = types.KeysetParams
+type KeysetResponse[T any] = types.KeysetResponse[T]
+type MarketByTokenResponse = types.MarketByTokenResponse
