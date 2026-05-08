@@ -63,6 +63,51 @@ type OrderPlacementResponse struct {
 	TradeIDs           []string `json:"tradeIDs,omitempty"`
 }
 
+// CancelOrdersResponse is returned by cancel order and cancel-all endpoints.
+type CancelOrdersResponse struct {
+	Canceled    []string          `json:"canceled"`
+	NotCanceled map[string]string `json:"not_canceled"`
+}
+
+// OrderRecord is a single order as returned by ListOrders.
+type OrderRecord struct {
+	ID             string  `json:"id"`
+	Status         string  `json:"status"`
+	Owner          string  `json:"owner"`
+	Market         string  `json:"market"`
+	AssetID        string  `json:"asset_id"`
+	Side           string  `json:"side"`
+	OriginalSize   string  `json:"original_size"`
+	SizeMatched    string  `json:"size_matched"`
+	Price          string  `json:"price"`
+	Outcome        string  `json:"outcome"`
+	Type           string  `json:"type"`
+	SignatureType  int     `json:"signature_type"`
+	CreatedAt      string  `json:"created_at"`
+	Expiration     string  `json:"expiration"`
+	MakerAddress   string  `json:"maker_address"`
+	AssociateTrades []string `json:"associate_trades,omitempty"`
+}
+
+// TradeRecord is a single trade as returned by ListTrades.
+type TradeRecord struct {
+	ID              string `json:"id"`
+	Status          string `json:"status"`
+	Market          string `json:"market"`
+	AssetID         string `json:"asset_id"`
+	Side            string `json:"side"`
+	Price           string `json:"price"`
+	Size            string `json:"size"`
+	FeeRateBps      string `json:"fee_rate_bps"`
+	Outcome         string `json:"outcome"`
+	Owner           string `json:"owner"`
+	Builder         string `json:"builder"`
+	MatchedAmount   string `json:"matched_amount"`
+	TransactionHash string `json:"transaction_hash"`
+	CreatedAt       string `json:"created_at"`
+	LastUpdated     string `json:"last_updated"`
+}
+
 // signedOrderPayload is the CLOB V2 order wire format.
 // Differs from V1: taker/nonce/feeRateBps removed, timestamp/metadata/builder added.
 // Expiration is in the POST body but NOT in the V2 EIP-712 signed struct.
@@ -139,12 +184,62 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 	return c.signAndPostOrder(ctx, privateKey, draft)
 }
 
-func (c *Client) ListOrders(ctx context.Context, privateKey string) (json.RawMessage, error) {
-	return c.authenticatedRawGET(ctx, privateKey, "/data/orders")
+func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]OrderRecord, error) {
+	var result []OrderRecord
+	if err := c.authenticatedL2GET(ctx, privateKey, "/data/orders", &result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
-func (c *Client) ListTrades(ctx context.Context, privateKey string) (json.RawMessage, error) {
-	return c.authenticatedRawGET(ctx, privateKey, "/data/trades")
+func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]TradeRecord, error) {
+	var result []TradeRecord
+	if err := c.authenticatedL2GET(ctx, privateKey, "/data/trades", &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*CancelOrdersResponse, error) {
+	orderID = strings.TrimSpace(orderID)
+	if orderID == "" {
+		return nil, fmt.Errorf("order ID is required")
+	}
+	key, err := c.DeriveAPIKey(ctx, privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("derive api key: %w", err)
+	}
+	body := map[string]string{"orderID": orderID}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	compactBody := auth.CompactJSON(string(bodyBytes))
+	headers, err := c.l2Headers(privateKey, &key, http.MethodDelete, "/order", &compactBody)
+	if err != nil {
+		return nil, err
+	}
+	var result CancelOrdersResponse
+	if err := c.transport.DeleteWithHeaders(ctx, "/order", body, headers, &result); err != nil {
+		return nil, fmt.Errorf("cancel order: %w", err)
+	}
+	return &result, nil
+}
+
+func (c *Client) CancelAll(ctx context.Context, privateKey string) (*CancelOrdersResponse, error) {
+	key, err := c.DeriveAPIKey(ctx, privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("derive api key: %w", err)
+	}
+	headers, err := c.l2Headers(privateKey, &key, http.MethodDelete, "/cancel-all", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result CancelOrdersResponse
+	if err := c.transport.DeleteWithHeaders(ctx, "/cancel-all", nil, headers, &result); err != nil {
+		return nil, fmt.Errorf("cancel all: %w", err)
+	}
+	return &result, nil
 }
 
 func (c *Client) authenticatedRawGET(ctx context.Context, privateKey string, path string) (json.RawMessage, error) {
@@ -161,6 +256,18 @@ func (c *Client) authenticatedRawGET(ctx context.Context, privateKey string, pat
 		return nil, err
 	}
 	return result, nil
+}
+
+func (c *Client) authenticatedL2GET(ctx context.Context, privateKey string, path string, result interface{}) error {
+	key, err := c.DeriveAPIKey(ctx, privateKey)
+	if err != nil {
+		return fmt.Errorf("derive api key: %w", err)
+	}
+	headers, err := c.l2Headers(privateKey, &key, http.MethodGet, path, nil)
+	if err != nil {
+		return err
+	}
+	return c.transport.GetWithHeaders(ctx, path, headers, result)
 }
 
 func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params MarketOrderParams) (*OrderPlacementResponse, error) {

@@ -101,6 +101,11 @@ func (c *Client) Delete(ctx context.Context, path string) error {
 	return c.doWithHeaders(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
+// DeleteWithHeaders performs a DELETE request with caller-supplied headers.
+func (c *Client) DeleteWithHeaders(ctx context.Context, path string, body interface{}, headers map[string]string, result interface{}) error {
+	return c.doWithHeaders(ctx, http.MethodDelete, path, body, result, headers)
+}
+
 func (c *Client) doWithHeaders(ctx context.Context, method, path string, body interface{}, result interface{}, headers map[string]string) (err error) {
 	if c.config.CircuitBreaker != nil {
 		defer func() {

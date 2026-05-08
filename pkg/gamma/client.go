@@ -103,6 +103,83 @@ func (c *Client) Comments(ctx context.Context, params *polytypes.CommentQuery) (
 	return c.inner.Comments(ctx, params)
 }
 
+// MarketBySlug fetches a single market by its Gamma slug.
+func (c *Client) MarketBySlug(ctx context.Context, slug string) (*polytypes.Market, error) {
+	return c.inner.MarketBySlug(ctx, slug)
+}
+
+// EventBySlug fetches a single event by slug.
+func (c *Client) EventBySlug(ctx context.Context, slug string) (*polytypes.Event, error) {
+	return c.inner.EventBySlug(ctx, slug)
+}
+
+// SeriesByID fetches a single series by its Gamma ID.
+func (c *Client) SeriesByID(ctx context.Context, id string) (*polytypes.Series, error) {
+	return c.inner.SeriesByID(ctx, id)
+}
+
+// TagByID fetches a single tag by its Gamma ID.
+func (c *Client) TagByID(ctx context.Context, id string) (*polytypes.Tag, error) {
+	return c.inner.TagByID(ctx, id)
+}
+
+// TagBySlug fetches a single tag by slug.
+func (c *Client) TagBySlug(ctx context.Context, slug string) (*polytypes.Tag, error) {
+	return c.inner.TagBySlug(ctx, slug)
+}
+
+// RelatedTagsByID returns tags related to the given tag ID.
+func (c *Client) RelatedTagsByID(ctx context.Context, tagID string) ([]polytypes.TagRelationship, error) {
+	return c.inner.RelatedTagsByID(ctx, tagID)
+}
+
+// RelatedTagsBySlug returns tags related to the given tag slug.
+func (c *Client) RelatedTagsBySlug(ctx context.Context, slug string) ([]polytypes.TagRelationship, error) {
+	return c.inner.RelatedTagsBySlug(ctx, slug)
+}
+
+// Teams lists sports teams matching the given filter parameters.
+func (c *Client) Teams(ctx context.Context, params *polytypes.GetTeamsParams) ([]polytypes.Team, error) {
+	return c.inner.Teams(ctx, params)
+}
+
+// CommentByID fetches a single comment by its Gamma ID.
+func (c *Client) CommentByID(ctx context.Context, id string) (*polytypes.Comment, error) {
+	return c.inner.CommentByID(ctx, id)
+}
+
+// CommentsByUser fetches comments by a specific user address.
+func (c *Client) CommentsByUser(ctx context.Context, userAddress string, limit int) ([]polytypes.Comment, error) {
+	return c.inner.CommentsByUser(ctx, userAddress, limit)
+}
+
+// PublicProfile fetches a public profile by wallet address.
+func (c *Client) PublicProfile(ctx context.Context, walletAddress string) (*polytypes.Profile, error) {
+	return c.inner.PublicProfile(ctx, walletAddress)
+}
+
+// SportsMarketTypes returns the current sports market types catalog.
+func (c *Client) SportsMarketTypes(ctx context.Context) ([]polytypes.SportsMarketType, error) {
+	return c.inner.SportsMarketTypes(ctx)
+}
+
+// MarketByToken fetches market metadata by CLOB token ID.
+func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*polytypes.MarketByTokenResponse, error) {
+	return c.inner.MarketByToken(ctx, tokenID)
+}
+
+// EventsKeyset returns events with keyset pagination. Returns the next cursor
+// as the second return value.
+func (c *Client) EventsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Event, string, error) {
+	return c.inner.EventsKeyset(ctx, params)
+}
+
+// MarketsKeyset returns markets with keyset pagination. Returns the next cursor
+// as the second return value.
+func (c *Client) MarketsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Market, string, error) {
+	return c.inner.MarketsKeyset(ctx, params)
+}
+
 // DefaultConfig returns the transport config the Gamma client uses by
 // default for baseURL — exposed for callers that want to inspect or
 // extend the retry, timeout, and rate-limit defaults.

@@ -145,6 +145,132 @@ func (c *Client) Comments(ctx context.Context, params *polytypes.CommentQuery) (
 	return c.gamma.Comments(ctx, params)
 }
 
+// MarketBySlug fetches a single market by slug.
+func (c *Client) GammaMarketBySlug(ctx context.Context, slug string) (*polytypes.Market, error) {
+	return c.gamma.MarketBySlug(ctx, slug)
+}
+
+// EventBySlug fetches a single event by slug.
+func (c *Client) GammaEventBySlug(ctx context.Context, slug string) (*polytypes.Event, error) {
+	return c.gamma.EventBySlug(ctx, slug)
+}
+
+// SeriesByID fetches a single series by its ID.
+func (c *Client) SeriesByID(ctx context.Context, id string) (*polytypes.Series, error) {
+	return c.gamma.SeriesByID(ctx, id)
+}
+
+// TagByID fetches a single tag by its ID.
+func (c *Client) TagByID(ctx context.Context, id string) (*polytypes.Tag, error) {
+	return c.gamma.TagByID(ctx, id)
+}
+
+// TagBySlug fetches a single tag by slug.
+func (c *Client) TagBySlug(ctx context.Context, slug string) (*polytypes.Tag, error) {
+	return c.gamma.TagBySlug(ctx, slug)
+}
+
+// RelatedTagsByID returns tags related to the given tag ID.
+func (c *Client) RelatedTagsByID(ctx context.Context, tagID string) ([]polytypes.TagRelationship, error) {
+	return c.gamma.RelatedTagsByID(ctx, tagID)
+}
+
+// RelatedTagsBySlug returns tags related to the given tag slug.
+func (c *Client) RelatedTagsBySlug(ctx context.Context, slug string) ([]polytypes.TagRelationship, error) {
+	return c.gamma.RelatedTagsBySlug(ctx, slug)
+}
+
+// Teams lists sports teams matching the given filter parameters.
+func (c *Client) Teams(ctx context.Context, params *polytypes.GetTeamsParams) ([]polytypes.Team, error) {
+	return c.gamma.Teams(ctx, params)
+}
+
+// CommentByID fetches a single comment by its ID.
+func (c *Client) CommentByID(ctx context.Context, id string) (*polytypes.Comment, error) {
+	return c.gamma.CommentByID(ctx, id)
+}
+
+// CommentsByUser fetches comments by a specific user address.
+func (c *Client) CommentsByUser(ctx context.Context, userAddress string, limit int) ([]polytypes.Comment, error) {
+	return c.gamma.CommentsByUser(ctx, userAddress, limit)
+}
+
+// PublicProfile fetches a public profile by wallet address.
+func (c *Client) PublicProfile(ctx context.Context, walletAddress string) (*polytypes.Profile, error) {
+	return c.gamma.PublicProfile(ctx, walletAddress)
+}
+
+// SportsMarketTypes returns the current sports market types catalog.
+func (c *Client) SportsMarketTypes(ctx context.Context) ([]polytypes.SportsMarketType, error) {
+	return c.gamma.SportsMarketTypes(ctx)
+}
+
+// MarketByToken fetches market metadata by CLOB token ID.
+func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*polytypes.MarketByTokenResponse, error) {
+	return c.gamma.MarketByToken(ctx, tokenID)
+}
+
+// EventsKeyset returns events with keyset pagination.
+func (c *Client) EventsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Event, string, error) {
+	return c.gamma.EventsKeyset(ctx, params)
+}
+
+// MarketsKeyset returns markets with keyset pagination.
+func (c *Client) MarketsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Market, string, error) {
+	return c.gamma.MarketsKeyset(ctx, params)
+}
+
+// --- CLOB: Authenticated Orders & Cancellation ---
+
+// ListOrders returns the authenticated user's open orders.
+func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]clob.OrderRecord, error) {
+	return c.clob.ListOrders(ctx, privateKey)
+}
+
+// ListTrades returns the authenticated user's trade history.
+func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]clob.TradeRecord, error) {
+	return c.clob.ListTrades(ctx, privateKey)
+}
+
+// CancelOrder cancels a single open CLOB order.
+func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*clob.CancelOrdersResponse, error) {
+	return c.clob.CancelOrder(ctx, privateKey, orderID)
+}
+
+// CancelAll cancels all open CLOB orders for the authenticated user.
+func (c *Client) CancelAll(ctx context.Context, privateKey string) (*clob.CancelOrdersResponse, error) {
+	return c.clob.CancelAll(ctx, privateKey)
+}
+
+// --- CLOB: Extended Market Lists ---
+
+// SimplifiedMarkets returns simplified CLOB markets.
+func (c *Client) SimplifiedMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error) {
+	return c.clob.SimplifiedMarkets(ctx, nextCursor)
+}
+
+// SamplingMarkets returns sampling CLOB markets.
+func (c *Client) SamplingMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error) {
+	return c.clob.SamplingMarkets(ctx, nextCursor)
+}
+
+// SamplingSimplifiedMarkets returns sampling simplified CLOB markets.
+func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error) {
+	return c.clob.SamplingSimplifiedMarkets(ctx, nextCursor)
+}
+
+// --- Data API: Extended ---
+
+// ClosedPositions returns closed positions for a user.
+func (c *Client) ClosedPositions(ctx context.Context, user string) ([]dataapi.ClosedPosition, error) {
+	return c.data.ClosedPositions(ctx, user)
+}
+
+// MarketsTraded returns the count of markets traded by a user.
+func (c *Client) MarketsTraded(ctx context.Context, user string) (*dataapi.TotalMarketsTraded, error) {
+	return c.data.MarketsTraded(ctx, user)
+}
+
 // OrderBook returns L2 order book depth for a token.
 func (c *Client) OrderBook(ctx context.Context, tokenID string) (*polytypes.OrderBook, error) {
 	return c.clob.OrderBook(ctx, tokenID)

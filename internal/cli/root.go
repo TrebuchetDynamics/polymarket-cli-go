@@ -366,6 +366,46 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(tradesCmd, &tradesOutput)
 	cmd.AddCommand(tradesCmd)
 
+	var cancelOutput string
+	cancelCmd := &cobra.Command{Use: "cancel <order-id>", Short: "Cancel a single open CLOB order", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(cancelOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			resp, err := w.clob.CancelOrder(cmd.Context(), key, args[0])
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, resp)
+		},
+	}
+	addOutput(cancelCmd, &cancelOutput)
+	cmd.AddCommand(cancelCmd)
+
+	var cancelAllOutput string
+	cancelAllCmd := &cobra.Command{Use: "cancel-all", Short: "Cancel all open CLOB orders", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(cancelAllOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			resp, err := w.clob.CancelAll(cmd.Context(), key)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, resp)
+		},
+	}
+	addOutput(cancelAllCmd, &cancelAllOutput)
+	cmd.AddCommand(cancelAllCmd)
+
 	var createOrderOutput, createOrderToken, createOrderSide, createOrderPrice, createOrderSize, createOrderType, createOrderSignatureType string
 	createOrderCmd := &cobra.Command{Use: "create-order", Short: "Create a signed CLOB limit order", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
