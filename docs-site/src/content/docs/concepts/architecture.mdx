@@ -11,7 +11,7 @@ Cobra-based CLI on top.
 | Layer | Packages | Role |
 |-------|----------|------|
 | **`cmd/polygolem`** | 1 | Binary entry point. Wires Cobra and exits. |
-| **`pkg/`** | 12 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; market WebSocket events use public `pkg/stream` DTOs; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; enrichment and authenticated type paths still need cleanup. |
+| **`pkg/`** | 12 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; authenticated CLOB account/order DTOs live in `pkg/clob`; market WebSocket events use public `pkg/stream` DTOs; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; enrichment and rewards type paths still need cleanup. |
 | **`internal/`** | 21 | Implementation. Not part of public API. |
 
 The CLI and public SDK both depend on the internal protocol implementation.
@@ -25,7 +25,7 @@ The `internal/` packages do not depend on `cmd/`.
 | `pkg/gamma` | Full Gamma API surface — 26 methods (markets, events, tags, comments, profiles) |
 | `pkg/data` | Read-only Data API analytics client returning `pkg/types` DTOs |
 | `pkg/types` | Public DTOs shared by SDK packages |
-| `pkg/clob` | Read-only CLOB market-data client returning `pkg/types` DTOs |
+| `pkg/clob` | CLOB market-data plus authenticated account/order DTOs |
 | `pkg/orderbook` | Read-only CLOB order-book reader |
 | `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook` |
 | `pkg/marketresolver` | Market + token ID resolution |

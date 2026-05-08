@@ -245,7 +245,7 @@ above is what production enforces today.
 | Concern | Public path |
 | --- | --- |
 | `CreateOrDeriveAPIKey` / `DeriveAPIKey` (Step 1) | `pkg/universal.Client` |
-| `CreateBuilderFeeKey` / `ListBuilderFeeKeys` / `RevokeBuilderFeeKey` (Step 2) | `internal/clob.Client` (promote to `pkg/universal` once stable) |
+| `CreateBuilderFeeKey` / `ListBuilderFeeKeys` / `RevokeBuilderFeeKey` (Step 2) | `pkg/clob.Client`; `CreateBuilderFeeKey` is also on `pkg/universal.Client` |
 | `BalanceAllowance` / `UpdateBalanceAllowance` | `pkg/universal.Client` |
 | `CreateLimitOrder` / `CreateMarketOrder` (Step 7) | `pkg/universal.Client` |
 | Relayer client (Steps 4 & 6) | `pkg/relayer.New` |

@@ -12,10 +12,10 @@ The `internal/` packages are implementation detail. They are documented in
 same semver promise as the `pkg/` packages below.
 
 Some current `pkg/` method signatures still expose implementation types from
-`internal/polytypes`, `internal/clob`, or `internal/transport`. That is an SDK
-hygiene gap, not an upstream Polymarket requirement. Gamma, Data API,
-read-only CLOB DTOs, and market WebSocket DTOs have been promoted:
-`pkg/gamma`, `pkg/data`, `pkg/clob`, `pkg/stream`, and the corresponding read
+`internal/polytypes` and a few relayer/auth aliases. That is an SDK hygiene
+gap, not an upstream Polymarket requirement. Gamma, Data API, CLOB
+market/account/order DTOs, and market WebSocket DTOs have been promoted:
+`pkg/gamma`, `pkg/data`, `pkg/clob`, `pkg/stream`, and the corresponding
 methods on `pkg/universal` return public package types.
 
 ## `pkg/orderbook` — Read-Only Order Book
@@ -69,7 +69,7 @@ import "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
 `pkg/orderbook` types plus `NewReader`. New consumers should import
 `pkg/orderbook`.
 
-## `pkg/clob` — Read-Only CLOB Market Data
+## `pkg/clob` — CLOB Market Data & Account Orders
 
 ```go
 import "github.com/TrebuchetDynamics/polygolem/pkg/clob"
@@ -111,6 +111,43 @@ func (c *Client) PricesHistory(ctx context.Context, params *types.CLOBPriceHisto
 func (c *Client) SimplifiedMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
 func (c *Client) SamplingMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
 func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
+```
+
+### Contract: Authenticated CLOB Methods
+
+```go
+func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (APIKey, error)
+func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (APIKey, error)
+func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (APIKey, error)
+func (c *Client) ListBuilderFeeKeys(ctx context.Context, privateKey string) ([]BuilderFeeKeyRecord, error)
+func (c *Client) RevokeBuilderFeeKey(ctx context.Context, privateKey, builderKey string) error
+func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params BalanceAllowanceParams) (*BalanceAllowanceResponse, error)
+func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, params BalanceAllowanceParams) (*BalanceAllowanceResponse, error)
+func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]OrderRecord, error)
+func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*OrderRecord, error)
+func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]TradeRecord, error)
+func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*CancelOrdersResponse, error)
+func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs []string) (*CancelOrdersResponse, error)
+func (c *Client) CancelAll(ctx context.Context, privateKey string) (*CancelOrdersResponse, error)
+func (c *Client) CancelMarket(ctx context.Context, privateKey string, params CancelMarketParams) (*CancelOrdersResponse, error)
+func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params CreateOrderParams) (*OrderPlacementResponse, error)
+func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params MarketOrderParams) (*OrderPlacementResponse, error)
+```
+
+### Contract: Authenticated CLOB DTOs
+
+```go
+type APIKey struct
+type BalanceAllowanceParams struct
+type BalanceAllowanceResponse struct
+type CreateOrderParams struct
+type MarketOrderParams struct
+type OrderPlacementResponse struct
+type CancelOrdersResponse struct
+type CancelMarketParams struct
+type OrderRecord struct
+type TradeRecord struct
+type BuilderFeeKeyRecord struct
 ```
 
 ## `pkg/stream` — Public Market WebSocket
@@ -423,11 +460,12 @@ func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor strin
 func (c *Client) HealthCheck(ctx context.Context) (HealthResponse, error)
 ```
 
-### Contract: Methods — CLOB Account, Orders, and Trading (13 methods)
+### Contract: Methods — CLOB Account, Orders, and Trading (14 methods)
 
 ```go
-func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (auth.APIKey, error)
-func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (auth.APIKey, error)
+func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (clob.APIKey, error)
+func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (clob.APIKey, error)
+func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (clob.APIKey, error)
 func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error)
 func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error)
 func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params clob.CreateOrderParams) (*clob.OrderPlacementResponse, error)
@@ -619,7 +657,7 @@ The following are intentional gaps in the current stable `pkg/` contract:
 | Gap | Current Status |
 |---|---|
 | One-call deposit-wallet onboard SDK | Relayer primitives are public in `pkg/relayer`; full onboard orchestration remains CLI-only |
-| Public type ownership | Gamma, Data API, and read-only CLOB DTOs are public in `pkg/types`; market WebSocket DTOs are public in `pkg/stream`; authenticated CLOB account/trading, rewards, enrichment, and user-stream signatures still need promotion work before claiming a fully clean external SDK |
+| Public type ownership | Gamma, Data API, and read-only CLOB DTOs are public in `pkg/types`; authenticated CLOB account/trading DTOs are public in `pkg/clob`; market WebSocket DTOs are public in `pkg/stream`; rewards, enrichment, and user-stream signatures still need promotion work before claiming a fully clean external SDK |
 | Non-zero V2 `builderCode` attribution | The signer emits `builder = bytes32(0)` today |
 | Batch order placement | Single-order placement and cancellation are exposed; batch placement is not |
 | Authenticated user WebSocket stream | Public market stream is exposed; user stream waits for L2 WebSocket auth tests |

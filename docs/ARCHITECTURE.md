@@ -12,7 +12,7 @@ Stable interfaces for downstream Go consumers (e.g., `go-bot`).
 
 | Package | Purpose |
 |---|---|
-| `pkg/clob` | Read-only CLOB market-data client returning `pkg/types` DTOs. |
+| `pkg/clob` | CLOB market-data plus authenticated account/order DTOs. |
 | `pkg/orderbook` | Read-only CLOB order-book reader. |
 | `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook`. |
 | `pkg/bridge` | Bridge API client — supported assets, deposit addresses, quotes. |
@@ -120,15 +120,15 @@ relayer. Order attribution uses the on-order `builder` bytes32 field (V2).
 proves stable enough to expose. Do not move code into `pkg/` without an
 SDK-level commitment to keep its API stable across minor versions.
 
-Gamma, Data API, read-only CLOB DTOs, and public market stream DTOs are
-promoted public DTO families. `pkg/gamma`, `pkg/data`, `pkg/clob`,
-`pkg/stream`, and the corresponding read-only
+Gamma, Data API, CLOB market/account/order DTOs, and public market stream DTOs
+are promoted public DTO families. `pkg/gamma`, `pkg/data`, `pkg/clob`,
+`pkg/stream`, and the corresponding
 `pkg/universal` methods return `pkg/types` for markets, events, tags, series,
 comments, profiles, positions, trades, holders, leaderboards, open interest,
 live volume, CLOB market data, books, prices, and price history, or
-`pkg/stream` types for WebSocket market events. Authenticated CLOB
-trading/account, rewards, enrichment, and user-stream types still need
-dedicated public-contract slices.
+`pkg/clob` types for authenticated CLOB account/trading operations and
+`pkg/stream` types for WebSocket market events. Rewards, enrichment, and
+user-stream types still need dedicated public-contract slices.
 
 ## Safety boundaries
 

@@ -11,10 +11,10 @@ minor releases — only depend on `pkg/*`.
 
 <Aside type="note">
 Stability note: Gamma, Data API, and read-only CLOB DTOs are public in
-`pkg/types`; public market stream DTOs are public in `pkg/stream`.
-Authenticated CLOB account/trading, rewards, enrichment, and user-stream
-signatures still expose implementation types from `internal/*`; treat those
-paths as a documented SDK cleanup gap.
+`pkg/types`; authenticated CLOB account/order DTOs are public in `pkg/clob`;
+public market stream DTOs are public in `pkg/stream`. Rewards, enrichment, and
+user-stream signatures still expose implementation types from `internal/*`;
+treat those paths as a documented SDK cleanup gap.
 </Aside>
 
 ## Install

@@ -11,6 +11,7 @@ surface.
 
 ```go
 import (
+    "github.com/TrebuchetDynamics/polygolem/pkg/clob"
     sdkstream "github.com/TrebuchetDynamics/polygolem/pkg/stream"
     "github.com/TrebuchetDynamics/polygolem/pkg/types"
     "github.com/TrebuchetDynamics/polygolem/pkg/universal"
@@ -115,8 +116,7 @@ key, _ := client.CreateOrDeriveAPIKey(ctx, privateKey)
 _ = key
 
 balance, _ := client.BalanceAllowance(ctx, privateKey, clob.BalanceAllowanceParams{
-    AssetType:     "COLLATERAL",
-    SignatureType: 3,
+    AssetType: "COLLATERAL",
 })
 _ = balance
 

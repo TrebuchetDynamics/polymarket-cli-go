@@ -454,8 +454,9 @@ Acceptance criteria:
 
 > **Status:** Fulfilled. `internal/execution` separates paper from live
 > executors and enforces gates; `internal/clob` covers place/cancel/query
-> with batch validation. Live commands (`polygolem live ...` and the
-> `polygolem clob create-order|orders|trades`) ship behind preflight gates.
+> with public account/order/trading DTOs re-exposed through `pkg/clob` and
+> `pkg/universal`. Live commands (`polygolem live ...` and the `polygolem clob
+> create-order|orders|trades`) ship behind preflight gates.
 
 The SDK must expose execution as a separate service from order building.
 
@@ -489,8 +490,10 @@ Acceptance criteria:
 
 > **Status:** Fulfilled. `internal/clob` exposes `balance`/`update-balance`
 > with `signature_type=3` deposit-wallet support and human/raw decimal
-> normalization; `internal/dataapi` covers positions, trades, activity,
-> top holders, leaderboards, and live volume. Surfaced via
+> normalization; `pkg/clob` and `pkg/universal` return public DTOs for
+> balance/allowance, open orders, order lookup, and trade history;
+> `internal/dataapi` covers positions, trades, activity, top holders,
+> leaderboards, and live volume. Surfaced via
 > `polygolem clob balance|orders|order|trades` and `polygolem data *`.
 
 The SDK must expose read-oriented account state before any live trading path is
@@ -676,8 +679,8 @@ Acceptance criteria:
 
 > **Status:** Partial. Polygolem-side primitives exist (`pkg/clob`,
 > `pkg/orderbook`, `pkg/stream`,
-> `pkg/marketresolver`, `pkg/bridge`, `internal/clob`, `internal/dataapi`,
-> `internal/execution`) and CLI JSON output is
+> `pkg/marketresolver`, `pkg/bridge`, `internal/dataapi`, `internal/execution`)
+> and CLI JSON output is
 > regenerated in `docs/COMMANDS.md`. Go-bot-side adoption (full removal of
 > direct `internal/polymarket` clients, repository guard) is tracked
 > outside this repo and is not verifiable here.
@@ -749,9 +752,9 @@ Recommended Polygolem internal modules:
 - `internal/transport`: HTTP/WebSocket transport, rate limits, retries, errors,
   and redaction.
 - `internal/gamma`: Gamma REST client and Gamma-specific response normalization.
-- `pkg/clob` + `internal/clob`: public read-only CLOB market-data SDK backed
-  by the internal CLOB protocol client; authenticated account/trading remains
-  gated.
+- `pkg/clob` + `internal/clob`: public CLOB market-data and authenticated
+  account/order SDK backed by the internal CLOB protocol client; live usage
+  remains gated.
 - `internal/dataapi`: positions, activity, holders, volume, and leaderboard
   data.
 - `internal/stream`: CLOB WebSocket and optional RTDS streaming lifecycle.

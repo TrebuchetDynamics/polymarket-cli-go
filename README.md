@@ -114,7 +114,7 @@ polygolem paper reset
 | `pkg/gamma` | Read-only Gamma API — 26 methods returning public `pkg/types` DTOs |
 | `pkg/data` | Read-only Data API analytics client using public DTOs |
 | `pkg/types` | Shared public DTOs for SDK packages |
-| `pkg/clob` | Read-only CLOB market-data client returning public `pkg/types` DTOs |
+| `pkg/clob` | CLOB market-data plus authenticated account/order DTOs |
 | `pkg/stream` | Read-only public CLOB WebSocket market stream client |
 | `pkg/orderbook` | Read-only CLOB order book reader |
 | `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook` |

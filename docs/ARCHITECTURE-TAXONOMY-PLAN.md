@@ -99,9 +99,9 @@ Verification:
 ### Phase 3 - Promote public DTOs
 
 Create `pkg/types` or another clearly named public DTO package, then re-export
-or migrate stable structs out of `internal/polytypes`, `internal/dataapi`,
-`internal/clob`, and remaining internal stream/user-stream surfaces where
-public packages expose them.
+or migrate stable structs out of `internal/polytypes`, `internal/dataapi`, and
+remaining internal stream/user-stream surfaces where public packages expose
+them.
 
 Progress:
 
@@ -121,6 +121,10 @@ Progress:
   spreads, tick size, negative-risk metadata, last trade prices, and price
   history through `pkg/types`; the matching read-only methods on
   `pkg/universal` now return those public DTOs.
+- 2026-05-08: Authenticated CLOB account/order/trading DTOs were promoted into
+  `pkg/clob`. `pkg/universal` now returns public `pkg/clob` types for L2 API
+  keys, balance/allowance, open orders, trades, cancellations, and single-order
+  placement responses.
 
 Verification:
 
