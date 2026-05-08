@@ -79,7 +79,7 @@ type OrderBookLevel struct {
 type signedOrderPayload struct {
     Salt          uint64 `json:"salt"`
     Maker         string `json:"maker"`          // deposit wallet address
-    Signer        string `json:"signer"`          // owner EOA for POLY_1271
+    Signer        string `json:"signer"`          // deposit wallet address
     TokenID       string `json:"tokenId"`
     MakerAmount   string `json:"makerAmount"`
     TakerAmount   string `json:"takerAmount"`

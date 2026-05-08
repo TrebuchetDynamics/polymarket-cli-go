@@ -106,12 +106,13 @@ consistency, API health.</li>
 (POLY_1271 / signature type 3). EOA, proxy, and Gnosis Safe are legacy upstream
 paths and are not the default live path for new CLOB V2 API users.</p>
 <h3 id="signer-vs-funder-separation">Signer vs Funder Separation</h3>
-<p>The EOA remains the signing key. The deposit wallet is the funder (holds pUSD,
-is the CLOB <code dir="auto">maker</code>). These must never be confused:</p>
+<p>The EOA remains the cryptographic signing key for the ERC-7739 wrapper. The
+deposit wallet is the CLOB account: it holds pUSD and appears as both order
+<code dir="auto">maker</code> and order <code dir="auto">signer</code> in the V2 payload. These must never be confused:</p>
 <ul>
 <li><strong>EOA pUSD does NOT fund deposit-wallet orders.</strong> CLOB reads the deposit wallet’s balance.</li>
 <li><strong>Approvals must come from the deposit wallet</strong> via relayer WALLET batch, not from the EOA.</li>
-<li><strong>Diagnostics must distinguish</strong> <code dir="auto">signer_eoa</code> from <code dir="auto">funder/deposit_wallet</code> in logs.</li>
+<li><strong>Diagnostics must distinguish</strong> <code dir="auto">owner_eoa</code> from <code dir="auto">funder/deposit_wallet</code> in logs.</li>
 </ul>
 <h3 id="builder-credential-isolation">Builder Credential Isolation</h3>
 <p>V2 relayer keys and legacy builder HMAC credentials authenticate with the relayer for WALLET-CREATE and WALLET batch. They are a separate auth system and must never be:</p>

@@ -67,13 +67,13 @@ introduces safety rules beyond the direct EOA model.
 
 ### Signer vs Funder Separation
 
-The EOA remains the signing key. The deposit wallet is the funder (the address
-that holds pUSD and is the CLOB `maker`; the order `signer` is the owner EOA in
-the current V2 payload). These must never be confused:
+The EOA remains the cryptographic signing key for the ERC-7739 wrapper. The
+deposit wallet is the CLOB account: it holds pUSD and appears as both order
+`maker` and order `signer` in the V2 payload. These must never be confused:
 
 - **EOA pUSD does NOT fund deposit-wallet orders.** CLOB reads the deposit wallet's balance.
 - **Approvals must come from the deposit wallet** via relayer WALLET batch, not from the EOA.
-- **Diagnostics must distinguish** `signer_eoa` from `funder/deposit_wallet` in logs and audit records.
+- **Diagnostics must distinguish** `owner_eoa` from `funder/deposit_wallet` in logs and audit records.
 
 ### Builder Credential Isolation
 

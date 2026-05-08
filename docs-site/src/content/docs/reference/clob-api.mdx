@@ -164,7 +164,7 @@ The POST body shape is:
   "order": {
     "salt": 12345,
     "maker": "0xDepositWallet",
-    "signer": "0xOwnerEOA",
+    "signer": "0xDepositWallet",
     "tokenId": "123...",
     "makerAmount": "5000000",
     "takerAmount": "10000000",
@@ -183,10 +183,10 @@ The POST body shape is:
 }
 ```
 
-For `signatureType = 3` (`POLY_1271`), `maker` is the deposit wallet and
-`signer` is the owner EOA, matching the current upstream client shape. The owner
-EOA signs an ERC-7739 `TypedDataSign` wrapper that the deposit wallet validates
-through ERC-1271. Polygolem's wrapped signature is `0x` plus 634 hex chars:
+For `signatureType = 3` (`POLY_1271`), `maker` and `signer` are both the
+deposit wallet address in the V2 order payload. The owner EOA signs an ERC-7739
+`TypedDataSign` wrapper that the deposit wallet validates through ERC-1271.
+Polygolem's wrapped signature is `0x` plus 634 hex chars:
 
 ```text
 innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186)

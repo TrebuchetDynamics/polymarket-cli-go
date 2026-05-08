@@ -262,7 +262,7 @@ Expected output shows non-zero balance and non-zero allowances.
 Orders must use:
 - `signatureType = 3` (POLY_1271)
 - `maker = depositWalletAddress`
-- `signer = owner EOA`
+- `signer = depositWalletAddress`
 - ERC-7739 wrapped signature
 
 Polygolem handles this automatically — sigtype 3 is the only type the SDK signs with.
