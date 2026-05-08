@@ -60,6 +60,10 @@ func New(code Code, msg string) *Error {
 	return &Error{Code: code, Message: msg}
 }
 
+func Newf(code Code, format string, args ...any) *Error {
+	return New(code, fmt.Sprintf(format, args...))
+}
+
 func Wrap(code Code, msg string, err error) *Error {
 	return &Error{Code: code, Message: msg, Err: err}
 }
