@@ -312,3 +312,36 @@ func TestBalanceAllowanceUsesEOABoundL2Auth(t *testing.T) {
 		t.Fatalf("balance POLY_ADDRESS=%s want EOA %s", balanceAddress, builderFeeKeyTestEOA)
 	}
 }
+
+func TestUpdateBalanceAllowanceTreatsEmptyBodyAsSuccess(t *testing.T) {
+	// Live behavior (verified 2026-05-08): /balance-allowance/update returns
+	// HTTP 200 with an empty body — the endpoint just queues the refresh.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"apiKey":"deposit-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"pass"}`))
+		case "/balance-allowance/update":
+			if got := r.URL.Query().Get("signature_type"); got != "3" {
+				t.Fatalf("signature_type=%q want 3", got)
+			}
+			w.WriteHeader(http.StatusOK) // empty body
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	resp, err := client.UpdateBalanceAllowance(context.Background(), builderFeeKeyTestPrivateKey, BalanceAllowanceParams{
+		AssetType: "COLLATERAL",
+	})
+	if err != nil {
+		t.Fatalf("UpdateBalanceAllowance returned error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("UpdateBalanceAllowance returned nil response")
+	}
+}

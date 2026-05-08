@@ -262,9 +262,18 @@ func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, 
 	if err != nil {
 		return nil, err
 	}
-	var result BalanceAllowanceResponse
-	if err := c.transport.GetWithHeaders(ctx, path, headers, &result); err != nil {
+	// The endpoint is fire-and-forget: HTTP 200 with an empty body signals
+	// that the refresh has been queued. Read raw bytes so an empty body is
+	// not treated as a JSON decode error.
+	raw, err := c.transport.GetRawWithHeaders(ctx, path, headers)
+	if err != nil {
 		return nil, err
+	}
+	var result BalanceAllowanceResponse
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &result); err != nil {
+			return nil, fmt.Errorf("decode update-balance: %w", err)
+		}
 	}
 	return &result, nil
 }
