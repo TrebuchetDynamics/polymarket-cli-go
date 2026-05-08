@@ -1,14 +1,16 @@
-// Package universal is a single-stop client for all Polymarket market data.
+// Package universal is a single-stop client for all Polymarket data and
+// authenticated trading operations.
 //
 // Use universal when you need to query markets, order books, prices, events,
 // volume, leaderboards, and streaming data without managing multiple API
-// clients. The client delegates to the internal gamma, clob, dataapi, and
-// stream packages while presenting one typed surface.
+// clients. The client also exposes the authenticated CLOB surface — API-key
+// minting, balance/allowance, order placement and cancellation — so a Go
+// SDK consumer can run the headless onboarding and trading flow described
+// in docs/BUILDER-AUTO.md without dropping into internal packages.
 //
 // When not to use this package:
-//   - For authenticated trading operations (order placement, cancellation) —
-//     those require signing and are not part of the read-only universal SDK.
-//   - For deposit wallet lifecycle — use internal/wallet or the CLI directly.
+//   - For deposit wallet lifecycle (deploy / proxy / approvals) — that
+//     surface is gated to builder credentials and lives in internal/relayer.
 //
 // Stability: Client, NewClient, DefaultConfig, and every method on Client
 // are part of the polygolem public SDK and follow semver.
@@ -18,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/TrebuchetDynamics/polygolem/internal/auth"
 	"github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/dataapi"
 	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
@@ -240,6 +243,49 @@ func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*
 // CancelAll cancels all open CLOB orders for the authenticated user.
 func (c *Client) CancelAll(ctx context.Context, privateKey string) (*clob.CancelOrdersResponse, error) {
 	return c.clob.CancelAll(ctx, privateKey)
+}
+
+// --- CLOB: Headless Onboarding & Trading (L1/L2 auth) ---
+
+// CreateOrDeriveAPIKey signs the canonical ClobAuth EIP-712 payload with
+// privateKey, posts it to /auth/api-key, and falls back to the deterministic
+// /auth/derive-api-key on conflict. First call for a new EOA lazy-creates
+// the account, builder profile, and bytes32 builder code — see
+// docs/BUILDER-AUTO.md for the empirical flow.
+func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (auth.APIKey, error) {
+	return c.clob.CreateOrDeriveAPIKey(ctx, privateKey)
+}
+
+// DeriveAPIKey returns the deterministic L2 credentials for an existing
+// account via GET /auth/derive-api-key. Use CreateOrDeriveAPIKey when the
+// caller is unsure whether an account has been provisioned yet.
+func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (auth.APIKey, error) {
+	return c.clob.DeriveAPIKey(ctx, privateKey)
+}
+
+// BalanceAllowance returns the authenticated CLOB collateral or conditional
+// token balance plus allowances against the V2 exchange spenders.
+func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error) {
+	return c.clob.BalanceAllowance(ctx, privateKey, params)
+}
+
+// UpdateBalanceAllowance forces the CLOB to refresh its on-chain
+// balance/allowance cache for the authenticated user.
+func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error) {
+	return c.clob.UpdateBalanceAllowance(ctx, privateKey, params)
+}
+
+// CreateLimitOrder signs and submits a V2 limit order. The privateKey signs
+// both the ClobAuth (for the API-key derivation) and the EIP-712 order
+// itself. Returns the placement response with order id and matched amounts.
+func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params clob.CreateOrderParams) (*clob.OrderPlacementResponse, error) {
+	return c.clob.CreateLimitOrder(ctx, privateKey, params)
+}
+
+// CreateMarketOrder signs and submits a V2 market order. Use Amount instead
+// of Size on the params to express a fill-this-much budget.
+func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params clob.MarketOrderParams) (*clob.OrderPlacementResponse, error) {
+	return c.clob.CreateMarketOrder(ctx, privateKey, params)
 }
 
 // --- CLOB: Extended Market Lists ---

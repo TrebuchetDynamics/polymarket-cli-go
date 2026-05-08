@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 )
 
@@ -160,5 +161,215 @@ func TestStreamClient(t *testing.T) {
 	sc := c.StreamClient()
 	if sc == nil {
 		t.Fatal("StreamClient returned nil")
+	}
+}
+
+// Deterministic test EOA — same key the internal/clob tests use.
+const testPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+
+func TestCreateOrDeriveAPIKey(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/api-key" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		json.NewEncoder(w).Encode(map[string]string{
+			"apiKey":     "k1-uuid-shape-1234",
+			"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"passphrase": "pp1",
+		})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	key, err := c.CreateOrDeriveAPIKey(context.Background(), testPrivateKey)
+	if err != nil {
+		t.Fatalf("CreateOrDeriveAPIKey error: %v", err)
+	}
+	if key.Key != "k1-uuid-shape-1234" {
+		t.Errorf("expected api key, got %q", key.Key)
+	}
+	if key.Passphrase != "pp1" {
+		t.Errorf("expected passphrase pp1, got %q", key.Passphrase)
+	}
+}
+
+func TestDeriveAPIKey(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/derive-api-key" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		json.NewEncoder(w).Encode(map[string]string{
+			"apiKey":     "k2-derived",
+			"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"passphrase": "pp2",
+		})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	key, err := c.DeriveAPIKey(context.Background(), testPrivateKey)
+	if err != nil {
+		t.Fatalf("DeriveAPIKey error: %v", err)
+	}
+	if key.Key != "k2-derived" {
+		t.Errorf("expected derived key, got %q", key.Key)
+	}
+}
+
+func TestBalanceAllowance(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "k3",
+				"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"passphrase": "pp3",
+			})
+		case "/balance-allowance":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"balance":   "1000000",
+				"allowance": "999",
+			})
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	resp, err := c.BalanceAllowance(context.Background(), testPrivateKey, clob.BalanceAllowanceParams{
+		AssetType:     "COLLATERAL",
+		SignatureType: 0,
+	})
+	if err != nil {
+		t.Fatalf("BalanceAllowance error: %v", err)
+	}
+	if resp.Balance != "1000000" {
+		t.Errorf("expected balance 1000000, got %q", resp.Balance)
+	}
+}
+
+func TestUpdateBalanceAllowance(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "k4",
+				"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"passphrase": "pp4",
+			})
+		case "/balance-allowance/update":
+			json.NewEncoder(w).Encode(map[string]string{"balance": "2000000"})
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	resp, err := c.UpdateBalanceAllowance(context.Background(), testPrivateKey, clob.BalanceAllowanceParams{
+		AssetType: "COLLATERAL",
+	})
+	if err != nil {
+		t.Fatalf("UpdateBalanceAllowance error: %v", err)
+	}
+	if resp.Balance != "2000000" {
+		t.Errorf("expected updated balance 2000000, got %q", resp.Balance)
+	}
+}
+
+// Limit/market order placement: the internal clob client looks up tick
+// size, signs, and POSTs /order. We mock the necessary dependencies and
+// only assert that the wrapper routes through.
+func TestCreateLimitOrderRoutes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "k5",
+				"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"passphrase": "pp5",
+			})
+		case "/tick-size":
+			json.NewEncoder(w).Encode(map[string]string{"minimum_tick_size": "0.01"})
+		case "/neg-risk":
+			json.NewEncoder(w).Encode(map[string]bool{"neg_risk": false})
+		case "/order":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": true, "orderID": "ord-1", "status": "matched",
+			})
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	resp, err := c.CreateLimitOrder(context.Background(), testPrivateKey, clob.CreateOrderParams{
+		TokenID:       "1234567890",
+		Side:          "BUY",
+		Price:         "0.50",
+		Size:          "10",
+		OrderType:     "GTC",
+		SignatureType: 0,
+	})
+	if err != nil {
+		t.Fatalf("CreateLimitOrder error: %v", err)
+	}
+	if resp.OrderID != "ord-1" {
+		t.Errorf("expected ord-1, got %q", resp.OrderID)
+	}
+}
+
+func TestCreateMarketOrderRoutes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "k6",
+				"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"passphrase": "pp6",
+			})
+		case "/tick-size":
+			json.NewEncoder(w).Encode(map[string]string{"minimum_tick_size": "0.01"})
+		case "/neg-risk":
+			json.NewEncoder(w).Encode(map[string]bool{"neg_risk": false})
+		case "/midpoint":
+			json.NewEncoder(w).Encode(map[string]string{"mid": "0.50"})
+		case "/book":
+			json.NewEncoder(w).Encode(polytypes.OrderBook{
+				AssetID: "1234567890",
+				Bids:    []polytypes.OrderBookLevel{{Price: "0.49", Size: "100"}},
+				Asks:    []polytypes.OrderBookLevel{{Price: "0.50", Size: "100"}},
+			})
+		case "/order":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": true, "orderID": "ord-mkt-1", "status": "matched",
+			})
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	resp, err := c.CreateMarketOrder(context.Background(), testPrivateKey, clob.MarketOrderParams{
+		TokenID:       "1234567890",
+		Side:          "BUY",
+		Amount:        "5",
+		OrderType:     "FOK",
+		SignatureType: 0,
+	})
+	if err != nil {
+		t.Fatalf("CreateMarketOrder error: %v", err)
+	}
+	if resp.OrderID != "ord-mkt-1" {
+		t.Errorf("expected ord-mkt-1, got %q", resp.OrderID)
 	}
 }
