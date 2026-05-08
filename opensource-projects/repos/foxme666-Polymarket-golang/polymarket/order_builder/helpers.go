@@ -54,4 +54,3 @@ func DecimalPlaces(x float64) int {
 	}
 	return 0
 }
-

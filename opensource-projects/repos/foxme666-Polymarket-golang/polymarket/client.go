@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/common"
 	obuilder "github.com/foxme666/Polymarket-golang/polymarket/order_builder"
 	"github.com/foxme666/Polymarket-golang/polymarket/rfq"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // ClobClient CLOB客户端
@@ -17,23 +17,23 @@ import (
 // 2. Level 1: 需要host, chain_id和私钥，可以访问L1认证端点
 // 3. Level 2: 需要host, chain_id, 私钥和API凭证，可以访问所有端点
 type ClobClient struct {
-	host         string
-	chainID      int
-	signer       *Signer
-	creds        *ApiCreds
-	mode         int
-	builder      *obuilder.OrderBuilder
-	httpClient   *HTTPClient
-	
+	host       string
+	chainID    int
+	signer     *Signer
+	creds      *ApiCreds
+	mode       int
+	builder    *obuilder.OrderBuilder
+	httpClient *HTTPClient
+
 	// 本地缓存
-	tickSizes    map[string]TickSize
-	negRisk      map[string]bool
-	feeRates     map[string]int
-	
+	tickSizes map[string]TickSize
+	negRisk   map[string]bool
+	feeRates  map[string]int
+
 	// RFQ客户端
-	rfq          *rfq.RfqClient
-	
-	mu           sync.RWMutex
+	rfq *rfq.RfqClient
+
+	mu sync.RWMutex
 }
 
 // NewClobClient 创建新的CLOB客户端
@@ -50,13 +50,13 @@ func NewClobClient(host string, chainID int, privateKey string, creds *ApiCreds,
 	}
 
 	client := &ClobClient{
-		host:      host,
-		chainID:   chainID,
-		creds:     creds,
+		host:       host,
+		chainID:    chainID,
+		creds:      creds,
 		httpClient: NewHTTPClient(host),
-		tickSizes: make(map[string]TickSize),
-		negRisk:   make(map[string]bool),
-		feeRates:  make(map[string]int),
+		tickSizes:  make(map[string]TickSize),
+		negRisk:    make(map[string]bool),
+		feeRates:   make(map[string]int),
 	}
 
 	// 创建签名器（如果提供了私钥）
@@ -72,7 +72,7 @@ func NewClobClient(host string, chainID int, privateKey string, creds *ApiCreds,
 		if signatureType != nil {
 			sigType = *signatureType
 		}
-		
+
 		funderAddr := signer.Address()
 		if funder != "" {
 			funderAddr = funder
@@ -197,11 +197,11 @@ func (c *ClobClient) CreateLevel2HeadersInternal(method, path string, body inter
 		}
 		bodyStr = string(bodyJSON)
 	}
-	
+
 	requestArgs := &RequestArgs{
-		Method:        method,
-		RequestPath:   path,
-		Body:          body,
+		Method:         method,
+		RequestPath:    path,
+		Body:           body,
 		SerializedBody: &bodyStr,
 	}
 
@@ -261,4 +261,3 @@ func (c *ClobClient) CreateOrderForRFQ(args *rfq.OrderCreationArgs) (*rfq.Signed
 		Signature:     "0x" + common.Bytes2Hex(signedOrder.Signature),
 	}, nil
 }
-

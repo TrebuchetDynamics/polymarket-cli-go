@@ -50,6 +50,9 @@ func TestRepositoryHygiene(t *testing.T) {
 	}
 
 	// pkg/ is the approved public SDK boundary.
+	if _, err := os.Stat(filepath.Join(root, "pkg/clob")); err != nil {
+		t.Fatalf("pkg/clob public boundary is missing: %v", err)
+	}
 	if _, err := os.Stat(filepath.Join(root, "pkg/orderbook")); err != nil {
 		t.Fatalf("pkg/orderbook public boundary is missing: %v", err)
 	}

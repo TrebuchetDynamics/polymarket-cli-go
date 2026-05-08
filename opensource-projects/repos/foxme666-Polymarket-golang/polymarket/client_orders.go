@@ -33,9 +33,9 @@ func (c *ClobClient) PostOrderWithOptions(order *SignedOrder, orderType OrderTyp
 	bodyStr := string(bodyJSON)
 
 	requestArgs := &RequestArgs{
-		Method:        "POST",
-		RequestPath:   PostOrder,
-		Body:          body,
+		Method:         "POST",
+		RequestPath:    PostOrder,
+		Body:           body,
 		SerializedBody: &bodyStr,
 	}
 
@@ -82,9 +82,9 @@ func (c *ClobClient) PostOrders(args []PostOrdersArgs) (*PostOrdersResult, error
 	bodyStr := string(bodyJSON)
 
 	requestArgs := &RequestArgs{
-		Method:        "POST",
-		RequestPath:   PostOrders,
-		Body:          body,
+		Method:         "POST",
+		RequestPath:    PostOrders,
+		Body:           body,
 		SerializedBody: &bodyStr,
 	}
 
@@ -119,9 +119,9 @@ func (c *ClobClient) Cancel(orderID string) (interface{}, error) {
 	bodyStr := string(bodyJSON)
 
 	requestArgs := &RequestArgs{
-		Method:        "DELETE",
-		RequestPath:   Cancel,
-		Body:          body,
+		Method:         "DELETE",
+		RequestPath:    Cancel,
+		Body:           body,
 		SerializedBody: &bodyStr,
 	}
 
@@ -147,9 +147,9 @@ func (c *ClobClient) CancelOrders(orderIDs []string) (interface{}, error) {
 	bodyStr := string(bodyJSON)
 
 	requestArgs := &RequestArgs{
-		Method:        "DELETE",
-		RequestPath:   CancelOrders,
-		Body:          orderIDs,
+		Method:         "DELETE",
+		RequestPath:    CancelOrders,
+		Body:           orderIDs,
 		SerializedBody: &bodyStr,
 	}
 
@@ -199,9 +199,9 @@ func (c *ClobClient) CancelMarketOrders(market, assetID string) (interface{}, er
 	bodyStr := string(bodyJSON)
 
 	requestArgs := &RequestArgs{
-		Method:        "DELETE",
-		RequestPath:   CancelMarketOrders,
-		Body:          body,
+		Method:         "DELETE",
+		RequestPath:    CancelMarketOrders,
+		Body:           body,
 		SerializedBody: &bodyStr,
 	}
 
@@ -419,4 +419,3 @@ func (c *ClobClient) DropNotifications(params *DropNotificationParams) (interfac
 
 	return c.httpClient.Delete(url[len(c.host):], headers, nil)
 }
-

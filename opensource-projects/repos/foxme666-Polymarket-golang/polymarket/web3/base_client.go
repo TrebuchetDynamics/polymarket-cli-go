@@ -143,9 +143,9 @@ func NewBaseWeb3Client(
 	}
 
 	c := &BaseWeb3Client{
-		client:     client,
-		rpcClient:  rpcClient,
-		privateKey: privKey,
+		client:        client,
+		rpcClient:     rpcClient,
+		privateKey:    privKey,
 		account:       account,
 		signatureType: signatureType,
 		chainID:       chainID,
@@ -602,4 +602,3 @@ func stripHexPrefix(s string) string {
 	}
 	return s
 }
-

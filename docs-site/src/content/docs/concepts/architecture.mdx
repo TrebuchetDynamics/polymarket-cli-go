@@ -11,7 +11,7 @@ Cobra-based CLI on top.
 | Layer | Packages | Role |
 |-------|----------|------|
 | **`cmd/polygolem`** | 1 | Binary entry point. Wires Cobra and exits. |
-| **`pkg/`** | 10 | Public Go SDK contracts. Gamma and Data API DTOs use public `pkg/types`; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; CLOB/enrichment/stream type paths still need cleanup. |
+| **`pkg/`** | 11 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; enrichment/stream type paths still need cleanup. |
 | **`internal/`** | 21 | Implementation. Not part of public API. |
 
 The CLI and public SDK both depend on the internal protocol implementation.
@@ -25,6 +25,7 @@ The `internal/` packages do not depend on `cmd/`.
 | `pkg/gamma` | Full Gamma API surface — 26 methods (markets, events, tags, comments, profiles) |
 | `pkg/data` | Read-only Data API analytics client returning `pkg/types` DTOs |
 | `pkg/types` | Public DTOs shared by SDK packages |
+| `pkg/clob` | Read-only CLOB market-data client returning `pkg/types` DTOs |
 | `pkg/orderbook` | Read-only CLOB order-book reader |
 | `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook` |
 | `pkg/marketresolver` | Market + token ID resolution |
@@ -86,7 +87,7 @@ internal/{auth, transport, polytypes}                   ← cross-cutting
 internal/{wallet, orders, execution, risk, paper, marketdiscovery}
         ^
         |
-pkg/{universal, gamma, data, types, orderbook, bookreader, marketresolver, bridge, relayer, pagination}
+pkg/{universal, gamma, data, types, clob, orderbook, bookreader, marketresolver, bridge, relayer, pagination}
 ```
 
 ## Mode System

@@ -30,9 +30,9 @@ func SignClobAuthMessage(signer *Signer, timestamp int, nonce int) (string, erro
 	eip712DomainTypeHash := crypto.Keccak256Hash([]byte("EIP712Domain(string name,string version,uint256 chainId)"))
 
 	// 编码域数据
-	domainData := make([]byte, 96) // 3个字段，每个32字节
-	copy(domainData[0:32], domainNameHash[:])      // name hash
-	copy(domainData[32:64], domainVersionHash[:])  // version hash
+	domainData := make([]byte, 96)                                    // 3个字段，每个32字节
+	copy(domainData[0:32], domainNameHash[:])                         // name hash
+	copy(domainData[32:64], domainVersionHash[:])                     // version hash
 	copy(domainData[64:96], common.LeftPadBytes(chainID.Bytes(), 32)) // chainId
 
 	// 构建域分隔符哈希
@@ -58,16 +58,16 @@ func SignClobAuthMessage(signer *Signer, timestamp int, nonce int) (string, erro
 	// nonce: 32字节（uint256）
 	// message: 32字节（字符串的keccak256哈希）
 	encoded := make([]byte, 128) // 4个字段，每个32字节
-	
+
 	// address (左对齐到32字节)
 	copy(encoded[0:32], common.LeftPadBytes(address.Bytes(), 32))
-	
+
 	// timestamp hash (32字节)
 	copy(encoded[32:64], timestampHash[:])
-	
+
 	// nonce (32字节，左对齐)
 	copy(encoded[64:96], common.LeftPadBytes(nonceBig.Bytes(), 32))
-	
+
 	// message hash (32字节)
 	copy(encoded[96:128], messageStrHash[:])
 
@@ -162,7 +162,7 @@ func CreateLevel1Headers(signer *Signer, nonce *int) (map[string]string, error) 
 
 	// 确保地址使用checksummed格式（与Python的eth_account一致）
 	address := common.HexToAddress(signer.Address())
-	
+
 	headers := map[string]string{
 		PolyAddress:   address.Hex(), // 使用checksummed格式
 		PolySignature: signature,

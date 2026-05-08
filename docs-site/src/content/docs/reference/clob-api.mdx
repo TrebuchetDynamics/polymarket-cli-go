@@ -8,9 +8,9 @@ import { Aside } from "@astrojs/starlight/components";
 Production CLOB V2 runs at `https://clob.polymarket.com`. The pre-cutover
 `https://clob-v2.polymarket.com` host is not the production target.
 
-Polygolem wraps CLOB in `internal/clob`. The public Go SDK exposes the supported
-surface through `pkg/universal` and read-only order books through
-`pkg/orderbook`.
+Polygolem wraps CLOB in `internal/clob`. The public Go SDK exposes read-only
+market data through `pkg/clob`, read-only best-first order books through
+`pkg/orderbook`, and facade methods through `pkg/universal`.
 
 ## Auth Boundaries
 

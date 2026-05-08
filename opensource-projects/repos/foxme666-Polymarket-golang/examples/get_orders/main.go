@@ -184,7 +184,7 @@ func printOrder(index int, order interface{}) {
 	}
 
 	fmt.Printf("--- 订单 %d ---\n", index)
-	
+
 	// 打印关键字段
 	if id, ok := orderMap["id"].(string); ok {
 		fmt.Printf("  ID: %s\n", id)
@@ -221,7 +221,7 @@ func printOrder(index int, order interface{}) {
 	if createdAt, ok := orderMap["created_at"].(string); ok {
 		fmt.Printf("  创建时间: %s\n", createdAt)
 	}
-	
+
 	fmt.Println()
 }
 

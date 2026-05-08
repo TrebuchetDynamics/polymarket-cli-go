@@ -127,4 +127,3 @@ func AddOrdersScoringParamsToURL(baseURL string, params *OrdersScoringParams) st
 	}
 	return url
 }
-

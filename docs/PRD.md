@@ -312,9 +312,11 @@ Acceptance criteria:
 ### R2. Public CLOB Market Data ✅
 
 > **Status:** Fulfilled. Implemented in `internal/clob` and re-exposed via
-> `pkg/orderbook`; surfaced through `polygolem clob book|market|tick-size|
-> price-history` and the `polygolem orderbook` group. Bid/ask normalization
-> (high-to-low / low-to-high) ships behind `orderbook.Reader`.
+> `pkg/clob`, `pkg/orderbook`, and `pkg/universal`; surfaced through
+> `polygolem clob book|market|tick-size|price-history` and the
+> `polygolem orderbook` group. Public read DTOs live in `pkg/types`.
+> Bid/ask normalization (high-to-low / low-to-high) ships behind
+> `orderbook.Reader`.
 
 The SDK must provide typed public CLOB data clients.
 
@@ -641,7 +643,7 @@ Acceptance criteria:
 ### R12. Public SDK Boundary ⚠️
 
 > **Status:** Partial / drifted. The "keep everything in `internal/`"
-> stance shifted: `pkg/{bookreader,bridge,data,gamma,marketresolver,orderbook,pagination,relayer,types,universal}`
+> stance shifted: `pkg/{bookreader,bridge,clob,data,gamma,marketresolver,orderbook,pagination,relayer,types,universal}`
 > are now exposed as a small stable surface. `pkg/bookreader` is deprecated in
 > favor of `pkg/orderbook`. The remaining requirements
 > (thin Cobra handlers, application services above protocol clients) hold;
@@ -670,7 +672,8 @@ Acceptance criteria:
 
 ### R13. Go-Bot Consumer Boundary ⚠️
 
-> **Status:** Partial. Polygolem-side primitives exist (`pkg/orderbook`,
+> **Status:** Partial. Polygolem-side primitives exist (`pkg/clob`,
+> `pkg/orderbook`,
 > `pkg/marketresolver`, `pkg/bridge`, `internal/clob`, `internal/dataapi`,
 > `internal/stream`, `internal/execution`) and CLI JSON output is
 > regenerated in `docs/COMMANDS.md`. Go-bot-side adoption (full removal of
@@ -744,8 +747,9 @@ Recommended Polygolem internal modules:
 - `internal/transport`: HTTP/WebSocket transport, rate limits, retries, errors,
   and redaction.
 - `internal/gamma`: Gamma REST client and Gamma-specific response normalization.
-- `internal/clob`: public CLOB data client and future private CLOB endpoint
-  client.
+- `pkg/clob` + `internal/clob`: public read-only CLOB market-data SDK backed
+  by the internal CLOB protocol client; authenticated account/trading remains
+  gated.
 - `internal/dataapi`: positions, activity, holders, volume, and leaderboard
   data.
 - `internal/stream`: CLOB WebSocket and optional RTDS streaming lifecycle.

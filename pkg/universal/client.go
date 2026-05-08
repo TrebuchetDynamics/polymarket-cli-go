@@ -24,12 +24,13 @@ import (
 	"fmt"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
-	"github.com/TrebuchetDynamics/polygolem/internal/clob"
+	internalclob "github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
 	"github.com/TrebuchetDynamics/polygolem/internal/marketdiscovery"
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 	"github.com/TrebuchetDynamics/polygolem/internal/stream"
 	"github.com/TrebuchetDynamics/polygolem/internal/transport"
+	sdkclob "github.com/TrebuchetDynamics/polygolem/pkg/clob"
 	sdkdata "github.com/TrebuchetDynamics/polygolem/pkg/data"
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 )
@@ -45,7 +46,8 @@ const (
 // Methods are safe for concurrent use; each call is independent.
 type Client struct {
 	gamma     *gamma.Client
-	clob      *clob.Client
+	clob      *internalclob.Client
+	clobRead  *sdkclob.Client
 	data      *sdkdata.Client
 	discovery *marketdiscovery.Service
 }
@@ -81,12 +83,14 @@ func NewClient(cfg Config) *Client {
 	}
 
 	gc := gamma.NewClient(cfg.GammaBaseURL, nil)
-	cc := clob.NewClient(cfg.CLOBBaseURL, nil)
+	cc := internalclob.NewClient(cfg.CLOBBaseURL, nil)
+	cr := sdkclob.NewClient(sdkclob.Config{BaseURL: cfg.CLOBBaseURL})
 	dc := sdkdata.NewClient(sdkdata.Config{BaseURL: cfg.DataBaseURL})
 
 	return &Client{
 		gamma:     gc,
 		clob:      cc,
+		clobRead:  cr,
 		data:      dc,
 		discovery: marketdiscovery.New(gc, cc),
 	}
@@ -230,37 +234,37 @@ func (c *Client) MarketsKeyset(ctx context.Context, params *types.KeysetParams) 
 // --- CLOB: Authenticated Orders & Cancellation ---
 
 // ListOrders returns the authenticated user's open orders.
-func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]clob.OrderRecord, error) {
+func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]internalclob.OrderRecord, error) {
 	return c.clob.ListOrders(ctx, privateKey)
 }
 
 // Order returns one authenticated order by order ID.
-func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*clob.OrderRecord, error) {
+func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*internalclob.OrderRecord, error) {
 	return c.clob.Order(ctx, privateKey, orderID)
 }
 
 // ListTrades returns the authenticated user's trade history.
-func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]clob.TradeRecord, error) {
+func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]internalclob.TradeRecord, error) {
 	return c.clob.ListTrades(ctx, privateKey)
 }
 
 // CancelOrder cancels a single open CLOB order.
-func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*clob.CancelOrdersResponse, error) {
+func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*internalclob.CancelOrdersResponse, error) {
 	return c.clob.CancelOrder(ctx, privateKey, orderID)
 }
 
 // CancelOrders cancels multiple open CLOB orders by order ID.
-func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs []string) (*clob.CancelOrdersResponse, error) {
+func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs []string) (*internalclob.CancelOrdersResponse, error) {
 	return c.clob.CancelOrders(ctx, privateKey, orderIDs)
 }
 
 // CancelAll cancels all open CLOB orders for the authenticated user.
-func (c *Client) CancelAll(ctx context.Context, privateKey string) (*clob.CancelOrdersResponse, error) {
+func (c *Client) CancelAll(ctx context.Context, privateKey string) (*internalclob.CancelOrdersResponse, error) {
 	return c.clob.CancelAll(ctx, privateKey)
 }
 
 // CancelMarket cancels open CLOB orders matching a market or asset filter.
-func (c *Client) CancelMarket(ctx context.Context, privateKey string, params clob.CancelMarketParams) (*clob.CancelOrdersResponse, error) {
+func (c *Client) CancelMarket(ctx context.Context, privateKey string, params internalclob.CancelMarketParams) (*internalclob.CancelOrdersResponse, error) {
 	return c.clob.CancelMarket(ctx, privateKey, params)
 }
 
@@ -291,26 +295,26 @@ func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (auth.APIK
 
 // BalanceAllowance returns the authenticated CLOB collateral or conditional
 // token balance plus allowances against the V2 exchange spenders.
-func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error) {
+func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params internalclob.BalanceAllowanceParams) (*internalclob.BalanceAllowanceResponse, error) {
 	return c.clob.BalanceAllowance(ctx, privateKey, params)
 }
 
 // UpdateBalanceAllowance forces the CLOB to refresh its on-chain
 // balance/allowance cache for the authenticated user.
-func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error) {
+func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, params internalclob.BalanceAllowanceParams) (*internalclob.BalanceAllowanceResponse, error) {
 	return c.clob.UpdateBalanceAllowance(ctx, privateKey, params)
 }
 
 // CreateLimitOrder signs and submits a V2 limit order. The privateKey signs
 // both the ClobAuth (for the API-key derivation) and the EIP-712 order
 // itself. Returns the placement response with order id and matched amounts.
-func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params clob.CreateOrderParams) (*clob.OrderPlacementResponse, error) {
+func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params internalclob.CreateOrderParams) (*internalclob.OrderPlacementResponse, error) {
 	return c.clob.CreateLimitOrder(ctx, privateKey, params)
 }
 
 // CreateMarketOrder signs and submits a V2 market order. Use Amount instead
 // of Size on the params to express a fill-this-much budget.
-func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params clob.MarketOrderParams) (*clob.OrderPlacementResponse, error) {
+func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params internalclob.MarketOrderParams) (*internalclob.OrderPlacementResponse, error) {
 	return c.clob.CreateMarketOrder(ctx, privateKey, params)
 }
 
@@ -318,8 +322,8 @@ func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, param
 
 // CLOBServerTime returns the CLOB's current server time. Useful for
 // signing payloads that embed a timestamp the backend must accept.
-func (c *Client) CLOBServerTime(ctx context.Context) (*polytypes.ServerTime, error) {
-	return c.clob.ServerTime(ctx)
+func (c *Client) CLOBServerTime(ctx context.Context) (*types.CLOBServerTime, error) {
+	return c.clobRead.ServerTime(ctx)
 }
 
 // OrderScoring reports whether a single order id is currently scoring
@@ -376,18 +380,18 @@ func (c *Client) RebatedFees(ctx context.Context) ([]polytypes.RebatedFees, erro
 // --- CLOB: Extended Market Lists ---
 
 // SimplifiedMarkets returns simplified CLOB markets.
-func (c *Client) SimplifiedMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error) {
-	return c.clob.SimplifiedMarkets(ctx, nextCursor)
+func (c *Client) SimplifiedMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error) {
+	return c.clobRead.SimplifiedMarkets(ctx, nextCursor)
 }
 
 // SamplingMarkets returns sampling CLOB markets.
-func (c *Client) SamplingMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error) {
-	return c.clob.SamplingMarkets(ctx, nextCursor)
+func (c *Client) SamplingMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error) {
+	return c.clobRead.SamplingMarkets(ctx, nextCursor)
 }
 
 // SamplingSimplifiedMarkets returns sampling simplified CLOB markets.
-func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error) {
-	return c.clob.SamplingSimplifiedMarkets(ctx, nextCursor)
+func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error) {
+	return c.clobRead.SamplingSimplifiedMarkets(ctx, nextCursor)
 }
 
 // --- Data API: Extended ---
@@ -408,13 +412,13 @@ func (c *Client) MarketsTraded(ctx context.Context, user string) (*types.TotalMa
 }
 
 // OrderBook returns L2 order book depth for a token.
-func (c *Client) OrderBook(ctx context.Context, tokenID string) (*polytypes.OrderBook, error) {
-	return c.clob.OrderBook(ctx, tokenID)
+func (c *Client) OrderBook(ctx context.Context, tokenID string) (*types.CLOBOrderBook, error) {
+	return c.clobRead.OrderBook(ctx, tokenID)
 }
 
 // OrderBooks returns order books for multiple tokens.
-func (c *Client) OrderBooks(ctx context.Context, params []polytypes.BookParams) ([]polytypes.OrderBook, error) {
-	return c.clob.OrderBooks(ctx, params)
+func (c *Client) OrderBooks(ctx context.Context, params []types.CLOBBookParams) ([]types.CLOBOrderBook, error) {
+	return c.clobRead.OrderBooks(ctx, params)
 }
 
 // Price returns the best bid or ask for a token.
@@ -423,8 +427,8 @@ func (c *Client) Price(ctx context.Context, tokenID, side string) (string, error
 }
 
 // Prices returns best prices for multiple tokens.
-func (c *Client) Prices(ctx context.Context, params []polytypes.BookParams) (map[string]string, error) {
-	return c.clob.Prices(ctx, params)
+func (c *Client) Prices(ctx context.Context, params []types.CLOBBookParams) (map[string]string, error) {
+	return c.clobRead.Prices(ctx, params)
 }
 
 // Midpoint returns the midpoint price for a token.
@@ -433,8 +437,8 @@ func (c *Client) Midpoint(ctx context.Context, tokenID string) (string, error) {
 }
 
 // Midpoints returns midpoint prices for multiple tokens.
-func (c *Client) Midpoints(ctx context.Context, params []polytypes.BookParams) (map[string]string, error) {
-	return c.clob.Midpoints(ctx, params)
+func (c *Client) Midpoints(ctx context.Context, params []types.CLOBBookParams) (map[string]string, error) {
+	return c.clobRead.Midpoints(ctx, params)
 }
 
 // Spread returns the spread for a token.
@@ -443,13 +447,13 @@ func (c *Client) Spread(ctx context.Context, tokenID string) (string, error) {
 }
 
 // TickSize returns the tick size for a token.
-func (c *Client) TickSize(ctx context.Context, tokenID string) (*polytypes.TickSize, error) {
-	return c.clob.TickSize(ctx, tokenID)
+func (c *Client) TickSize(ctx context.Context, tokenID string) (*types.CLOBTickSize, error) {
+	return c.clobRead.TickSize(ctx, tokenID)
 }
 
 // NegRisk returns neg risk info for a token.
-func (c *Client) NegRisk(ctx context.Context, tokenID string) (*polytypes.NegRiskInfo, error) {
-	return c.clob.NegRisk(ctx, tokenID)
+func (c *Client) NegRisk(ctx context.Context, tokenID string) (*types.CLOBNegRiskInfo, error) {
+	return c.clobRead.NegRisk(ctx, tokenID)
 }
 
 // FeeRateBps returns the fee rate in basis points for a token.
@@ -463,23 +467,23 @@ func (c *Client) LastTradePrice(ctx context.Context, tokenID string) (string, er
 }
 
 // LastTradesPrices returns last trade prices for multiple tokens.
-func (c *Client) LastTradesPrices(ctx context.Context, params []polytypes.BookParams) (map[string]string, error) {
-	return c.clob.LastTradesPrices(ctx, params)
+func (c *Client) LastTradesPrices(ctx context.Context, params []types.CLOBBookParams) (map[string]string, error) {
+	return c.clobRead.LastTradesPrices(ctx, params)
 }
 
 // PricesHistory returns OHLCV price history.
-func (c *Client) PricesHistory(ctx context.Context, params *polytypes.PriceHistoryParams) (*polytypes.PriceHistory, error) {
-	return c.clob.PricesHistory(ctx, params)
+func (c *Client) PricesHistory(ctx context.Context, params *types.CLOBPriceHistoryParams) (*types.CLOBPriceHistory, error) {
+	return c.clobRead.PricesHistory(ctx, params)
 }
 
 // CLOBMarkets lists CLOB markets with cursor pagination.
-func (c *Client) CLOBMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error) {
-	return c.clob.Markets(ctx, nextCursor)
+func (c *Client) CLOBMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error) {
+	return c.clobRead.Markets(ctx, nextCursor)
 }
 
 // CLOBMarket returns a single CLOB market by condition ID.
-func (c *Client) CLOBMarket(ctx context.Context, conditionID string) (*polytypes.CLOBMarket, error) {
-	return c.clob.Market(ctx, conditionID)
+func (c *Client) CLOBMarket(ctx context.Context, conditionID string) (*types.CLOBMarket, error) {
+	return c.clobRead.Market(ctx, conditionID)
 }
 
 // CurrentPositions returns current open positions for a user.

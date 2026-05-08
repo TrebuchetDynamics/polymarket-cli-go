@@ -117,7 +117,7 @@ func OrderToJSONWithPostOnly(order *SignedOrder, owner string, orderType OrderTy
 	// 将SignedOrder转换为字典
 	// 格式与 Python py_order_utils.SignedOrder.dict() 完全一致
 	orderDict := map[string]interface{}{
-		"salt":          order.Salt.Int64(),      // 整数，不是字符串
+		"salt":          order.Salt.Int64(), // 整数，不是字符串
 		"maker":         makerAddr.Hex(),
 		"signer":        signerAddr.Hex(),
 		"taker":         takerAddr.Hex(),
@@ -168,4 +168,3 @@ func getBool(m map[string]interface{}, key string) bool {
 	}
 	return false
 }
-

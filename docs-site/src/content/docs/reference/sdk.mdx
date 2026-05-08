@@ -14,9 +14,9 @@ same semver promise as the `pkg/` packages below.
 Some current `pkg/` method signatures still expose implementation types from
 `internal/polytypes`, `internal/clob`, `internal/stream`, or
 `internal/transport`. That is an SDK hygiene gap, not an upstream Polymarket
-requirement. Gamma and Data API DTOs have been promoted: `pkg/gamma`,
-`pkg/data`, and the corresponding methods on `pkg/universal` return
-`pkg/types`.
+requirement. Gamma, Data API, and read-only CLOB DTOs have been promoted:
+`pkg/gamma`, `pkg/data`, `pkg/clob`, and the corresponding read methods on
+`pkg/universal` return `pkg/types`.
 
 ## `pkg/orderbook` — Read-Only Order Book
 
@@ -68,6 +68,50 @@ import "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
 `pkg/bookreader` remains for source compatibility and aliases
 `pkg/orderbook` types plus `NewReader`. New consumers should import
 `pkg/orderbook`.
+
+## `pkg/clob` — Read-Only CLOB Market Data
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/clob"
+```
+
+### Contract: Constructors
+
+```go
+type Client struct { /* unexported fields */ }
+
+type Config struct {
+    BaseURL string
+}
+
+func NewClient(cfg Config) *Client
+func DefaultConfig() Config
+```
+
+### Contract: Methods
+
+```go
+func (c *Client) Health(ctx context.Context) error
+func (c *Client) ServerTime(ctx context.Context) (*types.CLOBServerTime, error)
+func (c *Client) Markets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
+func (c *Client) Market(ctx context.Context, conditionID string) (*types.CLOBMarket, error)
+func (c *Client) OrderBook(ctx context.Context, tokenID string) (*types.CLOBOrderBook, error)
+func (c *Client) OrderBooks(ctx context.Context, params []types.CLOBBookParams) ([]types.CLOBOrderBook, error)
+func (c *Client) Price(ctx context.Context, tokenID, side string) (string, error)
+func (c *Client) Prices(ctx context.Context, params []types.CLOBBookParams) (map[string]string, error)
+func (c *Client) Midpoint(ctx context.Context, tokenID string) (string, error)
+func (c *Client) Midpoints(ctx context.Context, params []types.CLOBBookParams) (map[string]string, error)
+func (c *Client) Spread(ctx context.Context, tokenID string) (string, error)
+func (c *Client) TickSize(ctx context.Context, tokenID string) (*types.CLOBTickSize, error)
+func (c *Client) NegRisk(ctx context.Context, tokenID string) (*types.CLOBNegRiskInfo, error)
+func (c *Client) FeeRateBps(ctx context.Context, tokenID string) (int, error)
+func (c *Client) LastTradePrice(ctx context.Context, tokenID string) (string, error)
+func (c *Client) LastTradesPrices(ctx context.Context, params []types.CLOBBookParams) (map[string]string, error)
+func (c *Client) PricesHistory(ctx context.Context, params *types.CLOBPriceHistoryParams) (*types.CLOBPriceHistory, error)
+func (c *Client) SimplifiedMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
+func (c *Client) SamplingMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
+func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
+```
 
 ## `pkg/gamma` — Read-Only Market Metadata
 
@@ -171,6 +215,26 @@ type MarketByTokenResponse struct
 
 These types are intentionally public so SDK consumers do not need to import or
 name `internal/polytypes` for Gamma market discovery.
+
+### Contract: CLOB Read DTOs
+
+```go
+type CLOBServerTime struct
+type CLOBOrderBook struct
+type CLOBOrderBookLevel struct
+type CLOBTickSize struct
+type CLOBNegRiskInfo struct
+type CLOBMarket struct
+type CLOBToken struct
+type CLOBPaginatedMarkets struct
+type CLOBBookParams struct
+type CLOBPricePoint struct
+type CLOBPriceHistory struct
+type CLOBPriceHistoryParams struct
+```
+
+These types are intentionally public so SDK consumers do not need to import or
+name `internal/polytypes` for read-only CLOB market data.
 
 ## `pkg/data` — Read-Only Data API Analytics
 
@@ -278,29 +342,29 @@ func (c *Client) MarketsKeyset(ctx context.Context, params *types.KeysetParams) 
 ### Contract: Methods — CLOB Order Books (12 methods)
 
 ```go
-func (c *Client) OrderBook(ctx context.Context, tokenID string) (*polytypes.OrderBook, error)
-func (c *Client) OrderBooks(ctx context.Context, params []polytypes.BookParams) ([]polytypes.OrderBook, error)
+func (c *Client) OrderBook(ctx context.Context, tokenID string) (*types.CLOBOrderBook, error)
+func (c *Client) OrderBooks(ctx context.Context, params []types.CLOBBookParams) ([]types.CLOBOrderBook, error)
 func (c *Client) Price(ctx context.Context, tokenID, side string) (string, error)
-func (c *Client) Prices(ctx context.Context, params []polytypes.BookParams) (map[string]string, error)
+func (c *Client) Prices(ctx context.Context, params []types.CLOBBookParams) (map[string]string, error)
 func (c *Client) Midpoint(ctx context.Context, tokenID string) (string, error)
-func (c *Client) Midpoints(ctx context.Context, params []polytypes.BookParams) (map[string]string, error)
+func (c *Client) Midpoints(ctx context.Context, params []types.CLOBBookParams) (map[string]string, error)
 func (c *Client) Spread(ctx context.Context, tokenID string) (string, error)
-func (c *Client) TickSize(ctx context.Context, tokenID string) (*polytypes.TickSize, error)
-func (c *Client) NegRisk(ctx context.Context, tokenID string) (*polytypes.NegRiskInfo, error)
+func (c *Client) TickSize(ctx context.Context, tokenID string) (*types.CLOBTickSize, error)
+func (c *Client) NegRisk(ctx context.Context, tokenID string) (*types.CLOBNegRiskInfo, error)
 func (c *Client) FeeRateBps(ctx context.Context, tokenID string) (int, error)
 func (c *Client) LastTradePrice(ctx context.Context, tokenID string) (string, error)
-func (c *Client) LastTradesPrices(ctx context.Context, params []polytypes.BookParams) (map[string]string, error)
+func (c *Client) LastTradesPrices(ctx context.Context, params []types.CLOBBookParams) (map[string]string, error)
 ```
 
 ### Contract: Methods — CLOB Markets (7 methods)
 
 ```go
-func (c *Client) PricesHistory(ctx context.Context, params *polytypes.PriceHistoryParams) (*polytypes.PriceHistory, error)
-func (c *Client) CLOBMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error)
-func (c *Client) CLOBMarket(ctx context.Context, conditionID string) (*polytypes.CLOBMarket, error)
-func (c *Client) SimplifiedMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error)
-func (c *Client) SamplingMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error)
-func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error)
+func (c *Client) PricesHistory(ctx context.Context, params *types.CLOBPriceHistoryParams) (*types.CLOBPriceHistory, error)
+func (c *Client) CLOBMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
+func (c *Client) CLOBMarket(ctx context.Context, conditionID string) (*types.CLOBMarket, error)
+func (c *Client) SimplifiedMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
+func (c *Client) SamplingMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
+func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
 func (c *Client) HealthCheck(ctx context.Context) (HealthResponse, error)
 ```
 
@@ -329,7 +393,7 @@ support is promoted into the public contract.
 ### Contract: Methods — CLOB Metadata, Scoring, and Rewards (10 methods)
 
 ```go
-func (c *Client) CLOBServerTime(ctx context.Context) (*polytypes.ServerTime, error)
+func (c *Client) CLOBServerTime(ctx context.Context) (*types.CLOBServerTime, error)
 func (c *Client) OrderScoring(ctx context.Context, orderID string) (bool, error)
 func (c *Client) OrdersScoring(ctx context.Context, orderIDs []string) ([]bool, error)
 func (c *Client) RewardsConfig(ctx context.Context) ([]polytypes.RewardsConfig, error)
@@ -500,7 +564,7 @@ The following are intentional gaps in the current stable `pkg/` contract:
 | Gap | Current Status |
 |---|---|
 | One-call deposit-wallet onboard SDK | Relayer primitives are public in `pkg/relayer`; full onboard orchestration remains CLI-only |
-| Public type ownership | Gamma and Data API DTOs are public in `pkg/types`; CLOB, enrichment, and stream signatures still need promotion work before claiming a fully clean external SDK |
+| Public type ownership | Gamma, Data API, and read-only CLOB DTOs are public in `pkg/types`; authenticated CLOB account/trading, rewards, enrichment, and stream signatures still need promotion work before claiming a fully clean external SDK |
 | Non-zero V2 `builderCode` attribution | The signer emits `builder = bytes32(0)` today |
 | Batch order placement | Single-order placement and cancellation are exposed; batch placement is not |
 | Authenticated user WebSocket stream | Public market stream is exposed; user stream waits for L2 WebSocket auth tests |

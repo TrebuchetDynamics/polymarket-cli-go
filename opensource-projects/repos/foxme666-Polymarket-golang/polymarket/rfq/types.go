@@ -3,7 +3,7 @@ package rfq
 // RfqUserRequest RFQ用户请求
 type RfqUserRequest struct {
 	TokenID string  `json:"token_id"`
-	Side    string  `json:"side"`    // BUY 或 SELL
+	Side    string  `json:"side"` // BUY 或 SELL
 	Size    float64 `json:"size"`
 	Price   float64 `json:"price,omitempty"`
 }
@@ -12,7 +12,7 @@ type RfqUserRequest struct {
 type RfqUserQuote struct {
 	RequestID string  `json:"request_id"`
 	TokenID   string  `json:"token_id"`
-	Side      string  `json:"side"`    // BUY 或 SELL
+	Side      string  `json:"side"` // BUY 或 SELL
 	Size      float64 `json:"size"`
 	Price     float64 `json:"price"`
 }
@@ -59,8 +59,8 @@ type GetRfqQuotesParams struct {
 
 // GetRfqBestQuoteParams 获取最佳RFQ报价参数
 type GetRfqBestQuoteParams struct {
-	TokenID string `json:"token_id"`
-	Side    string `json:"side"` // BUY 或 SELL
+	TokenID string  `json:"token_id"`
+	Side    string  `json:"side"` // BUY 或 SELL
 	Size    float64 `json:"size"`
 }
 
@@ -77,18 +77,17 @@ const (
 
 // RfqQuoteResponse RFQ报价响应
 type RfqQuoteResponse struct {
-	QuoteID   string    `json:"quoteId"`
-	RequestID string    `json:"requestId"`
-	Token     string    `json:"token"`
-	Complement string   `json:"complement,omitempty"`
-	Side      string    `json:"side"`
-	Price     string    `json:"price"`
-	SizeIn    string    `json:"sizeIn"`
-	SizeOut   string    `json:"sizeOut"`
-	MatchType MatchType `json:"matchType"`
-	Status    string    `json:"status"`
+	QuoteID    string    `json:"quoteId"`
+	RequestID  string    `json:"requestId"`
+	Token      string    `json:"token"`
+	Complement string    `json:"complement,omitempty"`
+	Side       string    `json:"side"`
+	Price      string    `json:"price"`
+	SizeIn     string    `json:"sizeIn"`
+	SizeOut    string    `json:"sizeOut"`
+	MatchType  MatchType `json:"matchType"`
+	Status     string    `json:"status"`
 }
 
 // COLLATERAL_TOKEN_DECIMALS USDC小数位数
 const COLLATERAL_TOKEN_DECIMALS = 6
-

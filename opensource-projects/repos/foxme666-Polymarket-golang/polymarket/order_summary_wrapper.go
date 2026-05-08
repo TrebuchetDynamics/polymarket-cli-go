@@ -23,4 +23,3 @@ func convertOrderSummaries(summaries []OrderSummary) []interface{} {
 	}
 	return result
 }
-

@@ -6,9 +6,9 @@ description: Internal protocol types and aliases — Gamma DTO aliases, CLOB mar
 The `internal/polytypes` package defines protocol-level types shared across
 polygolem clients. Gamma market-discovery DTOs now live publicly in `pkg/types`
 and are aliased here for internal callers. Public SDK users should import
-`pkg/types` for Gamma and Data API contracts. CLOB, enrichment, rewards, and
-stream contracts still use internal protocol types until their public SDK slice
-is promoted.
+`pkg/types` for Gamma, Data API, and read-only CLOB contracts. Enrichment,
+rewards, authenticated CLOB account/trading, and stream contracts still use
+internal protocol types until their public SDK slices are promoted.
 
 ## Markets
 

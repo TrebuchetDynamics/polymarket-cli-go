@@ -90,7 +90,7 @@ identifier from `discover enrich` first.
 |----------------------------|-------------|-------|
 | `discover search` / `discover market` | Gamma — markets, events | Returns Gamma fields. |
 | `discover enrich` | Gamma + CLOB | Joins by `conditionID`. |
-| `orderbook *` / `pkg/orderbook` | CLOB — by `tokenID` | Read-only L0. |
+| `orderbook *` / `pkg/orderbook` / `pkg/clob` | CLOB — by `tokenID` or `conditionID` | Read-only L0. |
 | `clob create-order` | CLOB — by `tokenID` | Authenticated L2. |
 | `pkg/marketresolver.ResolveTokenIDs` | Gamma → both `tokenID`s | High-level resolver. |
 

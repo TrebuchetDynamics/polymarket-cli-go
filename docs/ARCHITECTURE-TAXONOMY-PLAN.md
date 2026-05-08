@@ -49,7 +49,7 @@ Public SDK packages should describe stable consumer contracts:
 | Target package | Role |
 |---|---|
 | `pkg/gamma` | Stable Gamma discovery client |
-| `pkg/clob` | Stable CLOB read/account/trading client once write gates are ready for public SDK use |
+| `pkg/clob` | Stable read-only CLOB market-data client; account and trading SDK surfaces remain gated |
 | `pkg/data` | Stable Data API analytics client |
 | `pkg/stream` | Stable WebSocket clients |
 | `pkg/bridge` | Stable Bridge client |
@@ -112,6 +112,11 @@ Progress:
   on `pkg/universal` now return `pkg/types` for markets, events, tags, series,
   comments, profiles, search, sports metadata, and keyset pagination. The
   internal `polytypes` package aliases those DTOs for existing internal callers.
+- 2026-05-08: Read-only CLOB market-data DTOs were promoted. `pkg/clob`
+  exposes public CLOB market lists, market lookup, order books, prices,
+  spreads, tick size, negative-risk metadata, last trade prices, and price
+  history through `pkg/types`; the matching read-only methods on
+  `pkg/universal` now return those public DTOs.
 
 Verification:
 

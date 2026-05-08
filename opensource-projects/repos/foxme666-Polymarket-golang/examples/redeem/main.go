@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/foxme666/Polymarket-golang/polymarket"
 	"github.com/foxme666/Polymarket-golang/polymarket/web3"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 func main() {

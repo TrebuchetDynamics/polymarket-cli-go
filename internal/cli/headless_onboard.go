@@ -104,15 +104,15 @@ without any browser interaction. See docs/BUILDER-AUTO.md.`,
 			fmt.Fprintf(stderr, "✓ Wrote credentials to %s (mode 0600)\n", abs)
 
 			return w.printJSON(cmd, map[string]string{
-				"wroteTo":         abs,
-				"relayerApiKey":   v2Key.Key,
-				"relayerAddress":  v2Key.Address,
-				"createdAt":       v2Key.CreatedAt,
-				"permission":      "0600",
-				"sessionCookies":  fmt.Sprintf("%d", len(cookies)),
-				"gammaURL":        gURL,
-				"relayerURL":      rURL,
-				"signerAddress":   signer.Address(),
+				"wroteTo":        abs,
+				"relayerApiKey":  v2Key.Key,
+				"relayerAddress": v2Key.Address,
+				"createdAt":      v2Key.CreatedAt,
+				"permission":     "0600",
+				"sessionCookies": fmt.Sprintf("%d", len(cookies)),
+				"gammaURL":       gURL,
+				"relayerURL":     rURL,
+				"signerAddress":  signer.Address(),
 			})
 		},
 	}

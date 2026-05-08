@@ -85,10 +85,11 @@ func convertBook(pb *polytypes.OrderBook) OrderBook {
 		return asks[i].Price < asks[j].Price
 	})
 	return OrderBook{
-		MarketID: pb.Market,
-		TokenID:  pb.AssetID,
-		Bids:     bids,
-		Asks:     asks,
+		MarketID:       pb.Market,
+		TokenID:        pb.AssetID,
+		Bids:           bids,
+		Asks:           asks,
+		LastTradePrice: parseFloat(pb.LastTradePrice),
 	}
 }
 

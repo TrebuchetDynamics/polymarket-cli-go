@@ -53,4 +53,3 @@ func (c *ClobClient) ApproveRfqOrder(params *rfq.ApproveOrderParams) (interface{
 func (c *ClobClient) GetRfqConfig() (interface{}, error) {
 	return c.rfq.GetRfqConfig()
 }
-

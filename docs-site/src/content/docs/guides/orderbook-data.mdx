@@ -113,8 +113,10 @@ polygolem orderbook last-trade --token-id 71321045679252212594626385532706912750
 
 ## Using the Go SDK
 
-If you want orderbook reads from a Go program, prefer the `pkg/orderbook`
-package over shelling out to the CLI:
+If you want best-first orderbook reads from a Go program, prefer the
+`pkg/orderbook` package over shelling out to the CLI. If you need broader CLOB
+market data such as market lists, price history, tick size, or fee rate, use
+`pkg/clob`.
 
 ```go
 import "github.com/TrebuchetDynamics/polygolem/pkg/orderbook"

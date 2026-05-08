@@ -82,4 +82,3 @@ func (s *Signer) GetPrivateKey() string {
 	}
 	return keyHex
 }
-

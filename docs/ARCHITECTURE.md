@@ -12,6 +12,7 @@ Stable interfaces for downstream Go consumers (e.g., `go-bot`).
 
 | Package | Purpose |
 |---|---|
+| `pkg/clob` | Read-only CLOB market-data client returning `pkg/types` DTOs. |
 | `pkg/orderbook` | Read-only CLOB order-book reader. |
 | `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook`. |
 | `pkg/bridge` | Bridge API client — supported assets, deposit addresses, quotes. |
@@ -66,7 +67,7 @@ internal/{auth, transport, polytypes}                   ← cross-cutting primit
         |
 internal/{wallet, orders, execution, risk, paper, marketdiscovery}
         |
-pkg/{bookreader, bridge, data, gamma, marketresolver, orderbook, pagination, relayer, types, universal}   ← public re-exposed surface
+pkg/{bookreader, bridge, clob, data, gamma, marketresolver, orderbook, pagination, relayer, types, universal}   ← public re-exposed surface
 ```
 
 Command handlers parse flags, call package APIs, and render output via
@@ -118,11 +119,13 @@ relayer. Order attribution uses the on-order `builder` bytes32 field (V2).
 proves stable enough to expose. Do not move code into `pkg/` without an
 SDK-level commitment to keep its API stable across minor versions.
 
-Gamma and Data API DTOs are promoted public DTO families. `pkg/gamma`,
-`pkg/data`, and the corresponding `pkg/universal` methods return `pkg/types`
-for markets, events, tags, series, comments, profiles, positions, trades,
-holders, leaderboards, open interest, and live volume. CLOB trading, enrichment,
-and stream types still need dedicated public-contract slices.
+Gamma, Data API, and read-only CLOB DTOs are promoted public DTO families.
+`pkg/gamma`, `pkg/data`, `pkg/clob`, and the corresponding read-only
+`pkg/universal` methods return `pkg/types` for markets, events, tags, series,
+comments, profiles, positions, trades, holders, leaderboards, open interest,
+live volume, CLOB market data, books, prices, and price history. Authenticated
+CLOB trading/account, rewards, enrichment, and stream types still need
+dedicated public-contract slices.
 
 ## Safety boundaries
 

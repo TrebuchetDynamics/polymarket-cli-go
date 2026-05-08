@@ -10,9 +10,10 @@ internal/ tree is **not** part of the stability promise and may change between
 minor releases — only depend on `pkg/*`.
 
 <Aside type="note">
-Stability note: Gamma and Data API DTOs are public in `pkg/types`. Some CLOB,
-enrichment, and stream signatures still expose implementation types from
-`internal/*`; treat those paths as a documented SDK cleanup gap.
+Stability note: Gamma, Data API, and read-only CLOB DTOs are public in
+`pkg/types`. Authenticated CLOB account/trading, rewards, enrichment, and
+stream signatures still expose implementation types from `internal/*`; treat
+those paths as a documented SDK cleanup gap.
 </Aside>
 
 ## Install
@@ -25,6 +26,7 @@ Then import only the packages you need:
 
 ```go
 import (
+    "github.com/TrebuchetDynamics/polygolem/pkg/clob"
     "github.com/TrebuchetDynamics/polygolem/pkg/orderbook"
     "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
     "github.com/TrebuchetDynamics/polygolem/pkg/bridge"

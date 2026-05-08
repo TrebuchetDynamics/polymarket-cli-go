@@ -86,4 +86,3 @@ func loadABI(contractName string) (abi.ABI, error) {
 
 	return abi.JSON(strings.NewReader(string(abiBytes)))
 }
-

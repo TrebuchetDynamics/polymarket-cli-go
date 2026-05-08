@@ -13,12 +13,16 @@ type OrderBookLevel struct {
 
 // OrderBook represents L2 order book depth for a token.
 type OrderBook struct {
-	Market    string           `json:"market"`
-	AssetID   string           `json:"asset_id"`
-	Timestamp string           `json:"timestamp"`
-	Hash      string           `json:"hash"`
-	Bids      []OrderBookLevel `json:"bids"`
-	Asks      []OrderBookLevel `json:"asks"`
+	Market         string           `json:"market"`
+	AssetID        string           `json:"asset_id"`
+	Timestamp      string           `json:"timestamp"`
+	Hash           string           `json:"hash"`
+	Bids           []OrderBookLevel `json:"bids"`
+	Asks           []OrderBookLevel `json:"asks"`
+	MinOrderSize   string           `json:"min_order_size,omitempty"`
+	TickSize       string           `json:"tick_size,omitempty"`
+	NegRisk        bool             `json:"neg_risk,omitempty"`
+	LastTradePrice string           `json:"last_trade_price,omitempty"`
 }
 
 // TickSize represents the minimum tick size for a market.

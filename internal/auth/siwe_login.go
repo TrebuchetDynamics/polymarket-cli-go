@@ -17,12 +17,12 @@ import (
 // frontend's `useSignIn` mutation.
 //
 // Wire flow:
-//   1. GET  {gammaURL}/nonce              → { nonce: "..." }
-//   2. Build SIWEMessage, personal_sign with [PrivateKeySigner]
-//   3. GET  {gammaURL}/login              → Authorization: Bearer <token>,
-//                                           withCredentials → Set-Cookie
-//   4. Cookies persist in the jar — pass [HTTPClient] to downstream callers
-//      (relayer auth mint) so the cookies ride along.
+//  1. GET  {gammaURL}/nonce              → { nonce: "..." }
+//  2. Build SIWEMessage, personal_sign with [PrivateKeySigner]
+//  3. GET  {gammaURL}/login              → Authorization: Bearer <token>,
+//     withCredentials → Set-Cookie
+//  4. Cookies persist in the jar — pass [HTTPClient] to downstream callers
+//     (relayer auth mint) so the cookies ride along.
 type SIWESession struct {
 	client   *http.Client
 	signer   *PrivateKeySigner
