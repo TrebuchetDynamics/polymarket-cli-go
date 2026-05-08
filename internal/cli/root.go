@@ -8,20 +8,25 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/clob"
+	"github.com/TrebuchetDynamics/polygolem/internal/dataapi"
 	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
 	"github.com/TrebuchetDynamics/polygolem/internal/marketdiscovery"
 	"github.com/TrebuchetDynamics/polygolem/internal/output"
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 	"github.com/TrebuchetDynamics/polygolem/internal/preflight"
+	"github.com/TrebuchetDynamics/polygolem/internal/stream"
 	"github.com/TrebuchetDynamics/polygolem/pkg/bridge"
 	"github.com/spf13/cobra"
 )
 
 const (
-	gammaBaseURL = "https://gamma-api.polymarket.com"
-	clobBaseURL  = "https://clob.polymarket.com"
+	gammaBaseURL        = "https://gamma-api.polymarket.com"
+	clobBaseURL         = "https://clob.polymarket.com"
+	dataBaseURL         = "https://data-api.polymarket.com"
+	marketStreamBaseURL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 )
 
 type Options struct {
@@ -33,6 +38,7 @@ type Options struct {
 type wire struct {
 	gamma    *gamma.Client
 	clob     *clob.Client
+	data     *dataapi.Client
 	discover *marketdiscovery.Service
 	jsonOut  bool
 }
@@ -45,6 +51,7 @@ func newWire(jsonOut bool) *wire {
 	return &wire{
 		gamma:    gamma.NewClient(gammaBaseURL, nil),
 		clob:     clob.NewClient(clobBaseURL, nil),
+		data:     dataapi.NewClient(dataBaseURL, nil),
 		discover: marketdiscovery.New(gamma.NewClient(gammaBaseURL, nil), clob.NewClient(clobBaseURL, nil)),
 		jsonOut:  jsonOut,
 	}
@@ -98,9 +105,11 @@ func NewRootCommand(opts Options) *cobra.Command {
 	root.AddCommand(discoverCmd(jsonOutput))
 	root.AddCommand(orderbookCmd(jsonOutput))
 	root.AddCommand(clobCmd(jsonOutput))
+	root.AddCommand(dataCmd(jsonOutput))
 	root.AddCommand(healthCmd(jsonOutput))
 	root.AddCommand(eventsCmd(jsonOutput))
 	root.AddCommand(bridgeCmd(jsonOutput))
+	root.AddCommand(streamCmd(jsonOutput))
 	root.AddCommand(depositWalletCmd(jsonOutput))
 	root.AddCommand(newBuilderCommand(jsonOutput))
 	root.AddCommand(commandGroup("paper", "Inspect local paper trading state",
@@ -121,6 +130,38 @@ func discoverCmd(jsonOut bool) *cobra.Command {
 	var limit int
 
 	cmd := commandGroup("discover", "Market discovery via Polymarket Gamma API")
+
+	var marketsLimit, marketsOffset, marketsTagID int
+	var marketsOrder string
+	var marketsActive, marketsClosed, marketsAscending bool
+	marketsCmd := &cobra.Command{Use: "markets", Short: "List Gamma markets", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			params := &polytypes.GetMarketsParams{
+				Limit:     marketsLimit,
+				Offset:    marketsOffset,
+				Order:     marketsOrder,
+				Active:    &marketsActive,
+				Closed:    &marketsClosed,
+				Ascending: &marketsAscending,
+			}
+			if marketsTagID > 0 {
+				params.TagID = &marketsTagID
+			}
+			markets, err := w.gamma.Markets(cmd.Context(), params)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, markets)
+		},
+	}
+	marketsCmd.Flags().IntVar(&marketsLimit, "limit", 20, "max markets")
+	marketsCmd.Flags().IntVar(&marketsOffset, "offset", 0, "pagination offset")
+	marketsCmd.Flags().StringVar(&marketsOrder, "order", "", "Gamma order field")
+	marketsCmd.Flags().BoolVar(&marketsActive, "active", true, "filter active markets")
+	marketsCmd.Flags().BoolVar(&marketsClosed, "closed", false, "filter closed markets")
+	marketsCmd.Flags().BoolVar(&marketsAscending, "ascending", false, "sort ascending")
+	marketsCmd.Flags().IntVar(&marketsTagID, "tag-id", 0, "filter by tag id")
+	cmd.AddCommand(marketsCmd)
 
 	searchCmd := &cobra.Command{
 		Use: "search", Short: "Search markets and events", Args: cobra.NoArgs,
@@ -187,6 +228,109 @@ func discoverCmd(jsonOut bool) *cobra.Command {
 	}
 	enrichCmd.Flags().StringVar(&marketID, "id", "", "market Gamma ID")
 	cmd.AddCommand(enrichCmd)
+
+	var tagsLimit, tagsOffset int
+	var tagID, tagSlug string
+	tagsCmd := &cobra.Command{Use: "tags", Short: "List or fetch Gamma tags/categories", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if tagID != "" {
+				tag, err := w.gamma.TagByID(cmd.Context(), tagID)
+				if err != nil {
+					return err
+				}
+				return w.printJSON(cmd, tag)
+			}
+			if tagSlug != "" {
+				tag, err := w.gamma.TagBySlug(cmd.Context(), tagSlug)
+				if err != nil {
+					return err
+				}
+				return w.printJSON(cmd, tag)
+			}
+			tags, err := w.gamma.Tags(cmd.Context(), &polytypes.GetTagsParams{
+				Limit:  tagsLimit,
+				Offset: tagsOffset,
+			})
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, tags)
+		},
+	}
+	tagsCmd.Flags().StringVar(&tagID, "id", "", "tag ID")
+	tagsCmd.Flags().StringVar(&tagSlug, "slug", "", "tag slug")
+	tagsCmd.Flags().IntVar(&tagsLimit, "limit", 100, "max tags")
+	tagsCmd.Flags().IntVar(&tagsOffset, "offset", 0, "pagination offset")
+	cmd.AddCommand(tagsCmd)
+
+	var seriesLimit, seriesOffset int
+	var seriesID string
+	var seriesClosed bool
+	seriesCmd := &cobra.Command{Use: "series", Short: "List or fetch Gamma series", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if seriesID != "" {
+				series, err := w.gamma.SeriesByID(cmd.Context(), seriesID)
+				if err != nil {
+					return err
+				}
+				return w.printJSON(cmd, series)
+			}
+			series, err := w.gamma.Series(cmd.Context(), &polytypes.GetSeriesParams{
+				Limit:  seriesLimit,
+				Offset: seriesOffset,
+				Closed: &seriesClosed,
+			})
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, series)
+		},
+	}
+	seriesCmd.Flags().StringVar(&seriesID, "id", "", "series ID")
+	seriesCmd.Flags().IntVar(&seriesLimit, "limit", 20, "max series")
+	seriesCmd.Flags().IntVar(&seriesOffset, "offset", 0, "pagination offset")
+	seriesCmd.Flags().BoolVar(&seriesClosed, "closed", false, "filter closed series")
+	cmd.AddCommand(seriesCmd)
+
+	var commentID, commentEntityType, commentUser string
+	var commentEntityID, commentLimit, commentOffset int
+	commentsCmd := &cobra.Command{Use: "comments", Short: "List or fetch public Gamma comments", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if commentID != "" {
+				comment, err := w.gamma.CommentByID(cmd.Context(), commentID)
+				if err != nil {
+					return err
+				}
+				return w.printJSON(cmd, comment)
+			}
+			if commentUser != "" {
+				comments, err := w.gamma.CommentsByUser(cmd.Context(), commentUser, commentLimit)
+				if err != nil {
+					return err
+				}
+				return w.printJSON(cmd, comments)
+			}
+			params := &polytypes.CommentQuery{Limit: commentLimit, Offset: commentOffset}
+			if commentEntityID > 0 {
+				params.EntityID = &commentEntityID
+			}
+			if commentEntityType != "" {
+				params.EntityType = &commentEntityType
+			}
+			comments, err := w.gamma.Comments(cmd.Context(), params)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, comments)
+		},
+	}
+	commentsCmd.Flags().StringVar(&commentID, "id", "", "comment ID")
+	commentsCmd.Flags().StringVar(&commentUser, "user", "", "user wallet address")
+	commentsCmd.Flags().IntVar(&commentEntityID, "entity-id", 0, "comment parent entity ID")
+	commentsCmd.Flags().StringVar(&commentEntityType, "entity-type", "", "comment parent entity type")
+	commentsCmd.Flags().IntVar(&commentLimit, "limit", 20, "max comments")
+	commentsCmd.Flags().IntVar(&commentOffset, "offset", 0, "pagination offset")
+	cmd.AddCommand(commentsCmd)
 
 	return cmd
 }
@@ -292,7 +436,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(balanceCmd, &balanceOutput)
 	balanceCmd.Flags().StringVar(&balanceAssetType, "asset-type", "collateral", "asset type")
 	balanceCmd.Flags().StringVar(&balanceTokenID, "token-id", "", "conditional token id")
-	balanceCmd.Flags().StringVar(&balanceSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe, deposit")
+	balanceCmd.Flags().StringVar(&balanceSignatureType, "signature-type", "deposit", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(balanceCmd)
 
 	var updateBalanceOutput, updateBalanceAssetType, updateBalanceTokenID, updateBalanceSignatureType string
@@ -323,7 +467,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(updateBalanceCmd, &updateBalanceOutput)
 	updateBalanceCmd.Flags().StringVar(&updateBalanceAssetType, "asset-type", "collateral", "asset type")
 	updateBalanceCmd.Flags().StringVar(&updateBalanceTokenID, "token-id", "", "conditional token id")
-	updateBalanceCmd.Flags().StringVar(&updateBalanceSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe, deposit")
+	updateBalanceCmd.Flags().StringVar(&updateBalanceSignatureType, "signature-type", "deposit", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(updateBalanceCmd)
 
 	var ordersOutput string
@@ -345,6 +489,26 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	}
 	addOutput(ordersCmd, &ordersOutput)
 	cmd.AddCommand(ordersCmd)
+
+	var orderOutput string
+	orderCmd := &cobra.Command{Use: "order <order-id>", Short: "Get a single authenticated CLOB order", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(orderOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			row, err := w.clob.Order(cmd.Context(), key, args[0])
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, row)
+		},
+	}
+	addOutput(orderCmd, &orderOutput)
+	cmd.AddCommand(orderCmd)
 
 	var tradesOutput string
 	tradesCmd := &cobra.Command{Use: "trades", Short: "List authenticated CLOB trades", Args: cobra.NoArgs,
@@ -386,6 +550,27 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(cancelCmd, &cancelOutput)
 	cmd.AddCommand(cancelCmd)
 
+	var cancelOrdersOutput string
+	cancelOrdersCmd := &cobra.Command{Use: "cancel-orders <order-ids>", Short: "Cancel multiple open CLOB orders", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(cancelOrdersOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			ids := splitCSV(args[0])
+			resp, err := w.clob.CancelOrders(cmd.Context(), key, ids)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, resp)
+		},
+	}
+	addOutput(cancelOrdersCmd, &cancelOrdersOutput)
+	cmd.AddCommand(cancelOrdersCmd)
+
 	var cancelAllOutput string
 	cancelAllCmd := &cobra.Command{Use: "cancel-all", Short: "Cancel all open CLOB orders", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -405,6 +590,31 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	}
 	addOutput(cancelAllCmd, &cancelAllOutput)
 	cmd.AddCommand(cancelAllCmd)
+
+	var cancelMarketOutput, cancelMarketID, cancelMarketAsset string
+	cancelMarketCmd := &cobra.Command{Use: "cancel-market", Short: "Cancel open CLOB orders for a market or asset", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(cancelMarketOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			resp, err := w.clob.CancelMarket(cmd.Context(), key, clob.CancelMarketParams{
+				Market: cancelMarketID,
+				Asset:  cancelMarketAsset,
+			})
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, resp)
+		},
+	}
+	addOutput(cancelMarketCmd, &cancelMarketOutput)
+	cancelMarketCmd.Flags().StringVar(&cancelMarketID, "market", "", "market condition ID")
+	cancelMarketCmd.Flags().StringVar(&cancelMarketAsset, "asset", "", "asset/token ID")
+	cmd.AddCommand(cancelMarketCmd)
 
 	var createOrderOutput, createOrderToken, createOrderSide, createOrderPrice, createOrderSize, createOrderType, createOrderSignatureType string
 	createOrderCmd := &cobra.Command{Use: "create-order", Short: "Create a signed CLOB limit order", Args: cobra.NoArgs,
@@ -440,7 +650,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	createOrderCmd.Flags().StringVar(&createOrderPrice, "price", "", "limit price")
 	createOrderCmd.Flags().StringVar(&createOrderSize, "size", "", "order size")
 	createOrderCmd.Flags().StringVar(&createOrderType, "order-type", "GTC", "order type")
-	createOrderCmd.Flags().StringVar(&createOrderSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe, deposit")
+	createOrderCmd.Flags().StringVar(&createOrderSignatureType, "signature-type", "deposit", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(createOrderCmd)
 
 	var marketOrderOutput, marketOrderToken, marketOrderSide, marketOrderAmount, marketOrderPrice, marketOrderType, marketOrderSignatureType string
@@ -477,7 +687,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	marketOrderCmd.Flags().StringVar(&marketOrderAmount, "amount", "", "USDC amount")
 	marketOrderCmd.Flags().StringVar(&marketOrderPrice, "price", "", "limit price")
 	marketOrderCmd.Flags().StringVar(&marketOrderType, "order-type", "FOK", "order type")
-	marketOrderCmd.Flags().StringVar(&marketOrderSignatureType, "signature-type", "proxy", "signature type: eoa, proxy, safe, deposit")
+	marketOrderCmd.Flags().StringVar(&marketOrderSignatureType, "signature-type", "deposit", "signature type: eoa, proxy, safe, deposit")
 	cmd.AddCommand(marketOrderCmd)
 
 	var priceHistoryOutput, priceHistoryInterval string
@@ -516,22 +726,286 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(marketCmd, &marketOutput)
 	cmd.AddCommand(marketCmd)
 
+	var marketsOutput, marketsCursor string
+	marketsCmd := &cobra.Command{Use: "markets", Short: "List CLOB markets", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(marketsOutput); err != nil {
+				return err
+			}
+			markets, err := w.clob.Markets(cmd.Context(), marketsCursor)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, markets)
+		},
+	}
+	addOutput(marketsCmd, &marketsOutput)
+	marketsCmd.Flags().StringVar(&marketsCursor, "cursor", "", "pagination cursor")
+	cmd.AddCommand(marketsCmd)
+
+	return cmd
+}
+
+func dataCmd(jsonOut bool) *cobra.Command {
+	w := newWire(jsonOut)
+	cmd := commandGroup("data", "Polymarket Data API analytics")
+
+	var user string
+	var tokenID string
+	var limit int
+
+	addUser := func(c *cobra.Command) {
+		c.Flags().StringVar(&user, "user", "", "user wallet address")
+		c.Flags().IntVar(&limit, "limit", 20, "max rows")
+	}
+	requireUser := func() error {
+		if strings.TrimSpace(user) == "" {
+			return fmt.Errorf("--user required")
+		}
+		return nil
+	}
+	addToken := func(c *cobra.Command) {
+		c.Flags().StringVar(&tokenID, "token-id", "", "CLOB token ID")
+		c.Flags().IntVar(&limit, "limit", 20, "max rows")
+	}
+	requireToken := func() error {
+		if strings.TrimSpace(tokenID) == "" {
+			return fmt.Errorf("--token-id required")
+		}
+		return nil
+	}
+
+	positionsCmd := &cobra.Command{Use: "positions", Short: "List open positions for a user", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireUser(); err != nil {
+				return err
+			}
+			rows, err := w.data.CurrentPositions(cmd.Context(), user)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, rows)
+		},
+	}
+	addUser(positionsCmd)
+	cmd.AddCommand(positionsCmd)
+
+	closedPositionsCmd := &cobra.Command{Use: "closed-positions", Short: "List closed positions for a user", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireUser(); err != nil {
+				return err
+			}
+			rows, err := w.data.ClosedPositions(cmd.Context(), user)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, rows)
+		},
+	}
+	addUser(closedPositionsCmd)
+	cmd.AddCommand(closedPositionsCmd)
+
+	tradesCmd := &cobra.Command{Use: "trades", Short: "List public Data API trades for a user", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireUser(); err != nil {
+				return err
+			}
+			rows, err := w.data.Trades(cmd.Context(), user, limit)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, rows)
+		},
+	}
+	addUser(tradesCmd)
+	cmd.AddCommand(tradesCmd)
+
+	activityCmd := &cobra.Command{Use: "activity", Short: "List public activity for a user", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireUser(); err != nil {
+				return err
+			}
+			rows, err := w.data.Activity(cmd.Context(), user, limit)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, rows)
+		},
+	}
+	addUser(activityCmd)
+	cmd.AddCommand(activityCmd)
+
+	holdersCmd := &cobra.Command{Use: "holders", Short: "List top holders for a token", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireToken(); err != nil {
+				return err
+			}
+			rows, err := w.data.TopHolders(cmd.Context(), tokenID, limit)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, rows)
+		},
+	}
+	addToken(holdersCmd)
+	cmd.AddCommand(holdersCmd)
+
+	valueCmd := &cobra.Command{Use: "value", Short: "Get total portfolio value for a user", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireUser(); err != nil {
+				return err
+			}
+			value, err := w.data.TotalValue(cmd.Context(), user)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, value)
+		},
+	}
+	addUser(valueCmd)
+	cmd.AddCommand(valueCmd)
+
+	marketsTradedCmd := &cobra.Command{Use: "markets-traded", Short: "Get total markets traded for a user", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireUser(); err != nil {
+				return err
+			}
+			value, err := w.data.MarketsTraded(cmd.Context(), user)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, value)
+		},
+	}
+	addUser(marketsTradedCmd)
+	cmd.AddCommand(marketsTradedCmd)
+
+	openInterestCmd := &cobra.Command{Use: "open-interest", Short: "Get open interest for a token", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireToken(); err != nil {
+				return err
+			}
+			value, err := w.data.OpenInterest(cmd.Context(), tokenID)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, value)
+		},
+	}
+	addToken(openInterestCmd)
+	cmd.AddCommand(openInterestCmd)
+
+	leaderboardCmd := &cobra.Command{Use: "leaderboard", Short: "List trader leaderboard rows", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			rows, err := w.data.TraderLeaderboard(cmd.Context(), limit)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, rows)
+		},
+	}
+	leaderboardCmd.Flags().IntVar(&limit, "limit", 20, "max rows")
+	cmd.AddCommand(leaderboardCmd)
+
+	liveVolumeCmd := &cobra.Command{Use: "live-volume", Short: "Get live volume summary", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			value, err := w.data.LiveVolume(cmd.Context(), limit)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, value)
+		},
+	}
+	liveVolumeCmd.Flags().IntVar(&limit, "limit", 20, "max rows")
+	cmd.AddCommand(liveVolumeCmd)
+
+	return cmd
+}
+
+func streamCmd(jsonOut bool) *cobra.Command {
+	w := newWire(jsonOut)
+	cmd := commandGroup("stream", "Polymarket WebSocket streams")
+
+	var assetsRaw string
+	var url string
+	var maxMessages int
+	marketCmd := &cobra.Command{Use: "market", Short: "Stream public CLOB market events", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			assetIDs := splitCSV(assetsRaw)
+			if len(assetIDs) == 0 {
+				return fmt.Errorf("--asset-ids required")
+			}
+			cfg := stream.DefaultConfig(url)
+			cfg.PingInterval = 10 * time.Second
+			client := stream.NewMarketClient(cfg)
+			done := make(chan struct{})
+			count := 0
+			emit := func(v interface{}) {
+				if maxMessages > 0 && count >= maxMessages {
+					return
+				}
+				count++
+				_ = w.printJSON(cmd, v)
+				if maxMessages > 0 && count >= maxMessages {
+					close(done)
+				}
+			}
+			client.OnBook = func(msg stream.BookMessage) { emit(msg) }
+			client.OnPriceChange = func(msg stream.PriceChangeMessage) { emit(msg) }
+			client.OnLastTrade = func(msg stream.LastTradeMessage) { emit(msg) }
+			client.OnError = func(err error) {
+				if maxMessages == 0 {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "stream error: %v\n", err)
+				}
+			}
+			if err := client.Connect(cmd.Context()); err != nil {
+				return err
+			}
+			defer client.Close()
+			if err := client.SubscribeAssets(cmd.Context(), assetIDs); err != nil {
+				return err
+			}
+			select {
+			case <-cmd.Context().Done():
+				return cmd.Context().Err()
+			case <-done:
+				return nil
+			}
+		},
+	}
+	marketCmd.Flags().StringVar(&assetsRaw, "asset-ids", "", "comma-separated CLOB token IDs")
+	marketCmd.Flags().StringVar(&url, "url", marketStreamBaseURL, "WebSocket URL")
+	marketCmd.Flags().IntVar(&maxMessages, "max-messages", 0, "stop after this many messages; 0 streams until interrupted")
+	cmd.AddCommand(marketCmd)
+
 	return cmd
 }
 
 func parseSignatureTypeFlag(value string) (int, error) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "", "proxy", "1":
+	case "", "deposit", "deposit-wallet", "poly-1271", "3":
+		return 3, nil
+	case "proxy", "1":
 		return 1, nil
 	case "eoa", "0":
 		return 0, nil
 	case "safe", "gnosis", "gnosis-safe", "2":
 		return 2, nil
-	case "deposit", "deposit-wallet", "poly-1271", "3":
-		return 3, nil
 	default:
 		return 0, fmt.Errorf("unsupported signature type %q", value)
 	}
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		item := strings.TrimSpace(part)
+		if item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func balanceResponseMap(res *clob.BalanceAllowanceResponse) map[string]interface{} {

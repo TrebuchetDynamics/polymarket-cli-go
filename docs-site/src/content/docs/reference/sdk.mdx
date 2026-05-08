@@ -4,6 +4,58 @@ title: Go SDK Reference
 
 Public packages available for consumption by `go-bot` and other Go projects.
 
+## `pkg/universal`
+
+Single-stop client for all Polymarket public data. Wraps Gamma, CLOB, Data API, Discovery, and Stream.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/universal"
+
+client := universal.NewClient(universal.Config{})
+```
+
+| Category | Methods |
+|----------|---------|
+| **Markets** | `ActiveMarkets`, `Markets`, `MarketByID`, `MarketBySlug`, `CLOBMarkets`, `CLOBMarket`, `SimplifiedMarkets`, `SamplingMarkets`, `SamplingSimplifiedMarkets` |
+| **Events** | `Events`, `EventByID`, `EventBySlug`, `EventsKeyset` |
+| **Search** | `Search`, `SearchAndEnrich` |
+| **Order Book** | `OrderBook`, `OrderBooks`, `Price`, `Prices`, `Midpoint`, `Midpoints`, `Spread`, `LastTradePrice`, `LastTradesPrices`, `PricesHistory` |
+| **Market Details** | `TickSize`, `NegRisk`, `FeeRateBps`, `EnrichedMarkets`, `EnrichMarket` |
+| **Tags** | `Tags`, `TagByID`, `TagBySlug`, `RelatedTagsByID`, `RelatedTagsBySlug` |
+| **Comments** | `Comments`, `CommentByID`, `CommentsByUser` |
+| **Sports** | `SportsMetadata`, `SportsMarketTypes`, `Teams` |
+| **Profiles** | `PublicProfile` |
+| **Series** | `Series`, `SeriesByID` |
+| **Token** | `MarketByToken` |
+| **Data API** | `CurrentPositions`, `ClosedPositions`, `Trades`, `Activity`, `TopHolders`, `TotalValue`, `MarketsTraded`, `OpenInterest`, `TraderLeaderboard`, `LiveVolume` |
+| **Orders** | `ListOrders`, `ListTrades`, `CancelOrder`, `CancelAll` |
+| **Stream** | `StreamClient`, `StreamClientWithConfig` |
+| **Health** | `HealthCheck` |
+
+## `pkg/gamma`
+
+Read-only market discovery client. 26 methods covering the full Gamma API.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/gamma"
+
+client := gamma.NewClient("")
+markets, _ := client.ActiveMarkets(ctx)
+event, _ := client.EventBySlug(ctx, "btc-updown-5m")
+profile, _ := client.PublicProfile(ctx, "0x...")
+```
+
+| Category | Methods |
+|----------|---------|
+| Markets | `ActiveMarkets`, `Markets`, `MarketByID`, `MarketBySlug`, `MarketByToken`, `MarketsKeyset` |
+| Events | `Events`, `EventByID`, `EventBySlug`, `EventsKeyset` |
+| Search | `Search` |
+| Tags | `Tags`, `TagByID`, `TagBySlug`, `RelatedTagsByID`, `RelatedTagsBySlug` |
+| Series | `Series`, `SeriesByID` |
+| Comments | `Comments`, `CommentByID`, `CommentsByUser` |
+| Profiles | `PublicProfile` |
+| Sports | `SportsMetadata`, `SportsMarketTypes`, `Teams` |
+
 ## `pkg/bookreader`
 
 Read-only CLOB order book access.

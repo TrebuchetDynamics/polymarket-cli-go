@@ -1,0 +1,140 @@
+---
+title: Universal Client
+description: Query all Polymarket market data through one typed surface — no API credentials needed.
+---
+
+The `pkg/universal` package provides a single client that wraps all public
+Polymarket APIs: Gamma (markets, events, search), CLOB (order books,
+prices, spreads), Data API (positions, volume, leaderboards), and more.
+
+## Quick Start
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/universal"
+
+client := universal.NewClient(universal.Config{})
+```
+
+No credentials needed for read-only operations. All methods are safe for
+concurrent use.
+
+## Market Discovery
+
+```go
+// Search by keyword
+results, _ := client.Search(ctx, &polytypes.SearchParams{Q: "btc 5m"})
+
+// Get active markets
+markets, _ := client.ActiveMarkets(ctx)
+
+// Get by ID or slug
+market, _ := client.MarketByID(ctx, "0xbd31dc8a...")
+market, _ := client.MarketBySlug(ctx, "will-btc-be-above")
+
+// Keyset pagination
+events, cursor, _ := client.EventsKeyset(ctx, &polytypes.KeysetParams{Limit: 50})
+```
+
+## Order Books & Pricing
+
+```go
+// L2 order book
+book, _ := client.OrderBook(ctx, "token-id")
+
+// Best price per side
+bid, _ := client.Price(ctx, "token-id", "BUY")
+ask, _ := client.Price(ctx, "token-id", "SELL")
+
+// Calculated values
+mid, _ := client.Midpoint(ctx, "token-id")
+spread, _ := client.Spread(ctx, "token-id")
+lastPrice, _ := client.LastTradePrice(ctx, "token-id")
+
+// OHLCV history
+hist, _ := client.PricesHistory(ctx, &polytypes.PriceHistoryParams{
+    Market:   "0x...",
+    Interval: "1h",
+})
+
+// Batch operations
+books, _ := client.OrderBooks(ctx, []polytypes.BookParams{{TokenID: "t1"}, {TokenID: "t2"}})
+prices, _ := client.Prices(ctx, []polytypes.BookParams{{TokenID: "t1", Side: "BUY"}})
+```
+
+## Market Enrichment (Gamma + CLOB)
+
+```go
+// Active markets with CLOB details appended
+enriched, _ := client.EnrichedMarkets(ctx, 50)
+// Each includes: Market + TickSize + NegRisk + FeeRateBps + OrderBook + LastPrice + Midpoint + Spread
+
+// Search and enrich in one call
+results, _ := client.SearchAndEnrich(ctx, "btc 5m", 20)
+
+// Enrich a single market
+em, _ := client.EnrichMarket(ctx, someMarket)
+```
+
+## Tags & Categories
+
+```go
+tags, _ := client.Tags(ctx, &polytypes.GetTagsParams{})
+tag, _ := client.TagByID(ctx, "tag-id")
+tag, _ := client.TagBySlug(ctx, "crypto")
+related, _ := client.RelatedTagsByID(ctx, "tag-id")
+```
+
+## Comments & Profiles
+
+```go
+comments, _ := client.Comments(ctx, &polytypes.CommentQuery{})
+comment, _ := client.CommentByID(ctx, "comment-id")
+userComments, _ := client.CommentsByUser(ctx, "0x...", 10)
+profile, _ := client.PublicProfile(ctx, "0x...")
+```
+
+## Volume & Leaderboards
+
+```go
+vol, _ := client.LiveVolume(ctx, 10)
+board, _ := client.TraderLeaderboard(ctx, 100)
+positions, _ := client.CurrentPositions(ctx, "0x...")
+holdings, _ := client.TopHolders(ctx, "token-id", 20)
+interest, _ := client.OpenInterest(ctx, "token-id")
+```
+
+## Streams
+
+```go
+stream := client.StreamClient()
+stream.OnBook = func(msg stream.BookMessage) { /* handle orderbook update */ }
+stream.OnPriceChange = func(msg stream.PriceChangeMessage) { /* handle price change */ }
+stream.OnLastTrade = func(msg stream.LastTradeMessage) { /* handle trade */ }
+stream.Connect(ctx)
+```
+
+## Configuration
+
+```go
+// Production defaults
+client := universal.NewClient(universal.Config{})
+
+// Custom endpoints
+client := universal.NewClient(universal.Config{
+    GammaBaseURL: "https://gamma-api.polymarket.com",
+    CLOBBaseURL:  "https://clob.polymarket.com",
+    DataBaseURL:  "https://data-api.polymarket.com",
+})
+
+// Default config for reference
+cfg := universal.DefaultConfig()
+```
+
+## When to Use
+
+Use `pkg/universal` when you need to query multiple Polymarket APIs from
+one client. Use the individual packages (`pkg/gamma`, `pkg/bookreader`,
+etc.) when you only need one API and want minimal dependencies.
+
+For authenticated operations (order placement, cancellation), use
+the CLI or the internal CLOB client directly.

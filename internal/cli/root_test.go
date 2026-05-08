@@ -46,8 +46,12 @@ func TestJSONFlagIsAcceptedAndPreflightEmitsJSON(t *testing.T) {
 func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 	for _, args := range [][]string{
 		{"discover", "search"},
+		{"discover", "markets"},
 		{"discover", "market"},
 		{"discover", "enrich"},
+		{"discover", "tags"},
+		{"discover", "series"},
+		{"discover", "comments"},
 		{"orderbook", "get"},
 		{"orderbook", "price"},
 		{"orderbook", "midpoint"},
@@ -61,11 +65,28 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 		{"clob", "balance"},
 		{"clob", "update-balance"},
 		{"clob", "orders"},
+		{"clob", "order"},
 		{"clob", "trades"},
+		{"clob", "cancel"},
+		{"clob", "cancel-orders"},
+		{"clob", "cancel-all"},
+		{"clob", "cancel-market"},
 		{"clob", "create-order"},
 		{"clob", "market-order"},
 		{"clob", "price-history"},
 		{"clob", "market"},
+		{"clob", "markets"},
+		{"data", "positions"},
+		{"data", "closed-positions"},
+		{"data", "trades"},
+		{"data", "activity"},
+		{"data", "holders"},
+		{"data", "value"},
+		{"data", "markets-traded"},
+		{"data", "open-interest"},
+		{"data", "leaderboard"},
+		{"data", "live-volume"},
+		{"stream", "market"},
 		{"events", "list"},
 		{"bridge", "assets"},
 		{"bridge", "deposit"},
@@ -87,6 +108,30 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 			wantPath := "polygolem " + strings.Join(args, " ")
 			if !strings.Contains(stdout.String(), wantPath) {
 				t.Fatalf("help output does not identify exact command path %q:\n%s", wantPath, stdout.String())
+			}
+		})
+	}
+}
+
+func TestCLOBSignatureTypeDefaultsToDepositWallet(t *testing.T) {
+	for _, args := range [][]string{
+		{"clob", "balance"},
+		{"clob", "update-balance"},
+		{"clob", "create-order"},
+		{"clob", "market-order"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			root := NewRootCommand(Options{Version: "test-version", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+			cmd, _, err := root.Find(args)
+			if err != nil {
+				t.Fatalf("Find returned error: %v", err)
+			}
+			flag := cmd.Flags().Lookup("signature-type")
+			if flag == nil {
+				t.Fatalf("signature-type flag missing")
+			}
+			if flag.DefValue != "deposit" {
+				t.Fatalf("default signature-type=%q, want deposit", flag.DefValue)
 			}
 		})
 	}

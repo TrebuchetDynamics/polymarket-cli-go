@@ -26,6 +26,7 @@ export default defineConfig({
           label: "Guides",
           items: [
             { label: "Market Discovery", slug: "guides/market-discovery" },
+            { label: "Universal Client", slug: "guides/universal-client" },
             { label: "Deposit Wallet Lifecycle", slug: "guides/deposit-wallet-lifecycle" },
             { label: "Orderbook Data", slug: "guides/orderbook-data" },
             { label: "Paper Trading", slug: "guides/paper-trading" },

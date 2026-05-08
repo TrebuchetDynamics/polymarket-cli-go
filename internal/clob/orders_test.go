@@ -138,6 +138,106 @@ func TestCreateMarketOrderPostsV2PayloadWhenCLOBVersionIsTwo(t *testing.T) {
 	}
 }
 
+func TestOrderQueriesSingleOrderByID(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/order/0xabc":
+			gotPath = r.URL.Path
+			if r.Method != http.MethodGet {
+				t.Fatalf("method=%s want GET", r.Method)
+			}
+			_, _ = w.Write([]byte(`{"id":"0xabc","status":"LIVE","market":"0xmarket"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	order, err := client.Order(context.Background(), testOrderPrivateKey, "0xabc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/order/0xabc" || order.ID != "0xabc" || order.Status != "LIVE" {
+		t.Fatalf("path=%q order=%+v", gotPath, order)
+	}
+}
+
+func TestCancelOrdersDeletesBatchEndpointWithOrderIDs(t *testing.T) {
+	var posted map[string][]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/orders":
+			if r.Method != http.MethodDelete {
+				t.Fatalf("method=%s want DELETE", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode cancel body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"canceled":["0x1","0x2"],"not_canceled":{}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	res, err := client.CancelOrders(context.Background(), testOrderPrivateKey, []string{"0x1", "0x2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(posted["orderIDs"]) != 2 || len(res.Canceled) != 2 {
+		t.Fatalf("posted=%#v response=%+v", posted, res)
+	}
+}
+
+func TestCancelMarketDeletesMarketEndpointWithFilters(t *testing.T) {
+	var posted map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/cancel-market-orders":
+			if r.Method != http.MethodDelete {
+				t.Fatalf("method=%s want DELETE", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode cancel market body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"canceled":["0x1"],"not_canceled":{}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	res, err := client.CancelMarket(context.Background(), testOrderPrivateKey, CancelMarketParams{
+		Market: "0xmarket",
+		Asset:  "123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if posted["market"] != "0xmarket" || posted["asset_id"] != "123" || len(res.Canceled) != 1 {
+		t.Fatalf("posted=%#v response=%+v", posted, res)
+	}
+}
+
 func TestSignCLOBOrderUsesNegRiskExchangeAddressWhenFlagged(t *testing.T) {
 	signer, err := auth.NewPrivateKeySigner(testOrderPrivateKey, polygonChainID)
 	if err != nil {

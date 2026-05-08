@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -67,6 +68,11 @@ type OrderPlacementResponse struct {
 type CancelOrdersResponse struct {
 	Canceled    []string          `json:"canceled"`
 	NotCanceled map[string]string `json:"not_canceled"`
+}
+
+type CancelMarketParams struct {
+	Market string
+	Asset  string
 }
 
 // OrderRecord is a single order as returned by ListOrders.
@@ -200,6 +206,19 @@ func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]TradeReco
 	return result, nil
 }
 
+func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*OrderRecord, error) {
+	orderID = strings.TrimSpace(orderID)
+	if orderID == "" {
+		return nil, fmt.Errorf("order ID is required")
+	}
+	var result OrderRecord
+	path := "/order/" + url.PathEscape(orderID)
+	if err := c.authenticatedL2GET(ctx, privateKey, path, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*CancelOrdersResponse, error) {
 	orderID = strings.TrimSpace(orderID)
 	if orderID == "" {
@@ -226,6 +245,35 @@ func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*
 	return &result, nil
 }
 
+func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs []string) (*CancelOrdersResponse, error) {
+	ids := cleanOrderIDs(orderIDs)
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("at least one order ID is required")
+	}
+	if len(ids) > 3000 {
+		return nil, fmt.Errorf("at most 3000 order IDs can be cancelled at once")
+	}
+	key, err := c.DeriveAPIKey(ctx, privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("derive api key: %w", err)
+	}
+	body := map[string][]string{"orderIDs": ids}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	compactBody := auth.CompactJSON(string(bodyBytes))
+	headers, err := c.l2Headers(privateKey, &key, http.MethodDelete, "/orders", &compactBody)
+	if err != nil {
+		return nil, err
+	}
+	var result CancelOrdersResponse
+	if err := c.transport.DeleteWithHeaders(ctx, "/orders", body, headers, &result); err != nil {
+		return nil, fmt.Errorf("cancel orders: %w", err)
+	}
+	return &result, nil
+}
+
 func (c *Client) CancelAll(ctx context.Context, privateKey string) (*CancelOrdersResponse, error) {
 	key, err := c.DeriveAPIKey(ctx, privateKey)
 	if err != nil {
@@ -238,6 +286,39 @@ func (c *Client) CancelAll(ctx context.Context, privateKey string) (*CancelOrder
 	var result CancelOrdersResponse
 	if err := c.transport.DeleteWithHeaders(ctx, "/cancel-all", nil, headers, &result); err != nil {
 		return nil, fmt.Errorf("cancel all: %w", err)
+	}
+	return &result, nil
+}
+
+func (c *Client) CancelMarket(ctx context.Context, privateKey string, params CancelMarketParams) (*CancelOrdersResponse, error) {
+	params.Market = strings.TrimSpace(params.Market)
+	params.Asset = strings.TrimSpace(params.Asset)
+	if params.Market == "" && params.Asset == "" {
+		return nil, fmt.Errorf("market or asset filter is required")
+	}
+	key, err := c.DeriveAPIKey(ctx, privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("derive api key: %w", err)
+	}
+	body := map[string]string{}
+	if params.Market != "" {
+		body["market"] = params.Market
+	}
+	if params.Asset != "" {
+		body["asset_id"] = params.Asset
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	compactBody := auth.CompactJSON(string(bodyBytes))
+	headers, err := c.l2Headers(privateKey, &key, http.MethodDelete, "/cancel-market-orders", &compactBody)
+	if err != nil {
+		return nil, err
+	}
+	var result CancelOrdersResponse
+	if err := c.transport.DeleteWithHeaders(ctx, "/cancel-market-orders", body, headers, &result); err != nil {
+		return nil, fmt.Errorf("cancel market orders: %w", err)
 	}
 	return &result, nil
 }
@@ -268,6 +349,17 @@ func (c *Client) authenticatedL2GET(ctx context.Context, privateKey string, path
 		return err
 	}
 	return c.transport.GetWithHeaders(ctx, path, headers, result)
+}
+
+func cleanOrderIDs(orderIDs []string) []string {
+	out := make([]string, 0, len(orderIDs))
+	for _, id := range orderIDs {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params MarketOrderParams) (*OrderPlacementResponse, error) {

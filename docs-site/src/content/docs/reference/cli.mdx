@@ -6,20 +6,139 @@ title: CLI Commands
 
 ```
 polygolem
-├── discover           Market discovery (Gamma API)
-│   ├── search         Search markets by query
-│   ├── market         Get market by ID or slug
-│   └── enrich         Gamma + CLOB merged data
-├── orderbook          CLOB market data
-│   ├── get            L2 order book depth
-│   ├── price          Best bid/ask
-│   ├── midpoint       Calculated midpoint
-│   ├── spread         Bid-ask spread
-│   ├── tick-size      Minimum tick size
-│   └── fee-rate       Fee in basis points
-├── health             Gamma + CLOB reachability
-├── preflight          Safety gate checks
-└── version            Print version
+├── builder
+│   └── auto               Create builder profile + HMAC creds (zero browser)
+├── discover                Market discovery (Gamma API)
+│   ├── search              Search markets by query
+│   ├── market              Get market by ID or slug
+│   └── enrich              Gamma + CLOB merged data
+├── deposit-wallet          Deposit wallet lifecycle
+│   ├── derive              Predict CREATE2 wallet address (local)
+│   ├── deploy              WALLET-CREATE via relayer
+│   ├── status              Check deployment, approvals, balance
+│   ├── approve             Review or submit 6-call WALLET batch
+│   ├── fund                Transfer pUSD EOA → deposit wallet
+│   └── onboard             One-command: deploy + approve + fund
+├── clob                    CLOB market data + trading
+│   ├── book                L2 order book depth
+│   ├── price               Best bid/ask
+│   ├── midpoint            Calculated midpoint
+│   ├── spread              Bid-ask spread
+│   ├── tick-size           Minimum tick size
+│   ├── fee-rate            Fee in basis points
+│   ├── last-trade          Last trade price
+│   ├── prices-history      OHLCV price history
+│   ├── markets             CLOB market list (paginated)
+│   ├── balance             Balance + allowances
+│   ├── update-balance      Refresh CLOB balance cache
+│   ├── orders              List open orders
+│   ├── trades              List trade history
+│   ├── create-order        Place limit order (POLY_1271)
+│   ├── market-order        Place market/FOK order
+│   ├── cancel              Cancel single order by ID
+│   └── cancel-all          Cancel all open orders
+├── bridge                  Cross-chain deposits
+│   ├── assets              List supported assets
+│   └── deposit             Get deposit addresses
+├── paper                   Local simulation
+│   ├── buy                 Simulate buy
+│   ├── positions           View positions
+│   └── reset               Reset state
+├── health                  Gamma + CLOB reachability
+├── preflight               Safety gate checks
+└── version                 Print version
+```
+
+## builder
+
+### auto
+
+Creates a builder profile and HMAC credentials programmatically. No browser required — signs a ClobAuth EIP-712 message locally and posts to `clob.polymarket.com/auth/api-key`.
+
+```bash
+polygolem builder auto
+# Writes BUILDER_API_KEY, BUILDER_SECRET, BUILDER_PASSPHRASE to env file
+```
+
+Requires: `POLYMARKET_PRIVATE_KEY`
+
+## deposit-wallet
+
+### derive
+```bash
+polygolem deposit-wallet derive
+```
+Returns predicted CREATE2 address. Pure local computation, no network calls.
+
+### deploy
+```bash
+polygolem deposit-wallet deploy --wait
+```
+Submits WALLET-CREATE to relayer. `--wait` polls until confirmed.
+
+### status
+```bash
+polygolem deposit-wallet status
+```
+Returns: deployed?, approvals?, pUSD_balance?, ready_to_trade?
+
+### approve
+```bash
+polygolem deposit-wallet approve           # Show 6-call calldata
+polygolem deposit-wallet approve --submit  # Sign + submit
+```
+
+### fund
+```bash
+polygolem deposit-wallet fund --amount 10.0
+```
+ERC-20 pUSD transfer EOA → deposit wallet. This is the only user-paid gas tx (~$0.01 POL).
+
+### onboard
+```bash
+polygolem deposit-wallet onboard --fund-amount 10.0
+```
+One command: deploy + approve + fund. Skips steps already completed.
+
+## clob
+
+### orders
+```bash
+polygolem clob orders
+```
+List open orders (requires `POLYMARKET_PRIVATE_KEY`). Returns typed `OrderRecord` array.
+
+### trades
+```bash
+polygolem clob trades
+```
+List trade history (requires `POLYMARKET_PRIVATE_KEY`). Returns typed `TradeRecord` array.
+
+### cancel
+```bash
+polygolem clob cancel "0xb816482a..."
+```
+Cancel a single order by ID. Requires `POLYMARKET_PRIVATE_KEY` + L2 auth.
+
+### cancel-all
+```bash
+polygolem clob cancel-all
+```
+Cancel all open orders. Requires `POLYMARKET_PRIVATE_KEY` + L2 auth.
+
+### create-order
+```bash
+polygolem clob create-order \
+  --token ID --side buy --price 0.5 --size 10 \
+  --signature-type deposit
+```
+Flags: `--token`, `--side` (buy/sell), `--price`, `--size`, `--type` (GTC/GTD/FAK/FOK), `--signature-type` (deposit/eoa)
+
+### market-order
+```bash
+polygolem clob market-order \
+  --token ID --side buy --amount 5 \
+  --signature-type deposit
 ```
 
 ## discover
@@ -45,41 +164,34 @@ Flags: `--id` (required)
 
 ## orderbook
 
-### get
 ```bash
-polygolem orderbook get --token-id "123456789..."
-```
-Flags: `--token-id` (required)
-
-### price
-```bash
+polygolem orderbook get --token-id "123..."
 polygolem orderbook price --token-id "123..."
-```
-Flags: `--token-id` (required)
-
-### midpoint
-```bash
 polygolem orderbook midpoint --token-id "123..."
-```
-Flags: `--token-id` (required)
-
-### spread
-```bash
 polygolem orderbook spread --token-id "123..."
-```
-Flags: `--token-id` (required)
-
-### tick-size
-```bash
 polygolem orderbook tick-size --token-id "123..."
-```
-Flags: `--token-id` (required)
-
-### fee-rate
-```bash
 polygolem orderbook fee-rate --token-id "123..."
+polygolem orderbook last-trade --token-id "123..."
 ```
-Flags: `--token-id` (required)
+
+## bridge
+
+```bash
+polygolem bridge assets
+polygolem bridge deposit <wallet-address>
+```
+
+## Env Vars
+
+| Variable | Required for |
+|----------|-------------|
+| `POLYMARKET_PRIVATE_KEY` | All authenticated commands |
+| `POLYMARKET_BUILDER_API_KEY` | Deposit wallet deploy/batch/onboard |
+| `POLYMARKET_BUILDER_SECRET` | Deposit wallet deploy/batch/onboard |
+| `POLYMARKET_BUILDER_PASSPHRASE` | Deposit wallet deploy/batch/onboard |
+| `POLYMARKET_RELAYER_URL` | Override relayer URL (default: relayer-v2.polymarket.com) |
+
+Short-form `BUILDER_API_KEY` / `BUILDER_SECRET` / `BUILDER_PASS_PHRASE` also accepted.
 
 ## Global flags
 
