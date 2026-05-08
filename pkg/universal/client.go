@@ -230,6 +230,11 @@ func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]clob.Orde
 	return c.clob.ListOrders(ctx, privateKey)
 }
 
+// Order returns one authenticated order by order ID.
+func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*clob.OrderRecord, error) {
+	return c.clob.Order(ctx, privateKey, orderID)
+}
+
 // ListTrades returns the authenticated user's trade history.
 func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]clob.TradeRecord, error) {
 	return c.clob.ListTrades(ctx, privateKey)
@@ -240,9 +245,19 @@ func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*
 	return c.clob.CancelOrder(ctx, privateKey, orderID)
 }
 
+// CancelOrders cancels multiple open CLOB orders by order ID.
+func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs []string) (*clob.CancelOrdersResponse, error) {
+	return c.clob.CancelOrders(ctx, privateKey, orderIDs)
+}
+
 // CancelAll cancels all open CLOB orders for the authenticated user.
 func (c *Client) CancelAll(ctx context.Context, privateKey string) (*clob.CancelOrdersResponse, error) {
 	return c.clob.CancelAll(ctx, privateKey)
+}
+
+// CancelMarket cancels open CLOB orders matching a market or asset filter.
+func (c *Client) CancelMarket(ctx context.Context, privateKey string, params clob.CancelMarketParams) (*clob.CancelOrdersResponse, error) {
+	return c.clob.CancelMarket(ctx, privateKey, params)
 }
 
 // --- CLOB: Headless Onboarding & Trading (L1/L2 auth) ---
@@ -286,6 +301,65 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 // of Size on the params to express a fill-this-much budget.
 func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params clob.MarketOrderParams) (*clob.OrderPlacementResponse, error) {
 	return c.clob.CreateMarketOrder(ctx, privateKey, params)
+}
+
+// --- CLOB: Metadata & Scoring ---
+
+// CLOBServerTime returns the CLOB's current server time. Useful for
+// signing payloads that embed a timestamp the backend must accept.
+func (c *Client) CLOBServerTime(ctx context.Context) (*polytypes.ServerTime, error) {
+	return c.clob.ServerTime(ctx)
+}
+
+// OrderScoring reports whether a single order id is currently scoring
+// (eligible for liquidity rewards).
+func (c *Client) OrderScoring(ctx context.Context, orderID string) (bool, error) {
+	return c.clob.OrderScoring(ctx, orderID)
+}
+
+// OrdersScoring reports the scoring eligibility for a batch of order ids.
+// Returns one boolean per id, in the order supplied.
+func (c *Client) OrdersScoring(ctx context.Context, orderIDs []string) ([]bool, error) {
+	return c.clob.OrdersScoring(ctx, orderIDs)
+}
+
+// --- CLOB: Rewards ---
+
+// RewardsConfig returns the current liquidity-reward configuration entries.
+func (c *Client) RewardsConfig(ctx context.Context) ([]polytypes.RewardsConfig, error) {
+	return c.clob.RewardsConfig(ctx)
+}
+
+// RawRewards returns the per-maker raw reward breakdown for a market.
+func (c *Client) RawRewards(ctx context.Context, market string) ([]polytypes.RawRewards, error) {
+	return c.clob.RawRewards(ctx, market)
+}
+
+// UserEarnings returns the authenticated-day earnings record for date
+// (YYYY-MM-DD).
+func (c *Client) UserEarnings(ctx context.Context, date string) ([]polytypes.UserEarnings, error) {
+	return c.clob.UserEarnings(ctx, date)
+}
+
+// TotalEarnings returns aggregate platform earnings for date (YYYY-MM-DD).
+func (c *Client) TotalEarnings(ctx context.Context, date string) (*polytypes.TotalEarnings, error) {
+	return c.clob.TotalEarnings(ctx, date)
+}
+
+// RewardPercentages returns the current reward-share percentages.
+func (c *Client) RewardPercentages(ctx context.Context) ([]polytypes.RewardPercentages, error) {
+	return c.clob.RewardPercentages(ctx)
+}
+
+// UserRewardsByMarket returns the authenticated user's rewards grouped by
+// market.
+func (c *Client) UserRewardsByMarket(ctx context.Context, params *polytypes.UserRewardsByMarketRequest) ([]polytypes.UserRewardsMarket, error) {
+	return c.clob.UserRewardsByMarket(ctx, params)
+}
+
+// RebatedFees returns the rebated-fee schedule.
+func (c *Client) RebatedFees(ctx context.Context) ([]polytypes.RebatedFees, error) {
+	return c.clob.RebatedFees(ctx)
 }
 
 // --- CLOB: Extended Market Lists ---

@@ -222,6 +222,96 @@ func TestDeriveAPIKey(t *testing.T) {
 	}
 }
 
+func TestOrderRoutes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "k-order",
+				"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"passphrase": "pp-order",
+			})
+		case "/order/0xabc":
+			if r.Method != http.MethodGet {
+				t.Errorf("expected GET, got %s", r.Method)
+			}
+			json.NewEncoder(w).Encode(map[string]string{"id": "0xabc", "status": "LIVE"})
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	order, err := c.Order(context.Background(), testPrivateKey, "0xabc")
+	if err != nil {
+		t.Fatalf("Order error: %v", err)
+	}
+	if order.ID != "0xabc" || order.Status != "LIVE" {
+		t.Errorf("unexpected order: %+v", order)
+	}
+}
+
+func TestCancelOrdersRoutes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "k-cancel-orders",
+				"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"passphrase": "pp-cancel-orders",
+			})
+		case "/orders":
+			if r.Method != http.MethodDelete {
+				t.Errorf("expected DELETE, got %s", r.Method)
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"canceled": []string{"0x1", "0x2"}})
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	resp, err := c.CancelOrders(context.Background(), testPrivateKey, []string{"0x1", "0x2"})
+	if err != nil {
+		t.Fatalf("CancelOrders error: %v", err)
+	}
+	if len(resp.Canceled) != 2 {
+		t.Errorf("expected 2 canceled orders, got %+v", resp)
+	}
+}
+
+func TestCancelMarketRoutes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "k-cancel-market",
+				"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"passphrase": "pp-cancel-market",
+			})
+		case "/cancel-market-orders":
+			if r.Method != http.MethodDelete {
+				t.Errorf("expected DELETE, got %s", r.Method)
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"canceled": []string{"0x1"}})
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	resp, err := c.CancelMarket(context.Background(), testPrivateKey, clob.CancelMarketParams{Market: "0xmarket"})
+	if err != nil {
+		t.Fatalf("CancelMarket error: %v", err)
+	}
+	if len(resp.Canceled) != 1 {
+		t.Errorf("expected 1 canceled order, got %+v", resp)
+	}
+}
+
 func TestBalanceAllowance(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -371,5 +461,177 @@ func TestCreateMarketOrderRoutes(t *testing.T) {
 	}
 	if resp.OrderID != "ord-mkt-1" {
 		t.Errorf("expected ord-mkt-1, got %q", resp.OrderID)
+	}
+}
+
+// --- Metadata, scoring, and rewards passthrough tests ---
+
+func TestCLOBServerTime(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/time" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"server_time": "2026-05-07T22:00:00Z"})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	if _, err := c.CLOBServerTime(context.Background()); err != nil {
+		t.Fatalf("CLOBServerTime error: %v", err)
+	}
+}
+
+func TestOrderScoring(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/orders/scoring" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("order_id"); got != "ord-1" {
+			t.Errorf("expected order_id=ord-1, got %q", got)
+		}
+		json.NewEncoder(w).Encode(map[string]bool{"scoring": true})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	scoring, err := c.OrderScoring(context.Background(), "ord-1")
+	if err != nil {
+		t.Fatalf("OrderScoring error: %v", err)
+	}
+	if !scoring {
+		t.Error("expected scoring=true")
+	}
+}
+
+func TestOrdersScoring(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/orders/scoring" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		json.NewEncoder(w).Encode([]bool{true, false, true})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	got, err := c.OrdersScoring(context.Background(), []string{"o1", "o2", "o3"})
+	if err != nil {
+		t.Fatalf("OrdersScoring error: %v", err)
+	}
+	if len(got) != 3 || got[0] != true || got[1] != false || got[2] != true {
+		t.Errorf("unexpected scoring: %v", got)
+	}
+}
+
+func TestRewardsConfig(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rewards/config" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode([]map[string]interface{}{{"id": 1}})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	if _, err := c.RewardsConfig(context.Background()); err != nil {
+		t.Fatalf("RewardsConfig error: %v", err)
+	}
+}
+
+func TestRawRewards(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rewards/raw" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("market"); got != "0xmarket" {
+			t.Errorf("expected market query, got %q", got)
+		}
+		json.NewEncoder(w).Encode([]map[string]interface{}{})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	if _, err := c.RawRewards(context.Background(), "0xmarket"); err != nil {
+		t.Fatalf("RawRewards error: %v", err)
+	}
+}
+
+func TestUserEarnings(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rewards/earnings" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("date"); got != "2026-05-07" {
+			t.Errorf("expected date query, got %q", got)
+		}
+		json.NewEncoder(w).Encode([]map[string]interface{}{})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	if _, err := c.UserEarnings(context.Background(), "2026-05-07"); err != nil {
+		t.Fatalf("UserEarnings error: %v", err)
+	}
+}
+
+func TestTotalEarnings(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rewards/total-earnings" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"total": "100"})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	if _, err := c.TotalEarnings(context.Background(), "2026-05-07"); err != nil {
+		t.Fatalf("TotalEarnings error: %v", err)
+	}
+}
+
+func TestRewardPercentages(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rewards/percentages" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode([]map[string]interface{}{})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	if _, err := c.RewardPercentages(context.Background()); err != nil {
+		t.Fatalf("RewardPercentages error: %v", err)
+	}
+}
+
+func TestUserRewardsByMarket(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rewards/markets" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode([]map[string]interface{}{})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	if _, err := c.UserRewardsByMarket(context.Background(), nil); err != nil {
+		t.Fatalf("UserRewardsByMarket error: %v", err)
+	}
+}
+
+func TestRebatedFees(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rebates" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode([]map[string]interface{}{})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	if _, err := c.RebatedFees(context.Background()); err != nil {
+		t.Fatalf("RebatedFees error: %v", err)
 	}
 }
