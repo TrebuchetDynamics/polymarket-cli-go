@@ -105,7 +105,7 @@ Cobra-based CLI on top.</p>
 
 
 
-<table><thead><tr><th>Layer</th><th>Packages</th><th>Role</th></tr></thead><tbody><tr><td><strong><code dir="auto">cmd/polygolem</code></strong></td><td>1</td><td>Binary entry point. Wires Cobra and exits.</td></tr><tr><td><strong><code dir="auto">pkg/</code></strong></td><td>9</td><td>Public Go SDK contracts. Data API DTOs use public <code dir="auto">pkg/types</code>; other type paths still need cleanup.</td></tr><tr><td><strong><code dir="auto">internal/</code></strong></td><td>21</td><td>Implementation. Not part of public API.</td></tr></tbody></table>
+<table><thead><tr><th>Layer</th><th>Packages</th><th>Role</th></tr></thead><tbody><tr><td><strong><code dir="auto">cmd/polygolem</code></strong></td><td>1</td><td>Binary entry point. Wires Cobra and exits.</td></tr><tr><td><strong><code dir="auto">pkg/</code></strong></td><td>9</td><td>Public Go SDK contracts. Gamma and Data API DTOs use public <code dir="auto">pkg/types</code>; CLOB/enrichment/stream type paths still need cleanup.</td></tr><tr><td><strong><code dir="auto">internal/</code></strong></td><td>21</td><td>Implementation. Not part of public API.</td></tr></tbody></table>
 <p>The CLI and public SDK both depend on the internal protocol implementation.
 The <code dir="auto">internal/</code> packages do not depend on <code dir="auto">cmd/</code>.</p>
 <h2 id="public-sdk-pkg">Public SDK (<code dir="auto">pkg/</code>)</h2>
@@ -217,7 +217,7 @@ The <code dir="auto">internal/</code> packages do not depend on <code dir="auto"
 
 
 
-<table><thead><tr><th>Package</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">internal/auth</code></td><td>L0/L1/L2 auth, EIP-712, CREATE2 derivation, builder attribution, signers</td></tr><tr><td><code dir="auto">internal/polytypes</code></td><td>V2 protocol types — Market, Event, OrderBook, order payloads</td></tr><tr><td><code dir="auto">internal/transport</code></td><td>HTTP retry, rate limiter, circuit breaker, redaction</td></tr><tr><td><code dir="auto">internal/config</code></td><td>Config loading, defaults, env binding, validation, redaction</td></tr></tbody></table>
+<table><thead><tr><th>Package</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">internal/auth</code></td><td>L0/L1/L2 auth, EIP-712, CREATE2 derivation, builder attribution, signers</td></tr><tr><td><code dir="auto">internal/polytypes</code></td><td>V2 protocol types and aliases — Gamma DTO aliases, CLOB data, enrichment, order payloads</td></tr><tr><td><code dir="auto">internal/transport</code></td><td>HTTP retry, rate limiter, circuit breaker, redaction</td></tr><tr><td><code dir="auto">internal/config</code></td><td>Config loading, defaults, env binding, validation, redaction</td></tr></tbody></table>
 <h3 id="application">Application</h3>
 
 
