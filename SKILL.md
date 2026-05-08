@@ -2692,7 +2692,8 @@ Decision rule:
 ## See also
 
 - `docs/JSON-CONTRACT.md` — full envelope and error-code specification.
-- `docs/COMMANDS.md` — flag-by-flag reference for every command.
+- `docs/COMMANDS.md` — generated flag-by-flag reference for every command.
+  Run `go run ./cmd/polygolem_docs` after changing CLI commands.
 - `docs/SAFETY.md` — safety boundaries, including deposit-wallet rules.
 - `docs/ARCHITECTURE.md` — package map and dependency direction.
 - `polygolem <cmd> --help` — normative for flag semantics.

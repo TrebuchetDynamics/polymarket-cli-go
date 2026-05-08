@@ -27,9 +27,9 @@ they have local tests.
   after L2 auth header signing and local WebSocket tests exist.
 - Data API open-interest currently requires a token ID in the CLI. A future
   all-market variant should be added only after the response shape is captured.
-- `docs/COMMANDS.md` is aligned with the current command tree, but there is no
-  checked-in generator yet. Add a generator before relying on it as a strict
-  build artifact.
+- `docs/COMMANDS.md` and the Starlight CLI reference are generated from the
+  Cobra command tree. Run `go run ./cmd/polygolem_docs` after changing CLI
+  commands.
 - The shared CLI v1 JSON envelope is implemented for success payloads, group
   command usage errors, not-implemented stubs, and common auth failures.
   Remaining JSON-contract work is more precise protocol/transport/chain error
