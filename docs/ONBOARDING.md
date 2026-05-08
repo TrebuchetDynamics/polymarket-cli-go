@@ -1,8 +1,42 @@
 # Onboarding — Single Source of Truth
 
 **Last updated:** 2026-05-08
-**Status:** Fully headless onboarding verified end-to-end against Polymarket prod with deposit wallet path
+**Status:** Headless **registration** verified end-to-end against prod. Headless **order placement** for sigtype-3 deposit wallets is still blocked at the deprecated CLOB `/auth/derive-api-key` endpoint — see [Known limitations](#known-limitations) below.
 **Companion:** [BROWSER-SETUP.md](./BROWSER-SETUP.md) — only for users coming from Magic Link / social signup
+
+---
+
+## Known limitations
+
+The 2026-05-08 capture proved that `POST /gamma-api/profiles` is what
+unblocks Polymarket's *registration* gate (the `"maker address not
+allowed"` 400). After running `auth headless-onboard`, a fresh EOA's
+maker is recognized by the backend.
+
+**However**, polygolem's existing `clob create-order` code path still
+calls the deprecated V1 endpoint `clob.polymarket.com/auth/derive-api-key`
+to mint a CLOB API key bound to the deposit wallet *before* posting
+each order. That endpoint requires ECDSA-recoverable POLY_SIGNATURE
+headers and **does not accept the ERC-7739 wrap a deposit wallet
+needs**, so it 401s with `Invalid L1 Request headers`. This is the
+residual blocker. It's independent of `/profiles` registration.
+
+Until that gate is resolved (tracked in repo task #96), the matrix is:
+
+| Sigtype | Onboarding | Order placement |
+|---|---|---|
+| 0 (EOA-only) | ✅ headless | ❓ untested post-/profiles |
+| 1 (proxy wallet) | ✅ headless | ❓ untested post-/profiles |
+| 3 (deposit wallet) | ✅ headless | ❌ blocked at `/auth/derive-api-key` |
+
+If you need fully headless trading *today*, sigtype 1 (proxy) is the
+likely-working option (proxies don't need ERC-1271 wrapping at the L1
+endpoint). Sigtype 3 needs either (a) a polygolem patch that bypasses
+`/auth/derive-api-key` and uses `RELAYER_API_KEY` headers directly, or
+(b) a one-time browser login that mints the deposit-wallet-bound CLOB
+API key. Both paths are open work.
+
+---
 
 This document supersedes any conflicting onboarding instructions in
 README.md, ARCHITECTURE.md, BROWSER-SETUP.md, BUILDER-AUTO.md,
