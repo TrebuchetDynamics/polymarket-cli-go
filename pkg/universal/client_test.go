@@ -9,6 +9,7 @@ import (
 
 	"github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
+	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 )
 
 func TestNewClientUsesDefaults(t *testing.T) {
@@ -32,7 +33,7 @@ func TestActiveMarkets(t *testing.T) {
 		if r.URL.Path != "/markets" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
-		json.NewEncoder(w).Encode([]polytypes.Market{
+		json.NewEncoder(w).Encode([]types.Market{
 			{ID: "m1", Question: "Will it rain?"},
 		})
 	}))
@@ -53,14 +54,14 @@ func TestSearch(t *testing.T) {
 		if r.URL.Path != "/public-search" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
-		json.NewEncoder(w).Encode(polytypes.SearchResponse{
-			Events: []polytypes.Event{{ID: "e1", Title: "Bitcoin"}},
+		json.NewEncoder(w).Encode(types.SearchResponse{
+			Events: []types.Event{{ID: "e1", Title: "Bitcoin"}},
 		})
 	}))
 	defer srv.Close()
 
 	c := NewClient(Config{GammaBaseURL: srv.URL})
-	resp, err := c.Search(context.Background(), &polytypes.SearchParams{Q: "btc"})
+	resp, err := c.Search(context.Background(), &types.SearchParams{Q: "btc"})
 	if err != nil {
 		t.Fatalf("Search error: %v", err)
 	}

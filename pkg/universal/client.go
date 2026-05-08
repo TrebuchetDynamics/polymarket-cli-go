@@ -531,7 +531,7 @@ func (c *Client) SearchAndEnrich(ctx context.Context, query string, limit int) (
 }
 
 // EnrichMarket enriches a single Gamma market with CLOB data.
-func (c *Client) EnrichMarket(ctx context.Context, market polytypes.Market) (*polytypes.EnrichedMarket, error) {
+func (c *Client) EnrichMarket(ctx context.Context, market types.Market) (*polytypes.EnrichedMarket, error) {
 	return c.discovery.EnrichMarket(ctx, market)
 }
 
