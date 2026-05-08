@@ -19,16 +19,18 @@ also exposed via `pkg/bookreader` and `pkg/universal`.
 ## Read-only commands
 
 ```bash
-polygolem clob book        <token-id>
-polygolem clob price       <token-id>
-polygolem clob midpoint    <token-id>
-polygolem clob spread      <token-id>
-polygolem clob tick-size   <token-id>
-polygolem clob fee-rate    <token-id>
-polygolem clob last-trade  <token-id>
-polygolem clob prices-history --market <id> --interval 1h
+polygolem orderbook get        --token-id <token-id>
+polygolem orderbook price      --token-id <token-id>
+polygolem orderbook midpoint   --token-id <token-id>
+polygolem orderbook spread     --token-id <token-id>
+polygolem orderbook tick-size  --token-id <token-id>
+polygolem orderbook fee-rate   --token-id <token-id>
+polygolem orderbook last-trade --token-id <token-id>
+polygolem clob book <token-id>
+polygolem clob tick-size <token-id>
+polygolem clob price-history <token-id> --interval 1m
 polygolem clob markets --cursor ""
-polygolem clob market      <condition-id>
+polygolem clob market <condition-id>
 ```
 
 See [Orderbook Data](/guides/orderbook-data).
@@ -40,10 +42,13 @@ See [Orderbook Data](/guides/orderbook-data).
 polygolem clob create-order   --token <id> --side buy --price 0.5 --size 10 --signature-type deposit
 polygolem clob market-order   --token <id> --side buy --amount 5 --signature-type deposit
 polygolem clob cancel         <order-id>
+polygolem clob cancel-orders  <order-id-1,order-id-2>
+polygolem clob cancel-market  --market <condition-id>
 polygolem clob cancel-all
 
 # Account queries
 polygolem clob orders
+polygolem clob order          <order-id>
 polygolem clob trades
 polygolem clob balance        --asset-type collateral --signature-type deposit
 polygolem clob update-balance --asset-type collateral --signature-type deposit
