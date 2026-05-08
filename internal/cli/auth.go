@@ -124,6 +124,66 @@ func warnIfNoDepositKey(ctx context.Context, stderr io.Writer, privateKey string
 	fmt.Fprintf(stderr, "   → https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/BROWSER-SETUP.md\n\n")
 }
 
+func newAuthExportKeyCommand(jsonOut bool) *cobra.Command {
+	w := newWire(jsonOut)
+	var confirm bool
+
+	cmd := &cobra.Command{
+		Use:   "export-key",
+		Short: "Display private key for wallet import (use with care)",
+		Long: `Displays the current POLYMARKET_PRIVATE_KEY and derived addresses
+in formats suitable for wallet import. This is useful when a bot/agent
+generated the key and the user needs to import it into MetaMask/Rabby/etc.
+for the one-time Polymarket browser signup.
+
+SECURITY WARNING: The private key will be printed to your terminal.
+Anyone with access to your screen or shell history can steal your funds.
+Use this only in a secure environment and clear your terminal history after.
+
+Recommended flow for bot-generated keys:
+  1. Run this command in a secure terminal
+  2. Import the private key into a temporary wallet (MetaMask mobile, fresh browser profile)
+  3. Connect to polymarket.com and complete signup
+  4. Remove the imported account from the wallet
+  5. Clear terminal history: history -c && clear`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			privateKey := strings.TrimSpace(os.Getenv("POLYMARKET_PRIVATE_KEY"))
+			if privateKey == "" {
+				return fmt.Errorf("POLYMARKET_PRIVATE_KEY is required")
+			}
+
+			if !confirm {
+				return fmt.Errorf("this command prints your private key to the terminal; pass --confirm to proceed")
+			}
+
+			signer, err := auth.NewPrivateKeySigner(privateKey, 137)
+			if err != nil {
+				return fmt.Errorf("init signer: %w", err)
+			}
+			owner := signer.Address()
+
+			depositWallet, err := auth.MakerAddressForSignatureType(owner, 137, 3)
+			if err != nil {
+				return fmt.Errorf("derive deposit wallet: %w", err)
+			}
+
+			stderr := cmd.ErrOrStderr()
+			fmt.Fprintf(stderr, "\n⚠️  SECURITY WARNING: Private key exposed below. Clear your terminal history after.\n\n")
+
+			return w.printJSON(cmd, map[string]string{
+				"eoaAddress":    owner,
+				"depositWallet": depositWallet,
+				"privateKey":    privateKey,
+				"warning":       "Clear terminal history after import: history -c && clear",
+			})
+		},
+	}
+
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "acknowledge security risk and print the private key")
+	return cmd
+}
+
 func warnIfNoDepositKeySimple(stderr io.Writer, privateKey string) {
 	signer, err := auth.NewPrivateKeySigner(privateKey, 137)
 	if err != nil {

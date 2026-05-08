@@ -41,6 +41,7 @@ polygolem --json version | jq .
 ```text
 polygolem - Safe Polymarket SDK and CLI for Go
   auth - Inspect authentication readiness
+    export-key - Display private key for wallet import (use with care)
     headless-onboard - Run SIWE login + mint V2 Relayer API Key (no browser)
     status - Check authentication readiness and API key status
   bridge - Polymarket Bridge API
@@ -179,6 +180,7 @@ polygolem auth [flags]
 
 | Command | Description |
 |---|---|
+| `polygolem auth export-key` | Display private key for wallet import (use with care) |
 | `polygolem auth headless-onboard` | Run SIWE login + mint V2 Relayer API Key (no browser) |
 | `polygolem auth status` | Check authentication readiness and API key status |
 
@@ -187,6 +189,40 @@ polygolem auth [flags]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-h, --help` | `bool` | `false` | help for auth |
+| `--json` | `bool` | `false` | emit JSON output |
+
+### polygolem auth export-key
+
+Display private key for wallet import (use with care)
+
+Displays the current POLYMARKET_PRIVATE_KEY and derived addresses
+in formats suitable for wallet import. This is useful when a bot/agent
+generated the key and the user needs to import it into MetaMask/Rabby/etc.
+for the one-time Polymarket browser signup.
+
+SECURITY WARNING: The private key will be printed to your terminal.
+Anyone with access to your screen or shell history can steal your funds.
+Use this only in a secure environment and clear your terminal history after.
+
+Recommended flow for bot-generated keys:
+  1. Run this command in a secure terminal
+  2. Import the private key into a temporary wallet (MetaMask mobile, fresh browser profile)
+  3. Connect to polymarket.com and complete signup
+  4. Remove the imported account from the wallet
+  5. Clear terminal history: history -c && clear
+
+**Usage:**
+
+```bash
+polygolem auth export-key [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--confirm` | `bool` | `false` | acknowledge security risk and print the private key |
+| `-h, --help` | `bool` | `false` | help for export-key |
 | `--json` | `bool` | `false` | emit JSON output |
 
 ### polygolem auth headless-onboard

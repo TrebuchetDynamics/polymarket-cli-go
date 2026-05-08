@@ -121,6 +121,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newAuthStatusCommand(jsonOutput),
 	)
 	authCmd.AddCommand(newAuthHeadlessOnboardCommand(jsonOutput))
+	authCmd.AddCommand(newAuthExportKeyCommand(jsonOutput))
 	root.AddCommand(authCmd)
 	root.AddCommand(commandGroup("live", "Inspect live gate status",
 		skeleton("status"),

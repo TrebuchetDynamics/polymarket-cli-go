@@ -215,6 +215,55 @@ func TestJSONAuthStatusMissingPrivateKeyUsesAuthErrorEnvelope(t *testing.T) {
 	}
 }
 
+func TestAuthExportKeyRequiresConfirm(t *testing.T) {
+	t.Setenv("POLYMARKET_PRIVATE_KEY", "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318")
+
+	stdout, _, err := executeRootForTest("auth", "export-key")
+	if err == nil {
+		t.Fatal("expected confirmation error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout=%q, want empty", stdout)
+	}
+	if !strings.Contains(err.Error(), "--confirm") {
+		t.Fatalf("error=%q, want --confirm hint", err.Error())
+	}
+}
+
+func TestJSONAuthExportKeyConfirmedOutputsWalletImportData(t *testing.T) {
+	const privateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	t.Setenv("POLYMARKET_PRIVATE_KEY", privateKey)
+
+	stdout, stderr, err := executeRootForTest("--json", "auth", "export-key", "--confirm")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v\nstderr:\n%s", err, stderr)
+	}
+	if !strings.Contains(stderr, "SECURITY WARNING") {
+		t.Fatalf("stderr=%q, want security warning", stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false, want true\nenvelope=%s", stdout)
+	}
+	if got.Meta.Command != "auth export-key" {
+		t.Fatalf("meta.command=%q, want auth export-key", got.Meta.Command)
+	}
+	var data struct {
+		EOAAddress    string `json:"eoaAddress"`
+		DepositWallet string `json:"depositWallet"`
+		PrivateKey    string `json:"privateKey"`
+	}
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("data is not export-key payload: %v\n%s", err, got.Data)
+	}
+	if data.PrivateKey != privateKey {
+		t.Fatalf("privateKey=%q, want configured key", data.PrivateKey)
+	}
+	if data.EOAAddress == "" || data.DepositWallet == "" {
+		t.Fatalf("derived addresses missing: %+v", data)
+	}
+}
+
 func TestJSONMissingPositionalArgUsesUsageErrorEnvelope(t *testing.T) {
 	stdout, stderr, err := executeRootForTest("--json", "clob", "book")
 	if err == nil {
@@ -336,6 +385,7 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 		{"paper", "positions"},
 		{"paper", "reset"},
 		{"auth", "status"},
+		{"auth", "export-key"},
 		{"live", "status"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {

@@ -14,8 +14,8 @@ export default new Map([
 ["src/content/docs/guides/bridge-funding.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Fguides%2Fbridge-funding.mdx&astroContentModuleFlag=true")],
 ["src/content/docs/guides/builder-auto.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Fguides%2Fbuilder-auto.mdx&astroContentModuleFlag=true")],
 ["src/content/docs/guides/deposit-wallet-lifecycle.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Fguides%2Fdeposit-wallet-lifecycle.mdx&astroContentModuleFlag=true")],
-["src/content/docs/guides/go-bot-integration.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Fguides%2Fgo-bot-integration.mdx&astroContentModuleFlag=true")],
 ["src/content/docs/guides/market-discovery.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Fguides%2Fmarket-discovery.mdx&astroContentModuleFlag=true")],
+["src/content/docs/guides/go-bot-integration.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Fguides%2Fgo-bot-integration.mdx&astroContentModuleFlag=true")],
 ["src/content/docs/guides/orderbook-data.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Fguides%2Forderbook-data.mdx&astroContentModuleFlag=true")],
 ["src/content/docs/guides/paper-trading.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Fguides%2Fpaper-trading.mdx&astroContentModuleFlag=true")],
 ["src/content/docs/guides/universal-client.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Fguides%2Funiversal-client.mdx&astroContentModuleFlag=true")],
@@ -26,6 +26,6 @@ export default new Map([
 ["src/content/docs/reference/gamma-api.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fgamma-api.mdx&astroContentModuleFlag=true")],
 ["src/content/docs/reference/internal-packages.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Finternal-packages.mdx&astroContentModuleFlag=true")],
 ["src/content/docs/reference/polytypes.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fpolytypes.mdx&astroContentModuleFlag=true")],
-["src/content/docs/reference/sdk.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fsdk.mdx&astroContentModuleFlag=true")],
-["src/content/docs/reference/stream-api.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fstream-api.mdx&astroContentModuleFlag=true")]]);
+["src/content/docs/reference/stream-api.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fstream-api.mdx&astroContentModuleFlag=true")],
+["src/content/docs/reference/sdk.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fsdk.mdx&astroContentModuleFlag=true")]]);
 		
