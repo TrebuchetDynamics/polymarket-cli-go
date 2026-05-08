@@ -8,9 +8,11 @@
     "capture": "node capture.mjs",
     "capture:xvfb": "xvfb-run -a -s '-screen 0 1280x900x24' node capture.mjs",
     "capture:headless": "HEADLESS=1 node capture.mjs",
+    "eoa-signup": "node eoa-signup.mjs",
     "install:browser": "npx playwright install chromium"
   },
   "dependencies": {
-    "@playwright/test": "^1.49.0"
+    "@playwright/test": "^1.49.0",
+    "ethers": "^6.13.0"
   }
 }

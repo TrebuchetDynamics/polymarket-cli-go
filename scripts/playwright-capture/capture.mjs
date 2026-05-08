@@ -46,6 +46,10 @@ const INTERESTING_HOSTS = [
   "relayer-v2.polymarket.com",
   "data-api.polymarket.com",
   "geo.polymarket.com",
+  "magic.link",
+  "privy.io",
+  "walletconnect.com",
+  "walletconnect.org",
 ];
 
 function isInteresting(url) {
@@ -85,7 +89,20 @@ page.on("response", async (res) => {
   const url = res.url();
   if (!isInteresting(url)) return;
   const status = res.status();
-  if (url.includes("/auth/") || status >= 400) {
+  const isAuthHost =
+    url.includes("magic.link") ||
+    url.includes("privy.io") ||
+    url.includes("walletconnect");
+  const isInterestingPath =
+    url.includes("/auth/") ||
+    url.includes("/builder") ||
+    url.includes("/api-key") ||
+    url.includes("/profile") ||
+    url.includes("/sign-up") ||
+    url.includes("/onboard") ||
+    url.includes("/wallet-create") ||
+    url.includes("/relayer");
+  if (isInterestingPath || isAuthHost || status >= 400) {
     console.log(`<<< ${status} ${url}`);
     try {
       const text = await res.text();

@@ -1,4 +1,6 @@
 node_modules/
 captures/*.har
 captures/*.json
+captures/screens/
+.eoa-key.json
 package-lock.json
