@@ -131,11 +131,25 @@ The `polymarket.com/settings?tab=builder` UI exposes state; it does not create i
 
 ## Implementation pointers
 
+### Public Go SDK (semver-stable)
+
+| Concern | Public path |
+| --- | --- |
+| `CreateOrDeriveAPIKey` / `DeriveAPIKey` (Step 1) | `pkg/universal.Client` |
+| `BalanceAllowance` / `UpdateBalanceAllowance` | `pkg/universal.Client` |
+| `CreateLimitOrder` / `CreateMarketOrder` (Step 5) | `pkg/universal.Client` |
+| Relayer client (Steps 2 & 4) | `pkg/relayer.New` |
+| `BuildApprovalCalls` (Step 4 calldata) | `pkg/relayer.BuildApprovalCalls` |
+| `SignWalletBatch` (Step 4 signing) | `pkg/relayer.SignWalletBatch` |
+
+### Internal sources
+
 | Concern | Location |
 | --- | --- |
 | ClobAuth EIP-712 typed data | `internal/auth/eip712.go` |
 | L1 header builder | `internal/auth/l1.go` |
 | `CreateOrDeriveAPIKey` HTTP client | `internal/clob/client.go:65` |
+| Relayer HTTP client | `internal/relayer/client.go` |
 | `polygolem builder auto` CLI | `internal/cli/builder.go` (`newBuilderAutoCommand`) |
 | Persisted env file shape | `internal/cli/builder.go:persistBuilderCredentials` |
 
