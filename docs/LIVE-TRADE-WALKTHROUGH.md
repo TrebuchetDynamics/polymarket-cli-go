@@ -372,11 +372,32 @@ This is by far the dominant cost. In a market with a 1-tick proportional
 spread (`0.011 / 0.010 - 1 = 10 %`), a market round-trip of any size will
 forfeit ~10 % of capital. **Spread cost dwarfs gas at this scale.**
 
-### 4.5 Residue dust
+### 4.5 Residue dust — and why you can't sweep it
 
 86.606666 bought – 86.6 sold = **0.006666 YES shares**, worth ~0.000067 pUSD
-at the current bid. Negligible. Sweepable later for ~$0.001 of additional
-gas if you care.
+at the current bid.
+
+The dust is **structurally unsellable on the CLOB.** Three rules conspire:
+
+| Rule | Value (this market) | Effect on dust |
+|---|---|---|
+| `order_min_size` | 5 shares | The 0.006666 residue is 1000× below the floor. A direct sell is rejected. |
+| `order_price_min_tick_size` | 0.001 | Even if size were valid, `0.006666 × 0.010 = 0.00006666` doesn't divide into a clean tick boundary, so the encoded price comes out sub-tick (`0.0099009900990099`) and the order is rejected anyway. |
+| Marketable buy minimum | $1.00 pUSD | Re-buying enough shares to bring the position back over 5 would force a fresh ≥$1 marketable buy, paying the spread again on a position you only want to round-trip back out. |
+
+The only paths to clear the dust:
+
+1. **Wait for resolution.** At market close every YES share auto-redeems to
+   $1 if the event happened, $0 otherwise. The conditional token simply
+   settles into pUSD without going through the order book.
+2. **Re-buy ~$1 worth of shares to top up past 5, then sell ≥5.** Costs the
+   spread again. Almost always worse than just leaving the dust.
+3. **Leave it.** Worth $0.000067. The time spent thinking about it costs
+   more than the dust.
+
+This is not a polygolem quirk — it's a property of the CLOB's order rules.
+Any round-trip on a low-priced binary will generate sub-min-size dust.
+**Plan for it; do not plan to sweep it.**
 
 ### 4.6 Final P&L
 
