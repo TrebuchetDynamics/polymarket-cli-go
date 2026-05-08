@@ -18,7 +18,8 @@ import (
 // Client provides read-only access to the Polymarket CLOB API.
 // Base URL: https://clob.polymarket.com
 type Client struct {
-	transport *transport.Client
+	transport   *transport.Client
+	builderCode string
 }
 
 const polygonChainID = 137
@@ -44,7 +45,12 @@ func NewClient(baseURL string, tc *transport.Client) *Client {
 	if tc == nil {
 		tc = transport.New(nil, transport.DefaultConfig(baseURL))
 	}
-	return &Client{transport: tc}
+	return &Client{transport: tc, builderCode: bytes32Zero}
+}
+
+// SetBuilderCode configures the V2 order builder attribution bytes32.
+func (c *Client) SetBuilderCode(builderCode string) {
+	c.builderCode = builderCode
 }
 
 // Health checks the CLOB API is reachable.

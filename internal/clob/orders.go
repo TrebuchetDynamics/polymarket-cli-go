@@ -153,6 +153,7 @@ type orderDraft struct {
 	takerAmount string
 	orderType   string
 	expiration  string
+	builderCode string
 }
 
 func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params CreateOrderParams) (*OrderPlacementResponse, error) {
@@ -435,6 +436,7 @@ func (c *Client) signAndPostOrder(ctx context.Context, privateKey string, draft 
 	if err != nil {
 		return nil, fmt.Errorf("neg-risk lookup: %w", err)
 	}
+	draft.builderCode = c.builderCode
 	unsigned, err := buildSignedOrderPayload(signer, draft, orderNow(), nr.NegRisk)
 	if err != nil {
 		return nil, err
@@ -632,6 +634,10 @@ func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, 
 // derived from the EOA; signer is also the deposit wallet (validated via
 // ERC-1271 against the EOA's signature).
 func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts time.Time, negRisk bool) (signedOrderPayload, error) {
+	builderCode, err := normalizeBuilderCode(draft.builderCode)
+	if err != nil {
+		return signedOrderPayload{}, err
+	}
 	salt, err := orderSalt()
 	if err != nil {
 		return signedOrderPayload{}, err
@@ -652,7 +658,7 @@ func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts
 		SignatureType: signatureTypePoly1271,
 		Timestamp:     fmt.Sprintf("%d", ts.UnixMilli()),
 		Metadata:      bytes32Zero,
-		Builder:       bytes32Zero,
+		Builder:       builderCode,
 	}
 	typedData := buildOrderTypedData(payload, negRisk)
 	sig, err := wrapPOLY1271Signature(signer, maker, typedData)
@@ -661,6 +667,24 @@ func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts
 	}
 	payload.Signature = sig
 	return payload, nil
+}
+
+func normalizeBuilderCode(builderCode string) (string, error) {
+	value := strings.TrimSpace(builderCode)
+	if value == "" {
+		return bytes32Zero, nil
+	}
+	if !strings.HasPrefix(value, "0x") {
+		return "", fmt.Errorf("builder code must be a 0x-prefixed bytes32 hex string")
+	}
+	hexValue := value[2:]
+	if len(hexValue) != 64 {
+		return "", fmt.Errorf("builder code must be 32 bytes, got %d hex characters", len(hexValue))
+	}
+	if _, err := hex.DecodeString(hexValue); err != nil {
+		return "", fmt.Errorf("builder code must be hex: %w", err)
+	}
+	return "0x" + strings.ToLower(hexValue), nil
 }
 
 func (c *Client) marketOrderPrice(ctx context.Context, tokenID, side string, amount *big.Rat, orderType string) (*big.Rat, error) {

@@ -189,6 +189,7 @@ func TestStreamClient(t *testing.T) {
 
 // Deterministic test EOA — same key the internal/clob tests use.
 const testPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+const testBuilderCode = "0x1111111111111111111111111111111111111111111111111111111111111111"
 
 func TestCreateOrDeriveAPIKey(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -435,6 +436,54 @@ func TestCreateLimitOrderRoutes(t *testing.T) {
 	}
 	if resp.OrderID != "ord-1" {
 		t.Errorf("expected ord-1, got %q", resp.OrderID)
+	}
+}
+
+func TestCreateLimitOrderUsesConfiguredBuilderCode(t *testing.T) {
+	var posted map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "k-builder",
+				"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"passphrase": "pp-builder",
+			})
+		case "/tick-size":
+			json.NewEncoder(w).Encode(map[string]string{"minimum_tick_size": "0.001"})
+		case "/neg-risk":
+			json.NewEncoder(w).Encode(map[string]bool{"neg_risk": false})
+		case "/order":
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode order body: %v", err)
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": true, "orderID": "ord-builder", "status": "matched",
+			})
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL, BuilderCode: testBuilderCode})
+	_, err := c.CreateLimitOrder(context.Background(), testPrivateKey, sdkclob.CreateOrderParams{
+		TokenID:   "12345",
+		Side:      "BUY",
+		Price:     "0.500000",
+		Size:      "1.400000",
+		OrderType: "GTC",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	order, ok := posted["order"].(map[string]any)
+	if !ok {
+		t.Fatalf("posted order missing: %#v", posted)
+	}
+	if order["builder"] != testBuilderCode {
+		t.Fatalf("posted builder=%#v want %s", order["builder"], testBuilderCode)
 	}
 }
 

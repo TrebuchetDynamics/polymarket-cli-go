@@ -2,6 +2,7 @@ package clob
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +11,7 @@ import (
 )
 
 const testPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+const testBuilderCode = "0x1111111111111111111111111111111111111111111111111111111111111111"
 
 func TestClientOrderBookReturnsPublicDTO(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -293,5 +295,48 @@ func TestClientAuthenticatedMethodsReturnPublicDTOs(t *testing.T) {
 	var publicCancel *CancelOrdersResponse = cancel
 	if len(publicCancel.Canceled) != 1 || publicCancel.NotCanceled["0xother"] != "not found" {
 		t.Fatalf("unexpected public cancel response: %+v", publicCancel)
+	}
+}
+
+func TestClientCreateLimitOrderUsesConfiguredBuilderCode(t *testing.T) {
+	var posted map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"api-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"pass"}`))
+		case "/tick-size":
+			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.001"}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		case "/order":
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode order body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"success":true,"orderID":"0xabc","status":"matched"}`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{BaseURL: server.URL, BuilderCode: testBuilderCode})
+	_, err := client.CreateLimitOrder(context.Background(), testPrivateKey, CreateOrderParams{
+		TokenID:   "12345",
+		Side:      "BUY",
+		Price:     "0.500000",
+		Size:      "1.400000",
+		OrderType: "GTC",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	order, ok := posted["order"].(map[string]any)
+	if !ok {
+		t.Fatalf("posted order missing: %#v", posted)
+	}
+	if order["builder"] != testBuilderCode {
+		t.Fatalf("posted builder=%#v want %s", order["builder"], testBuilderCode)
 	}
 }

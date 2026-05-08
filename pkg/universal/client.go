@@ -57,6 +57,9 @@ type Config struct {
 	GammaBaseURL string
 	CLOBBaseURL  string
 	DataBaseURL  string
+	// BuilderCode is the optional V2 order builder attribution bytes32 used by
+	// authenticated CLOB order placement. Empty values use zero bytes32.
+	BuilderCode string
 }
 
 // DefaultConfig returns production defaults.
@@ -83,7 +86,11 @@ func NewClient(cfg Config) *Client {
 
 	gc := gamma.NewClient(cfg.GammaBaseURL, nil)
 	cc := internalclob.NewClient(cfg.CLOBBaseURL, nil)
-	cr := sdkclob.NewClient(sdkclob.Config{BaseURL: cfg.CLOBBaseURL})
+	cc.SetBuilderCode(cfg.BuilderCode)
+	cr := sdkclob.NewClient(sdkclob.Config{
+		BaseURL:     cfg.CLOBBaseURL,
+		BuilderCode: cfg.BuilderCode,
+	})
 	dc := sdkdata.NewClient(sdkdata.Config{BaseURL: cfg.DataBaseURL})
 
 	return &Client{

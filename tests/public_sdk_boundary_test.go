@@ -42,6 +42,7 @@ import (
 
 func TestPublicSDKSignatures(t *testing.T) {
 	var clobClient *sdkclob.Client = sdkclob.NewClient(sdkclob.Config{})
+	var clobConfig sdkclob.Config = sdkclob.Config{BuilderCode: "0x1111111111111111111111111111111111111111111111111111111111111111"}
 	var clobMarkets func(*sdkclob.Client, context.Context, string) (*types.CLOBPaginatedMarkets, error) = (*sdkclob.Client).Markets
 	var clobMarket func(*sdkclob.Client, context.Context, string) (*types.CLOBMarket, error) = (*sdkclob.Client).Market
 	var clobOrderBook func(*sdkclob.Client, context.Context, string) (*types.CLOBOrderBook, error) = (*sdkclob.Client).OrderBook
@@ -86,6 +87,7 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var universalMarkets func(*universal.Client, context.Context, *types.GetMarketsParams) ([]types.Market, error) = (*universal.Client).Markets
 	var universalSearch func(*universal.Client, context.Context, *types.SearchParams) (*types.SearchResponse, error) = (*universal.Client).Search
 	var universalComments func(*universal.Client, context.Context, *types.CommentQuery) ([]types.Comment, error) = (*universal.Client).Comments
+	var universalConfig universal.Config = universal.Config{BuilderCode: "0x1111111111111111111111111111111111111111111111111111111111111111"}
 	var universalCLOBMarkets func(*universal.Client, context.Context, string) (*types.CLOBPaginatedMarkets, error) = (*universal.Client).CLOBMarkets
 	var universalCLOBMarket func(*universal.Client, context.Context, string) (*types.CLOBMarket, error) = (*universal.Client).CLOBMarket
 	var universalOrderBook func(*universal.Client, context.Context, string) (*types.CLOBOrderBook, error) = (*universal.Client).OrderBook
@@ -104,13 +106,13 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var universalStream func(*universal.Client) *sdkstream.MarketClient = (*universal.Client).StreamClient
 	var universalStreamWithConfig func(*universal.Client, sdkstream.Config) *sdkstream.MarketClient = (*universal.Client).StreamClientWithConfig
 
-	_, _, _, _, _, _, _ = clobClient, clobMarkets, clobMarket, clobOrderBook, clobOrderBooks, clobTickSize, clobPriceHistory
+	_, _, _, _, _, _, _, _ = clobClient, clobConfig, clobMarkets, clobMarket, clobOrderBook, clobOrderBooks, clobTickSize, clobPriceHistory
 	_, _, _, _, _, _, _, _, _, _ = clobAPIKey, clobDeriveAPIKey, clobBalanceParams, clobBalance, clobOrders, clobOrder, clobTrades, clobCancel, clobCancelMarketParams, clobCancelMarket
 	_, _, _, _ = clobCreateParams, clobCreate, clobMarketOrderParams, clobMarketOrder
 	_, _, _, _, _, _, _, _, _, _ = streamClient, streamConfig, streamConnect, streamSubscribe, streamClose, streamConnected, streamBook, streamPriceChange, streamLastTrade, streamDeduplicator
 	_, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, legacyReader
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
-	_, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments
+	_, _, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments, universalConfig
 	_, _, _, _, _, _ = universalCLOBMarkets, universalCLOBMarket, universalOrderBook, universalOrderBooks, universalTickSize, universalPriceHistory
 	_, _, _, _, _, _, _, _, _ = universalDeriveAPIKey, universalBalance, universalOrders, universalOrder, universalTrades, universalCancel, universalCancelMarket, universalCreate, universalMarketOrder
 	_, _ = universalStream, universalStreamWithConfig

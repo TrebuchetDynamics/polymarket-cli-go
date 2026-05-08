@@ -21,6 +21,9 @@ const defaultBaseURL = "https://clob.polymarket.com"
 // Config holds CLOB client settings.
 type Config struct {
 	BaseURL string
+	// BuilderCode is the optional V2 order builder attribution bytes32.
+	// Empty values sign orders with the zero bytes32 builder code.
+	BuilderCode string
 }
 
 // DefaultConfig returns production CLOB defaults.
@@ -38,7 +41,9 @@ func NewClient(cfg Config) *Client {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = defaultBaseURL
 	}
-	return &Client{inner: internalclob.NewClient(cfg.BaseURL, nil)}
+	inner := internalclob.NewClient(cfg.BaseURL, nil)
+	inner.SetBuilderCode(cfg.BuilderCode)
+	return &Client{inner: inner}
 }
 
 // Health checks CLOB API availability.

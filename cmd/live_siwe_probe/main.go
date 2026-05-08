@@ -1,7 +1,18 @@
-// live_siwe_probe is a one-shot diagnostic: generates a throwaway EOA,
-// runs the SIWE login flow against gamma-api.polymarket.com production,
-// attempts the relayer-v2 auth mint, then attempts a real WALLET-CREATE
-// against the relayer with the V2 API key. Captures the wire trace.
+// live_siwe_probe is a one-shot diagnostic that exercises the full
+// headless onboarding pipeline against production with a throwaway EOA:
+//
+//  1. Generate a fresh EOA from crypto/rand
+//  2. SIWE login at gamma-api.polymarket.com
+//  3. Mint a V2 Relayer API Key
+//  4. WALLET-CREATE via relayer-v2/submit (deposit wallet deploy)
+//  5. Poll until the WALLET-CREATE tx confirms
+//  6. Mint a CLOB L2 API key via /auth/api-key
+//  7. Build a sigtype-3 limit order (Order.signer == Order.maker ==
+//     depositWallet, ERC-7739 wrapped sig) and POST /order
+//  8. Capture the server's response — distinguishes between
+//     "order signer..." (gate still in place) vs "insufficient balance"
+//     (gate passed, deposit wallet just empty)
+//
 // Disposable — run once, delete.
 package main
 
@@ -15,10 +26,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
+	"github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/relayer"
+	"github.com/TrebuchetDynamics/polygolem/internal/transport"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -92,12 +106,82 @@ func run() error {
 	}
 	fmt.Printf("[probe] V2 API key minted: apiKey=%s address=%s\n", v2Key.Key, v2Key.Address)
 
-	fmt.Println("[probe] attempting WALLET-CREATE via relayer with V2 auth ...")
-	if err := probeWalletCreate(ctx, v2Key, addr); err != nil {
+	fmt.Println("[probe] WALLET-CREATE via internal/relayer (V2 auth) ...")
+	depositWallet, txHash, err := probeWalletCreateViaSDK(ctx, v2Key, signer.Address())
+	if err != nil {
 		fmt.Printf("[probe] WALLET-CREATE: %v\n", err)
+		return err
+	}
+	fmt.Printf("[probe] WALLET-CREATE accepted, depositWallet=%s tx=%s\n", depositWallet, txHash)
+
+	// Optional: poll for confirmation. Skip the wait — the order test below
+	// will tell us either way. If wallet isn't deployed yet, /order will
+	// return an ERC-1271 sig validation error (different from the API key
+	// error we want to investigate).
+	fmt.Println("[probe] not polling for tx confirmation; if deploy isn't done, sigtype-3 will fail at sig validation")
+
+	fmt.Println("[probe] minting CLOB L2 API key with EOA ...")
+	clobClient := clob.NewClient("https://clob.polymarket.com", nil)
+	clobKey, err := clobClient.CreateOrDeriveAPIKey(ctx, keyHex)
+	if err != nil {
+		return fmt.Errorf("CreateOrDeriveAPIKey: %w", err)
+	}
+	fmt.Printf("[probe] CLOB L2 API key minted: %s\n", clobKey.Key)
+
+	fmt.Println("[probe] attempting sigtype-3 limit order on token 6932…517 (active 'Jesus' market) ...")
+	if err := probeCreateOrder(ctx, keyHex); err != nil {
+		fmt.Printf("[probe] /order: %v\n", err)
 	}
 
 	fmt.Println("[probe] DONE")
+	return nil
+}
+
+func probeWalletCreateViaSDK(ctx context.Context, v2Key relayer.V2APIKey, ownerAddr string) (string, string, error) {
+	rc, err := relayer.NewV2("https://relayer-v2.polymarket.com", v2Key, 137)
+	if err != nil {
+		return "", "", fmt.Errorf("relayer.NewV2: %w", err)
+	}
+	tx, err := rc.SubmitWalletCreate(ctx, ownerAddr)
+	if err != nil {
+		return "", "", fmt.Errorf("SubmitWalletCreate: %w", err)
+	}
+	depositWallet, err := auth.MakerAddressForSignatureType(ownerAddr, 137, 3)
+	if err != nil {
+		return "", "", fmt.Errorf("derive deposit wallet: %w", err)
+	}
+	return depositWallet, tx.TransactionHash, nil
+}
+
+func probeCreateOrder(ctx context.Context, privateKeyHex string) error {
+	tc := transport.New(nil, transport.DefaultConfig("https://clob.polymarket.com"))
+	c := clob.NewClient("https://clob.polymarket.com", tc)
+	resp, err := c.CreateLimitOrder(ctx, privateKeyHex, clob.CreateOrderParams{
+		// Yes token of "Will Jesus Christ return before 2027?" — confirmed
+		// active, accepting_orders=true, tick=0.001 (verified 2026-05-07).
+		TokenID:   "69324317355037271422943965141382095011871956039434394956830818206664869608517",
+		Side:      "BUY",
+		Price:     "0.001",
+		Size:      "5",
+		OrderType: "GTC",
+	})
+	if err != nil {
+		// The interesting cases:
+		//   "the order signer address has to be the address of the API KEY"
+		//     → the gate is still in place; scout's hypothesis is wrong.
+		//   "insufficient balance" / "no allowance" / "ERC-1271 ..."
+		//     → the API-key gate passed; the wallet is just empty / not deployed yet.
+		msg := err.Error()
+		if strings.Contains(msg, "the order signer address has to be the address of the API KEY") {
+			fmt.Println("[probe] FINDING: API-KEY gate is still in place — the scout's hypothesis is WRONG. Need a different approach.")
+		} else if strings.Contains(msg, "insufficient") || strings.Contains(msg, "balance") || strings.Contains(msg, "allowance") || strings.Contains(msg, "1271") || strings.Contains(msg, "wallet") {
+			fmt.Println("[probe] FINDING: API-KEY gate PASSED — failure is downstream (balance / allowance / wallet not deployed). The scout's hypothesis is CORRECT.")
+		} else {
+			fmt.Printf("[probe] FINDING: unexpected error shape — %s\n", msg)
+		}
+		return err
+	}
+	fmt.Printf("[probe] /order accepted: %+v\n", resp)
 	return nil
 }
 

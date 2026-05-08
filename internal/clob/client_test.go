@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/transport"
@@ -227,5 +228,33 @@ func TestRevokeBuilderFeeKeyRejectsEmpty(t *testing.T) {
 	client := NewClient("http://invalid.local/", tc)
 	if err := client.RevokeBuilderFeeKey(context.Background(), builderFeeKeyTestPrivateKey, "  "); err == nil {
 		t.Fatal("expected error for empty builderKey")
+	}
+}
+
+func TestCreateAPIKeyForAddressSendsOverridePolyAddress(t *testing.T) {
+	var sawAddress string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/api-key" || r.Method != http.MethodPost {
+			t.Fatalf("path=%s method=%s", r.URL.Path, r.Method)
+		}
+		sawAddress = r.Header.Get("POLY_ADDRESS")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"apiKey":"k","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"p"}`))
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+	deposit := "0x19bE70b1e4F59C0663a999C0dC6f5b3C68CFCaF3"
+
+	key, err := client.CreateAPIKeyForAddress(context.Background(), builderFeeKeyTestPrivateKey, deposit)
+	if err != nil {
+		t.Fatalf("CreateAPIKeyForAddress: %v", err)
+	}
+	if !strings.EqualFold(sawAddress, deposit) {
+		t.Fatalf("POLY_ADDRESS = %s, want %s", sawAddress, deposit)
+	}
+	if key.Key != "k" {
+		t.Fatalf("Key = %s", key.Key)
 	}
 }

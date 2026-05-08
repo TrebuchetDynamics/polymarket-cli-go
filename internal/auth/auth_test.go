@@ -164,3 +164,50 @@ func TestCompactJSON(t *testing.T) {
 		t.Fatalf("compact: %s", compact)
 	}
 }
+
+func TestBuildL1HeadersForAddressOverridesPolyAddress(t *testing.T) {
+	pk := "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	signer, err := NewPrivateKeySigner(pk, 137)
+	if err != nil {
+		t.Fatal(err)
+	}
+	override := "0x19bE70b1e4F59C0663a999C0dC6f5b3C68CFCaF3"
+
+	headers, err := BuildL1HeadersForAddress(pk, 137, 1700000000, 0, override)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := headers["POLY_ADDRESS"]; got != override {
+		t.Errorf("POLY_ADDRESS = %s, want %s", got, override)
+	}
+	if got := headers["POLY_TIMESTAMP"]; got != "1700000000" {
+		t.Errorf("POLY_TIMESTAMP = %s", got)
+	}
+	if headers["POLY_SIGNATURE"] == "" {
+		t.Fatal("POLY_SIGNATURE missing")
+	}
+
+	defaults, err := BuildL1HeadersFromPrivateKey(pk, 137, 1700000000, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defaults["POLY_ADDRESS"] != signer.Address() {
+		t.Errorf("default POLY_ADDRESS = %s, want signer %s", defaults["POLY_ADDRESS"], signer.Address())
+	}
+	if headers["POLY_SIGNATURE"] == defaults["POLY_SIGNATURE"] {
+		t.Fatal("override and default signatures must differ — typed-data value.address differs")
+	}
+}
+
+func TestBuildL1HeadersForAddressEmptyFallsBackToSigner(t *testing.T) {
+	pk := "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	signer, _ := NewPrivateKeySigner(pk, 137)
+
+	headers, err := BuildL1HeadersForAddress(pk, 137, 1700000000, 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if headers["POLY_ADDRESS"] != signer.Address() {
+		t.Errorf("empty override → POLY_ADDRESS = %s, want signer %s", headers["POLY_ADDRESS"], signer.Address())
+	}
+}

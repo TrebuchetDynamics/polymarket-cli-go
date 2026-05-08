@@ -15,6 +15,7 @@ import (
 )
 
 const testOrderPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+const testBuilderCode = "0x1111111111111111111111111111111111111111111111111111111111111111"
 
 func TestBuildSignedOrderPayloadV2UsesCurrentCLOBShape(t *testing.T) {
 	signer, err := auth.NewPrivateKeySigner(testOrderPrivateKey, polygonChainID)
@@ -46,6 +47,45 @@ func TestBuildSignedOrderPayloadV2UsesCurrentCLOBShape(t *testing.T) {
 		if strings.Contains(string(body), forbidden) {
 			t.Fatalf("v2 JSON contains %s: %s", forbidden, body)
 		}
+	}
+}
+
+func TestBuildSignedOrderPayloadUsesConfiguredBuilderCode(t *testing.T) {
+	signer, err := auth.NewPrivateKeySigner(testOrderPrivateKey, polygonChainID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	order, err := buildSignedOrderPayload(signer, orderDraft{
+		tokenID:     big.NewInt(12345),
+		side:        "BUY",
+		makerAmount: "700000",
+		takerAmount: "1400000",
+		orderType:   "FOK",
+		builderCode: testBuilderCode,
+	}, time.UnixMilli(1778125000123), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if order.Builder != testBuilderCode {
+		t.Fatalf("builder=%q want %q", order.Builder, testBuilderCode)
+	}
+}
+
+func TestBuildSignedOrderPayloadRejectsInvalidBuilderCode(t *testing.T) {
+	signer, err := auth.NewPrivateKeySigner(testOrderPrivateKey, polygonChainID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = buildSignedOrderPayload(signer, orderDraft{
+		tokenID:     big.NewInt(12345),
+		side:        "BUY",
+		makerAmount: "700000",
+		takerAmount: "1400000",
+		orderType:   "FOK",
+		builderCode: "0x1234",
+	}, time.UnixMilli(1778125000123), false)
+	if err == nil || !strings.Contains(err.Error(), "builder") {
+		t.Fatalf("expected builder validation error, got %v", err)
 	}
 }
 
@@ -132,6 +172,53 @@ func TestCreateMarketOrderPostsV2PayloadWhenCLOBVersionIsTwo(t *testing.T) {
 	}
 	if posted["postOnly"] != false || posted["deferExec"] != false {
 		t.Fatalf("post flags not explicit false: %#v", posted)
+	}
+}
+
+func TestCreateLimitOrderPostsConfiguredBuilderCode(t *testing.T) {
+	var posted map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/tick-size":
+			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.001"}`))
+		case "/fee-rate":
+			_, _ = w.Write([]byte(`{"fee_rate_bps":0}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/order":
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode order body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"success":true,"orderID":"0xabc","status":"matched"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+	client.SetBuilderCode(testBuilderCode)
+
+	_, err := client.CreateLimitOrder(context.Background(), testOrderPrivateKey, CreateOrderParams{
+		TokenID:   "12345",
+		Side:      "buy",
+		Price:     "0.500000",
+		Size:      "1.400000",
+		OrderType: "GTC",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	order, ok := posted["order"].(map[string]any)
+	if !ok {
+		t.Fatalf("posted order missing: %#v", posted)
+	}
+	if order["builder"] != testBuilderCode {
+		t.Fatalf("posted builder=%#v want %s", order["builder"], testBuilderCode)
 	}
 }
 
