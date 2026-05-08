@@ -30,3 +30,7 @@ they have local tests.
 - `docs/COMMANDS.md` is aligned with the current command tree, but there is no
   checked-in generator yet. Add a generator before relying on it as a strict
   build artifact.
+- The shared CLI v1 JSON envelope is implemented for success payloads, group
+  command usage errors, not-implemented stubs, and common auth failures.
+  Remaining JSON-contract work is more precise protocol/transport/chain error
+  classification and structured `error.details` for upstream failures.

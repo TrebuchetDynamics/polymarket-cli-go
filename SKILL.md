@@ -71,12 +71,11 @@ Exit codes mirror the category: `0` = success, `1` = generic, `2` = usage,
 `3` = auth, `4` = validation, `5` = gate, `6` = network, `7` = protocol,
 `8` = chain, `9` = internal.
 
-> **Status note:** the v1 envelope is the design target. Some current
-> commands emit a partial envelope (success payload only, or error text on
-> stderr). Per-command drift is tracked in `docs/AUDIT-FINDINGS.md`. Agents
-> should treat any non-conforming output as a transitional state and prefer
-> commands tagged `conformant` in that document until the code-alignment
-> follow-up ships.
+> **Status note:** `--json` now goes through the shared v1 envelope layer for
+> successes, group-command usage errors, not-implemented stubs, missing auth,
+> and other command errors. Protocol-specific upstream error codes are still
+> being refined; branch on `error.category` before relying on fine-grained
+> `error.code` values for network/upstream failures.
 
 ## Environment variables
 
@@ -156,7 +155,7 @@ Public Gamma + CLOB market discovery. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -165,9 +164,7 @@ Public Gamma + CLOB market discovery. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `discover`). The JSON above
-> is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -187,7 +184,7 @@ Public Gamma + CLOB market discovery. Read-only. No credentials.
 
 **Caveats:**
 
-- Group entry has no business logic; always prefer a concrete subcommand.
+- Group entry has no business logic; in `--json` mode it returns `USAGE_SUBCOMMAND_UNKNOWN`. Use `--help` to list subcommands, then run a concrete subcommand.
 
 ### `discover search`
 
@@ -200,7 +197,7 @@ Public Gamma + CLOB market discovery. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -220,9 +217,7 @@ Public Gamma + CLOB market discovery. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `discover search`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -258,7 +253,7 @@ Public Gamma + CLOB market discovery. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -274,9 +269,7 @@ Public Gamma + CLOB market discovery. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `discover market`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -315,7 +308,7 @@ view.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -334,9 +327,7 @@ view.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `discover enrich`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -375,7 +366,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -386,9 +377,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `orderbook`). The JSON above
-> is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -408,7 +397,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 
 **Caveats:**
 
-- Group entry has no business logic; always prefer a concrete subcommand.
+- Group entry has no business logic; in `--json` mode it returns `USAGE_SUBCOMMAND_UNKNOWN`. Use `--help` to list subcommands, then run a concrete subcommand.
 
 ### `orderbook fee-rate`
 
@@ -420,7 +409,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -429,9 +418,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `orderbook fee-rate`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -464,7 +451,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -478,9 +465,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `orderbook get`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -514,7 +499,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -523,9 +508,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `orderbook last-trade`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -558,7 +541,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -567,9 +550,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `orderbook midpoint`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -602,7 +583,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -611,9 +592,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `orderbook price`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -646,7 +625,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -655,9 +634,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `orderbook spread`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -690,7 +667,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -699,9 +676,7 @@ Public CLOB orderbook reads. Read-only. No credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `orderbook tick-size`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -741,7 +716,7 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -759,9 +734,7 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob`). The JSON above is
-> the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -781,7 +754,7 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
 
 **Caveats:**
 
-- Group entry has no business logic; always prefer a concrete subcommand.
+- Group entry has no business logic; in `--json` mode it returns `USAGE_SUBCOMMAND_UNKNOWN`. Use `--help` to list subcommands, then run a concrete subcommand.
 
 ### `clob balance`
 
@@ -794,7 +767,7 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -807,9 +780,7 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob balance`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -843,7 +814,7 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -856,9 +827,7 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob book`). The JSON above
-> is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -892,7 +861,7 @@ account.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -905,9 +874,7 @@ account.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob create-api-key`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -944,7 +911,7 @@ account.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -959,9 +926,7 @@ account.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob create-order`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -995,7 +960,7 @@ account.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1008,9 +973,7 @@ account.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob market`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1044,7 +1007,7 @@ account.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1058,9 +1021,7 @@ account.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob market-order`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1095,7 +1056,7 @@ account.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1109,9 +1070,7 @@ account.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob orders`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1168,7 +1127,7 @@ Agent rules:
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1181,9 +1140,7 @@ Agent rules:
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob price-history`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1217,7 +1174,7 @@ Agent rules:
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1226,9 +1183,7 @@ Agent rules:
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob tick-size`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1260,7 +1215,7 @@ Agent rules:
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1274,9 +1229,7 @@ Agent rules:
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob trades`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1310,7 +1263,7 @@ Agent rules:
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1319,9 +1272,7 @@ Agent rules:
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `clob update-balance`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1401,7 +1352,7 @@ credentials.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1412,9 +1363,7 @@ credentials.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `deposit-wallet`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1434,7 +1383,7 @@ credentials.
 
 **Caveats:**
 
-- Group entry has no business logic; always prefer a concrete subcommand.
+- Group entry has no business logic; in `--json` mode it returns `USAGE_SUBCOMMAND_UNKNOWN`. Use `--help` to list subcommands, then run a concrete subcommand.
 
 ### `deposit-wallet approve`
 
@@ -1449,7 +1398,7 @@ batch for pUSD + CTF across the three V2 exchange spenders.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1461,9 +1410,7 @@ batch for pUSD + CTF across the three V2 exchange spenders.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `deposit-wallet approve`).
-> The JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1502,7 +1449,7 @@ optional flags: `--deadline`, `--nonce`, `--wallet`.)
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1516,9 +1463,7 @@ optional flags: `--deadline`, `--nonce`, `--wallet`.)
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `deposit-wallet batch`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1556,7 +1501,7 @@ optional flags: `--deadline`, `--nonce`, `--wallet`.)
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1569,9 +1514,7 @@ optional flags: `--deadline`, `--nonce`, `--wallet`.)
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `deposit-wallet deploy`).
-> The JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1607,7 +1550,7 @@ signing EOA.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1616,9 +1559,7 @@ signing EOA.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `deposit-wallet derive`).
-> The JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1653,7 +1594,7 @@ ERC-20 transfer.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1667,9 +1608,7 @@ ERC-20 transfer.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `deposit-wallet fund`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1708,7 +1647,7 @@ relayer.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1717,9 +1656,7 @@ relayer.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `deposit-wallet nonce`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1755,7 +1692,7 @@ approve, fund) end-to-end.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1772,9 +1709,7 @@ approve, fund) end-to-end.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `deposit-wallet onboard`).
-> The JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1814,7 +1749,7 @@ transaction by id.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1823,9 +1758,7 @@ transaction by id.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `deposit-wallet status`).
-> The JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1863,7 +1796,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1872,9 +1805,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `paper`). The JSON above is
-> the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1894,7 +1825,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 
 **Caveats:**
 
-- Group entry has no business logic; always prefer a concrete subcommand.
+- Group entry has no business logic; in `--json` mode it returns `USAGE_SUBCOMMAND_UNKNOWN`. Use `--help` to list subcommands, then run a concrete subcommand.
 
 ### `paper buy`
 
@@ -1907,7 +1838,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1922,9 +1853,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `paper buy`). The JSON above
-> is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -1957,7 +1886,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -1971,9 +1900,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `paper positions`). The
-> JSON above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2005,7 +1932,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2014,9 +1941,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `paper reset`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2049,7 +1974,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2064,9 +1989,7 @@ Local paper-trading state. No upstream API calls; never authenticated.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `paper sell`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2104,7 +2027,7 @@ addresses.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2113,9 +2036,7 @@ addresses.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `bridge`). The JSON above is
-> the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2135,7 +2056,7 @@ addresses.
 
 **Caveats:**
 
-- Group entry has no business logic; always prefer a concrete subcommand.
+- Group entry has no business logic; in `--json` mode it returns `USAGE_SUBCOMMAND_UNKNOWN`. Use `--help` to list subcommands, then run a concrete subcommand.
 
 ### `bridge assets`
 
@@ -2147,7 +2068,7 @@ addresses.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2160,9 +2081,7 @@ addresses.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `bridge assets`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2195,7 +2114,7 @@ asset.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2207,9 +2126,7 @@ asset.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `bridge deposit`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2246,7 +2163,7 @@ List Polymarket events.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2255,9 +2172,7 @@ List Polymarket events.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `events`). The JSON above is
-> the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2277,7 +2192,7 @@ List Polymarket events.
 
 **Caveats:**
 
-- Group entry has no business logic; always prefer `events list`.
+- Group entry has no business logic; in `--json` mode it returns `USAGE_SUBCOMMAND_UNKNOWN`. Use `events list` for data.
 
 ### `events list`
 
@@ -2289,7 +2204,7 @@ List Polymarket events.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2303,9 +2218,7 @@ List Polymarket events.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `events list`). The JSON
-> above is the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2343,7 +2256,7 @@ Check Gamma and CLOB API reachability.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2352,9 +2265,7 @@ Check Gamma and CLOB API reachability.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `health`). The JSON above is
-> the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2391,20 +2302,16 @@ Print version.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
-  "data": { "binary_version": "dev" },
+  "data": { "version": "dev" },
   "meta": { "command": "version", "ts": "2026-05-07T12:34:56Z", "duration_ms": 1 }
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `version`). Note in
-> particular the inner field name collision (`version`) — the v1 target
-> renames the binary version to `binary_version` to avoid shadowing the
-> envelope's own `version`.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2424,8 +2331,8 @@ Print version.
 
 **Caveats:**
 
-- `version` here refers to the binary version, not the envelope contract
-  version.
+- `data.version` is the binary version; top-level `version` is the envelope
+  contract version.
 
 ### Command catalog — `preflight`
 
@@ -2445,7 +2352,7 @@ errors).
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2460,11 +2367,7 @@ errors).
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `preflight`). Note in
-> particular the inner `ok` field name collision — the v1 target uses
-> per-check `ok` only inside `data.checks[]`, with the envelope-level
-> `ok` reflecting the overall pass/fail status.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2505,7 +2408,7 @@ Inspect authentication readiness.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2514,9 +2417,7 @@ Inspect authentication readiness.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `auth`). The JSON above is
-> the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2536,7 +2437,7 @@ Inspect authentication readiness.
 
 **Caveats:**
 
-- Group entry has no business logic; always prefer `auth status`.
+- Group entry has no business logic; in `--json` mode it returns `USAGE_SUBCOMMAND_UNKNOWN`. Use `auth status` for data once implemented.
 
 ### `auth status`
 
@@ -2551,7 +2452,7 @@ errored).
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2563,10 +2464,7 @@ errored).
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `auth status`). The command
-> currently emits a plain-text "not implemented" string with exit 0; v1
-> requires either a populated envelope or `INTERNAL_UNIMPLEMENTED`.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2602,7 +2500,7 @@ Inspect live gate status.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2611,9 +2509,7 @@ Inspect live gate status.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `live`). The JSON above is
-> the v1 target shape.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 
@@ -2633,7 +2529,7 @@ Inspect live gate status.
 
 **Caveats:**
 
-- Group entry has no business logic; always prefer `live status`.
+- Group entry has no business logic; in `--json` mode it returns `USAGE_SUBCOMMAND_UNKNOWN`. Use `live status` for data once implemented.
 
 ### `live status`
 
@@ -2645,7 +2541,7 @@ Inspect live gate status.
 
 **Sample success JSON:**
 
-```json title="target v1 envelope"
+```json title="v1 envelope"
 {
   "ok": true,
   "version": "1",
@@ -2654,10 +2550,7 @@ Inspect live gate status.
 }
 ```
 
-> **Drift:** current output is not yet envelope-conformant; see
-> `docs/AUDIT-FINDINGS.md` (Track 3 row for `live status`). The command
-> currently emits a plain-text "not implemented" string with exit 0; v1
-> requires either a populated envelope or `INTERNAL_UNIMPLEMENTED`.
+> **Contract:** implemented by the shared v1 JSON envelope. Command-specific fields appear under `data`; errors use `error.code` and `error.category`.
 
 **Sample error JSON:**
 

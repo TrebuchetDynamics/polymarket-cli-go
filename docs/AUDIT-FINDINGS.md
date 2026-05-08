@@ -38,9 +38,11 @@ later.)
 
 ## Track 3 — JSON envelope drift
 
-(Populated by Track 3. Per-command list of where current `--json` output
-diverges from the v1 envelope spec'd in
-`docs/superpowers/specs/2026-05-07-documentation-overhaul-design.md` § 3a.)
+This table is the pre-alignment audit snapshot that drove the shared CLI
+envelope layer. The rows below no longer describe the default `--json` success
+shape or missing-auth/stub/group-command behavior after the envelope hardening
+slice. Remaining work is protocol-specific classification for upstream 4xx/5xx,
+transport, and chain failures.
 
 | Command | Current shape | Drift from v1 envelope |
 |---|---|---|

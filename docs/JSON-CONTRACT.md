@@ -266,11 +266,12 @@ Exit code: `4` (`validation`).
 
 ## Implementation status
 
-The v1 envelope is the design target. Current command output partially
-conforms; per-command drift from this contract is tracked in
-`docs/AUDIT-FINDINGS.md` (Track 3 — JSON envelope drift section). Code
-alignment is a separate follow-up project, not part of this documentation
-overhaul.
+The shared CLI layer emits the v1 envelope for `--json` success output, group
+commands invoked without a subcommand, not-implemented command stubs, missing
+private-key or builder credentials, and other command errors. The remaining
+alignment work is protocol-specific classification: upstream 4xx/5xx,
+transport, and chain failures still need more precise `error.code` values and
+structured `error.details`.
 
 ## Source of truth
 
