@@ -115,9 +115,11 @@ func NewRootCommand(opts Options) *cobra.Command {
 	root.AddCommand(commandGroup("paper", "Inspect local paper trading state",
 		skeleton("buy"), skeleton("sell"), skeleton("positions"), skeleton("reset"),
 	))
-	root.AddCommand(commandGroup("auth", "Inspect authentication readiness",
+	authCmd := commandGroup("auth", "Inspect authentication readiness",
 		skeleton("status"),
-	))
+	)
+	authCmd.AddCommand(newAuthHeadlessOnboardCommand(jsonOutput))
+	root.AddCommand(authCmd)
 	root.AddCommand(commandGroup("live", "Inspect live gate status",
 		skeleton("status"),
 	))

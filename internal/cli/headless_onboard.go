@@ -1,0 +1,170 @@
+package cli
+
+import (
+	"context"
+	stderrors "errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/TrebuchetDynamics/polygolem/internal/auth"
+	"github.com/TrebuchetDynamics/polygolem/internal/relayer"
+	"github.com/spf13/cobra"
+)
+
+// Headless onboarding wires SIWE login + V2 relayer key mint and persists
+// the resulting RELAYER_API_KEY + RELAYER_API_KEY_ADDRESS to a 0600 env
+// file. Companion to `polygolem builder auto`, which mints CLOB L2 creds.
+//
+// See docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md for the V2 split-cred
+// model.
+
+const (
+	defaultGammaBaseURL     = "https://gamma-api.polymarket.com"
+	defaultRelayerV2BaseURL = "https://relayer-v2.polymarket.com"
+	defaultRelayerEnvFile   = "../go-bot/.env.relayer-v2"
+)
+
+func newAuthHeadlessOnboardCommand(jsonOut bool) *cobra.Command {
+	w := newWire(jsonOut)
+	var envFile, gammaURL, relayerURL string
+	var force bool
+
+	cmd := &cobra.Command{
+		Use:   "headless-onboard",
+		Short: "Run SIWE login + mint V2 Relayer API Key (no browser)",
+		Long: `Headless replacement for the polymarket.com/settings → "Create"
+button under Builder Keys. Steps:
+
+  1. Sign a Polymarket SIWE message with the EOA from POLYMARKET_PRIVATE_KEY.
+  2. Trade the signature for a polymarket session cookie at
+     gamma-api.polymarket.com/login.
+  3. Mint a V2 Relayer API Key at relayer-v2.polymarket.com/relayer/api/auth.
+  4. Persist {RELAYER_API_KEY, RELAYER_API_KEY_ADDRESS} to a 0600 env file.
+
+After this completes, polygolem deposit-wallet deploy / approve work
+without any browser interaction. See docs/BUILDER-AUTO.md.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			privateKey := strings.TrimSpace(os.Getenv("POLYMARKET_PRIVATE_KEY"))
+			if privateKey == "" {
+				return fmt.Errorf("POLYMARKET_PRIVATE_KEY is required")
+			}
+			signer, err := auth.NewPrivateKeySigner(privateKey, 137)
+			if err != nil {
+				return fmt.Errorf("init signer: %w", err)
+			}
+
+			target := envFile
+			if target == "" {
+				target = defaultRelayerEnvFile
+			}
+			abs, err := filepath.Abs(target)
+			if err != nil {
+				return fmt.Errorf("resolve env file path: %w", err)
+			}
+
+			gURL := strings.TrimSpace(gammaURL)
+			if gURL == "" {
+				gURL = defaultGammaBaseURL
+			}
+			rURL := strings.TrimSpace(relayerURL)
+			if rURL == "" {
+				rURL = defaultRelayerV2BaseURL
+			}
+
+			stderr := cmd.ErrOrStderr()
+			fmt.Fprintf(stderr, "Running SIWE login at %s ...\n", gURL)
+
+			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+			defer cancel()
+
+			session, err := auth.NewSIWESession(signer, gURL)
+			if err != nil {
+				return fmt.Errorf("new siwe session: %w", err)
+			}
+			if err := session.Login(ctx); err != nil {
+				return fmt.Errorf("siwe login: %w", err)
+			}
+			cookies := session.CookiesFor(gURL + "/")
+			fmt.Fprintf(stderr, "✓ SIWE login OK (%d cookies captured)\n", len(cookies))
+
+			fmt.Fprintf(stderr, "Minting V2 Relayer API Key at %s ...\n", rURL)
+			v2Key, err := relayer.MintV2APIKey(ctx, session.HTTPClient(), rURL)
+			if err != nil {
+				return fmt.Errorf("mint v2 api key: %w", err)
+			}
+			fmt.Fprintf(stderr, "✓ V2 API key minted (apiKey=%s, address=%s)\n", v2Key.Key, v2Key.Address)
+
+			if err := persistRelayerV2Key(abs, v2Key, force); err != nil {
+				return fmt.Errorf("persist relayer key: %w", err)
+			}
+			fmt.Fprintf(stderr, "✓ Wrote credentials to %s (mode 0600)\n", abs)
+
+			return w.printJSON(cmd, map[string]string{
+				"wroteTo":         abs,
+				"relayerApiKey":   v2Key.Key,
+				"relayerAddress":  v2Key.Address,
+				"createdAt":       v2Key.CreatedAt,
+				"permission":      "0600",
+				"sessionCookies":  fmt.Sprintf("%d", len(cookies)),
+				"gammaURL":        gURL,
+				"relayerURL":      rURL,
+				"signerAddress":   signer.Address(),
+			})
+		},
+	}
+
+	cmd.Flags().StringVar(&envFile, "env-file", "", "target env file (default: ../go-bot/.env.relayer-v2)")
+	cmd.Flags().StringVar(&gammaURL, "gamma-url", "", "Gamma API base URL (default: https://gamma-api.polymarket.com)")
+	cmd.Flags().StringVar(&relayerURL, "relayer-url", "", "Relayer base URL (default: https://relayer-v2.polymarket.com)")
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing env file")
+	return cmd
+}
+
+func persistRelayerV2Key(target string, key relayer.V2APIKey, force bool) error {
+	if !force {
+		if _, err := os.Stat(target); err == nil {
+			return fmt.Errorf("env file %s exists; pass --force to overwrite", target)
+		} else if !stderrors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("stat target: %w", err)
+		}
+	}
+	dir := filepath.Dir(target)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("mkdir env file dir: %w", err)
+	}
+	tmp, err := os.CreateTemp(dir, ".env.relayer-v2.tmp.*")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+
+	body := fmt.Sprintf(
+		"# Polymarket V2 relayer credentials\n"+
+			"# Generated by polygolem auth headless-onboard.\n"+
+			"# Created: %s\n"+
+			"RELAYER_API_KEY=%s\n"+
+			"RELAYER_API_KEY_ADDRESS=%s\n",
+		key.CreatedAt,
+		key.Key,
+		key.Address,
+	)
+	if _, err := tmp.WriteString(body); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write temp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp: %w", err)
+	}
+	if err := os.Chmod(tmpName, 0o600); err != nil {
+		return fmt.Errorf("chmod 0600: %w", err)
+	}
+	if err := os.Rename(tmpName, target); err != nil {
+		return fmt.Errorf("rename temp to target: %w", err)
+	}
+	return nil
+}

@@ -14,15 +14,21 @@ import (
 
 const depositWalletFactoryAddr = "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07"
 
+// authHeaderFunc returns the headers the relayer expects on each request.
+// Two implementations exist: the legacy POLY_BUILDER_* HMAC scheme and
+// the V2 RELAYER_API_KEY plain-header scheme.
+type authHeaderFunc func(method, path string, body *string) (map[string]string, error)
+
 // Client provides access to the Polymarket builder relayer API.
 type Client struct {
-	transport *transport.Client
-	auth      auth.BuilderConfig
-	chainID   int64
+	transport  *transport.Client
+	authHeader authHeaderFunc
+	chainID    int64
 }
 
-// New creates a relayer Client. bc must contain valid builder credentials
-// (BUILDER_API_KEY / BUILDER_SECRET / BUILDER_PASSPHRASE).
+// New creates a relayer Client using the legacy POLY_BUILDER_* HMAC auth
+// (key + secret + passphrase). Use NewV2 for the plain V2 RELAYER_API_KEY
+// scheme returned by the V2 mint endpoint.
 func New(baseURL string, bc auth.BuilderConfig, chainID int64) (*Client, error) {
 	if !bc.Valid() {
 		return nil, fmt.Errorf("relayer: builder credentials are required (key, secret, passphrase)")
@@ -30,16 +36,38 @@ func New(baseURL string, bc auth.BuilderConfig, chainID int64) (*Client, error) 
 	if chainID == 0 {
 		chainID = 137
 	}
-	c := &Client{
-		transport: transport.New(nil, transport.DefaultConfig(baseURL)),
-		auth:      bc,
-		chainID:   chainID,
+	hdrFn := func(method, path string, body *string) (map[string]string, error) {
+		return auth.BuildBuilderHeaders(&bc, time.Now().Unix(), method, path, body)
 	}
-	return c, nil
+	return &Client{
+		transport:  transport.New(nil, transport.DefaultConfig(baseURL)),
+		authHeader: hdrFn,
+		chainID:    chainID,
+	}, nil
+}
+
+// NewV2 creates a relayer Client using the V2 plain-header scheme:
+// `RELAYER_API_KEY` + `RELAYER_API_KEY_ADDRESS`. Mint a V2APIKey via
+// MintV2APIKey (which uses the SIWE session cookies).
+func NewV2(baseURL string, key V2APIKey, chainID int64) (*Client, error) {
+	if strings.TrimSpace(key.Key) == "" || strings.TrimSpace(key.Address) == "" {
+		return nil, fmt.Errorf("relayer: V2APIKey requires both Key and Address")
+	}
+	if chainID == 0 {
+		chainID = 137
+	}
+	hdrFn := func(method, path string, body *string) (map[string]string, error) {
+		return key.V2Headers(), nil
+	}
+	return &Client{
+		transport:  transport.New(nil, transport.DefaultConfig(baseURL)),
+		authHeader: hdrFn,
+		chainID:    chainID,
+	}, nil
 }
 
 func (c *Client) buildAuthHeaders(method, path string, body *string) (map[string]string, error) {
-	return auth.BuildBuilderHeaders(&c.auth, time.Now().Unix(), method, path, body)
+	return c.authHeader(method, path, body)
 }
 
 func (c *Client) post(ctx context.Context, path string, body interface{}, result interface{}) error {
