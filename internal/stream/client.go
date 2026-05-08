@@ -93,6 +93,7 @@ type MarketClient struct {
 	cancel     context.CancelFunc
 	connected  atomic.Bool
 	reconnects int32
+	assets     []string
 
 	// Callbacks
 	OnBook        func(BookMessage)
@@ -207,19 +208,44 @@ func (mc *MarketClient) reconnect() {
 	if mc.ctx.Err() != nil {
 		return
 	}
-	mc.dial()
+	if err := mc.dial(); err != nil {
+		if mc.OnError != nil {
+			mc.OnError(fmt.Errorf("ws reconnect: %w", err))
+		}
+		return
+	}
+	if err := mc.resubscribe(); err != nil && mc.OnError != nil {
+		mc.OnError(err)
+	}
 }
 
 // SubscribeAssets subscribes to order book updates for given token IDs.
 func (mc *MarketClient) SubscribeAssets(ctx context.Context, assetIDs []string) error {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+	if err := mc.writeSubscribeLocked(assetIDs); err != nil {
+		return err
+	}
+	mc.assets = append([]string(nil), assetIDs...)
+	return nil
+}
+
+func (mc *MarketClient) resubscribe() error {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+	if len(mc.assets) == 0 {
+		return nil
+	}
+	return mc.writeSubscribeLocked(mc.assets)
+}
+
+func (mc *MarketClient) writeSubscribeLocked(assetIDs []string) error {
+	if mc.conn == nil {
+		return fmt.Errorf("ws subscribe: not connected")
+	}
 	msg := map[string]interface{}{
 		"type":       "market",
 		"assets_ids": assetIDs,
-	}
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-	if mc.conn == nil {
-		return fmt.Errorf("ws subscribe: not connected")
 	}
 	return mc.conn.WriteJSON(msg)
 }

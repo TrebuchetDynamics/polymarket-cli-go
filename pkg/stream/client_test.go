@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -134,5 +135,67 @@ func TestSubscribeAssetsBeforeConnectReturnsError(t *testing.T) {
 	client := NewMarketClient(Config{})
 	if err := client.SubscribeAssets(context.Background(), []string{"token-1"}); err == nil {
 		t.Fatal("expected error before connect")
+	}
+}
+
+func TestMarketClientReconnectResubscribesAssets(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	subscriptions := make(chan map[string]interface{}, 2)
+	var connections atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		var sub map[string]interface{}
+		if err := conn.ReadJSON(&sub); err != nil {
+			t.Errorf("read subscribe: %v", err)
+			return
+		}
+		subscriptions <- sub
+
+		if connections.Add(1) == 1 {
+			_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "reconnect"))
+		} else {
+			<-r.Context().Done()
+		}
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	client := NewMarketClient(Config{
+		URL:               wsURL,
+		PingInterval:      time.Hour,
+		PongTimeout:       time.Second,
+		Reconnect:         true,
+		ReconnectDelay:    time.Millisecond,
+		ReconnectMaxDelay: time.Millisecond,
+		ReconnectMax:      1,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := client.Connect(ctx); err != nil {
+		t.Fatalf("Connect returned error: %v", err)
+	}
+	defer client.Close()
+	if err := client.SubscribeAssets(ctx, []string{"token-1"}); err != nil {
+		t.Fatalf("SubscribeAssets returned error: %v", err)
+	}
+
+	for i := 0; i < 2; i++ {
+		select {
+		case sub := <-subscriptions:
+			assets, ok := sub["assets_ids"].([]interface{})
+			if !ok || len(assets) != 1 || assets[0] != "token-1" {
+				t.Fatalf("assets_ids = %#v", sub["assets_ids"])
+			}
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for subscription %d", i+1)
+		}
 	}
 }
