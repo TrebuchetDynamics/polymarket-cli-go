@@ -105,8 +105,12 @@ func TestBuildSignedOrderPayloadV2DepositWalletUsesEOASignerWithDepositMaker(t *
 		t.Fatal(err)
 	}
 	wantMaker := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
-	if !strings.EqualFold(order.Maker, wantMaker) || !strings.EqualFold(order.Signer, wantMaker) {
-		t.Fatalf("maker/signer=%s/%s want deposit wallet %s", order.Maker, order.Signer, wantMaker)
+	wantSigner := signer.Address() // EOA — matches py-clob-client builder.py:141
+	if !strings.EqualFold(order.Maker, wantMaker) {
+		t.Fatalf("maker=%s want deposit wallet %s", order.Maker, wantMaker)
+	}
+	if !strings.EqualFold(order.Signer, wantSigner) {
+		t.Fatalf("signer=%s want EOA %s", order.Signer, wantSigner)
 	}
 	if order.SignatureType != signatureTypePoly1271 {
 		t.Fatalf("signature type=%d", order.SignatureType)

@@ -649,7 +649,7 @@ func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts
 	payload := signedOrderPayload{
 		Salt:          salt,
 		Maker:         maker,
-		Signer:        maker,
+		Signer:        signer.Address(),
 		TokenID:       draft.tokenID.String(),
 		MakerAmount:   draft.makerAmount,
 		TakerAmount:   draft.takerAmount,
