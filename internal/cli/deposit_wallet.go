@@ -574,6 +574,9 @@ After onboarding, sync CLOB:
 				"Run: polygolem clob update-balance --asset-type collateral",
 				"Verify: polygolem clob balance --asset-type collateral",
 			}
+
+			warnIfNoDepositKey(cmd.Context(), cmd.ErrOrStderr(), key)
+
 			return printJSON(cmd, result)
 		},
 	}

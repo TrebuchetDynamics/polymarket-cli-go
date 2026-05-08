@@ -42,7 +42,7 @@ polygolem --json version | jq .
 polygolem - Safe Polymarket SDK and CLI for Go
   auth - Inspect authentication readiness
     headless-onboard - Run SIWE login + mint V2 Relayer API Key (no browser)
-    status
+    status - Check authentication readiness and API key status
   bridge - Polymarket Bridge API
     assets - List supported bridge assets
     deposit - Create deposit addresses
@@ -180,7 +180,7 @@ polygolem auth [flags]
 | Command | Description |
 |---|---|
 | `polygolem auth headless-onboard` | Run SIWE login + mint V2 Relayer API Key (no browser) |
-| `polygolem auth status` |   |
+| `polygolem auth status` | Check authentication readiness and API key status |
 
 **Flags:**
 
@@ -224,6 +224,18 @@ polygolem auth headless-onboard [flags]
 
 ### polygolem auth status
 
+Check authentication readiness and API key status
+
+Inspects the current POLYMARKET_PRIVATE_KEY and reports:
+  - EOA address and deposit wallet address
+  - Whether the deposit wallet is deployed
+  - Whether EOA-owned and deposit-wallet-owned API keys exist
+  - Whether the setup is ready for trading
+
+Use --check-deposit-key to test whether the deposit-wallet-owned API key
+is functional (makes a live network call). Without this flag, the check
+is faster but may report a stale key as existing.
+
 **Usage:**
 
 ```bash
@@ -234,6 +246,7 @@ polygolem auth status [flags]
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--check-deposit-key` | `bool` | `false` | make a live network call to verify the deposit-wallet API key exists |
 | `-h, --help` | `bool` | `false` | help for status |
 | `--json` | `bool` | `false` | emit JSON output |
 

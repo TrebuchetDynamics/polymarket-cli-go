@@ -118,7 +118,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		skeleton("buy"), skeleton("sell"), skeleton("positions"), skeleton("reset"),
 	))
 	authCmd := commandGroup("auth", "Inspect authentication readiness",
-		skeleton("status"),
+		newAuthStatusCommand(jsonOutput),
 	)
 	authCmd.AddCommand(newAuthHeadlessOnboardCommand(jsonOutput))
 	root.AddCommand(authCmd)
@@ -432,7 +432,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 			}
 			apiKey, err := w.clob.CreateAPIKeyForAddress(cmd.Context(), key, owner)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w\n\nNote: Creating deposit-wallet-owned API keys headlessly is not supported by Polymarket.\nNew users must complete a one-time browser login. See docs/BROWSER-SETUP.md", err)
 			}
 			return w.printJSON(cmd, map[string]string{"api_key": apiKey.Key, "owner": common.HexToAddress(owner).Hex()})
 		},
@@ -733,6 +733,8 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 			if err != nil {
 				return err
 			}
+			warnIfNoDepositKey(cmd.Context(), cmd.ErrOrStderr(), key)
+
 			res, err := w.clob.CreateLimitOrder(cmd.Context(), key, clob.CreateOrderParams{
 				TokenID:    createOrderToken,
 				Side:       createOrderSide,
@@ -788,6 +790,8 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 			if err != nil {
 				return err
 			}
+			warnIfNoDepositKey(cmd.Context(), cmd.ErrOrStderr(), key)
+
 			res, err := w.clob.CreateBatchOrders(cmd.Context(), key, orders)
 			if err != nil {
 				return err
@@ -815,6 +819,8 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 			if err != nil {
 				return err
 			}
+			warnIfNoDepositKey(cmd.Context(), cmd.ErrOrStderr(), key)
+
 			res, err := w.clob.CreateMarketOrder(cmd.Context(), key, clob.MarketOrderParams{
 				TokenID:   marketOrderToken,
 				Side:      marketOrderSide,

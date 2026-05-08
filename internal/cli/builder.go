@@ -145,6 +145,8 @@ manual browser-capture flow.`,
 			}
 			fmt.Fprintf(stderr, "✓ Wrote credentials to %s (mode 0600)\n", abs)
 
+			warnIfNoDepositKeySimple(stderr, privateKey)
+
 			return w.printJSON(cmd, builderOnboardResult{
 				WroteTo:    abs,
 				Validated:  validated,

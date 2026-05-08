@@ -26,6 +26,6 @@ export default new Map([
 ["src/content/docs/reference/gamma-api.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fgamma-api.mdx&astroContentModuleFlag=true")],
 ["src/content/docs/reference/internal-packages.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Finternal-packages.mdx&astroContentModuleFlag=true")],
 ["src/content/docs/reference/polytypes.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fpolytypes.mdx&astroContentModuleFlag=true")],
-["src/content/docs/reference/stream-api.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fstream-api.mdx&astroContentModuleFlag=true")],
-["src/content/docs/reference/sdk.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fsdk.mdx&astroContentModuleFlag=true")]]);
+["src/content/docs/reference/sdk.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fsdk.mdx&astroContentModuleFlag=true")],
+["src/content/docs/reference/stream-api.mdx", () => import("astro:content-layer-deferred-module?astro%3Acontent-layer-deferred-module=&fileName=src%2Fcontent%2Fdocs%2Freference%2Fstream-api.mdx&astroContentModuleFlag=true")]]);
 		

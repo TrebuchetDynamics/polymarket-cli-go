@@ -190,6 +190,31 @@ func TestJSONMissingPrivateKeyUsesAuthErrorEnvelope(t *testing.T) {
 	}
 }
 
+func TestJSONAuthStatusMissingPrivateKeyUsesAuthErrorEnvelope(t *testing.T) {
+	t.Setenv("POLYMARKET_PRIVATE_KEY", "")
+
+	stdout, stderr, err := executeRootForTest("--json", "auth", "status")
+	if err == nil {
+		t.Fatal("expected Execute to return auth error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout=%q, want empty", stdout)
+	}
+	if got := ExitCode(err); got != 3 {
+		t.Fatalf("ExitCode=%d, want 3", got)
+	}
+	got := parseJSONEnvelopeForTest(t, stderr)
+	if got.OK {
+		t.Fatalf("ok=true, want false\nenvelope=%s", stderr)
+	}
+	if got.Meta.Command != "auth status" {
+		t.Fatalf("meta.command=%q, want auth status", got.Meta.Command)
+	}
+	if got.Error == nil || got.Error.Code != "AUTH_PRIVATE_KEY_MISSING" || got.Error.Category != "auth" {
+		t.Fatalf("unexpected error envelope: %+v\n%s", got.Error, stderr)
+	}
+}
+
 func TestJSONMissingPositionalArgUsesUsageErrorEnvelope(t *testing.T) {
 	stdout, stderr, err := executeRootForTest("--json", "clob", "book")
 	if err == nil {
