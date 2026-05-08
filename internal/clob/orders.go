@@ -17,7 +17,6 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 	"github.com/ethereum/go-ethereum/common"
 	gethmath "github.com/ethereum/go-ethereum/common/math"
-	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
 
@@ -538,26 +537,13 @@ func buildOrderTypedData(order signedOrderPayload, negRisk bool) apitypes.TypedD
 }
 
 // wrapPOLY1271Signature produces the 636-char ERC-7739 TypedDataSign wrapped
-// signature used when signatureType=3 for Polymarket V2 orders.
+// signature used when signatureType=3 for Polymarket V2 orders. Delegates to
+// auth.WrapERC7739Signature with the V2 Order contentsType.
 //
 // Layout: innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186)
 // = 317 bytes = 634 hex chars + "0x" = 636 chars total.
 func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, orderTypedData apitypes.TypedData) (string, error) {
-	// contentsType is the V2 Order type string — must be exactly 186 bytes.
 	const contentsType = "Order(uint256 salt,address maker,address signer,uint256 tokenId,uint256 makerAmount,uint256 takerAmount,uint8 side,uint8 signatureType,uint256 timestamp,bytes32 metadata,bytes32 builder)"
-	if len(contentsType) != 186 {
-		return "", fmt.Errorf("internal: contentsType length %d != 186", len(contentsType))
-	}
-
-	// 1. Extract appDomainSep and contents from the V2 order typed data.
-	//    TypedDataAndHash returns (hash, rawData, err) where rawData is a string:
-	//    \x19\x01 (2B) || domainSep (32B) || structHash (32B).
-	//
-	//    Per docs.polymarket.com/trading/deposit-wallets, the user signs a nested
-	//    TypedDataSign payload UNDER the CTF Exchange V2 domain — i.e. the OUTER
-	//    EIP-712 domain in the keccak256(0x1901 || domSep || hashStruct(...)) is
-	//    the Exchange domain (regular or neg-risk per market). The Exchange
-	//    domSep is exactly what TypedDataAndHash extracts at rawData[2:34].
 	_, rawDataStr, err := apitypes.TypedDataAndHash(orderTypedData)
 	if err != nil {
 		return "", fmt.Errorf("hash order typed data: %w", err)
@@ -566,66 +552,10 @@ func wrapPOLY1271Signature(signer *auth.PrivateKeySigner, depositWallet string, 
 	if len(rawData) != 66 {
 		return "", fmt.Errorf("unexpected rawData length %d", len(rawData))
 	}
-	appDomainSep := rawData[2:34] // CTF Exchange V2 domain separator — used as OUTER
-	contents := rawData[34:66]    // hashStruct(Order)
-
-	// 2. TypedDataSign typehash.
-	typeHashStr := "TypedDataSign(Order contents,string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)" + contentsType
-	typedDataSignTypehash := ethcrypto.Keccak256([]byte(typeHashStr))
-
-	// 3. hashStruct(TypedDataSign{contents, DepositWallet inline domain values}).
-	//    Per docs.polymarket.com/trading/deposit-wallets, the INNER struct's domain
-	//    fields describe the WALLET (the contract that will validate via
-	//    isValidSignature), NOT the app domain. The app/Exchange identity is
-	//    encoded by the OUTER domSep below.
-	//
-	//      name              = "DepositWallet"
-	//      version           = "1"
-	//      chainId           = 137 (Polygon mainnet)
-	//      verifyingContract = the deposit wallet address
-	//      salt              = bytes32(0)
-	dwNameHash := ethcrypto.Keccak256([]byte("DepositWallet"))
-	dwVerHash := ethcrypto.Keccak256([]byte("1"))
-	dwChainIDBytes := common.LeftPadBytes(big.NewInt(polygonChainID).Bytes(), 32)
-	dwAddrBytes := common.LeftPadBytes(common.HexToAddress(depositWallet).Bytes(), 32)
-	dwSaltBytes := make([]byte, 32) // zeros
-
-	tdsStruct := ethcrypto.Keccak256(
-		typedDataSignTypehash,
-		contents,
-		dwNameHash,
-		dwVerHash,
-		dwChainIDBytes,
-		dwAddrBytes,
-		dwSaltBytes,
-	)
-
-	// 4. finalHash = keccak256(0x1901 || appDomainSep || tdsStruct).
-	//    Outer is the CTF Exchange V2 domain — the app the user is authorizing.
-	finalHashInput := make([]byte, 0, 66)
-	finalHashInput = append(finalHashInput, 0x19, 0x01)
-	finalHashInput = append(finalHashInput, appDomainSep...)
-	finalHashInput = append(finalHashInput, tdsStruct...)
-	finalHashSum := ethcrypto.Keccak256(finalHashInput)
-	var finalHash [32]byte
-	copy(finalHash[:], finalHashSum)
-
-	// 5. ECDSA-sign the finalHash with the EOA private key.
-	innerSig, err := signer.SignRaw(finalHash)
-	if err != nil {
-		return "", fmt.Errorf("sign inner: %w", err)
-	}
-
-	// 6. Assemble: innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186).
-	var lenBuf [2]byte
-	binary.BigEndian.PutUint16(lenBuf[:], uint16(len(contentsType)))
-	sig := make([]byte, 0, 317)
-	sig = append(sig, innerSig...)
-	sig = append(sig, appDomainSep...)
-	sig = append(sig, contents...)
-	sig = append(sig, []byte(contentsType)...)
-	sig = append(sig, lenBuf[:]...)
-	return "0x" + hex.EncodeToString(sig), nil
+	var appDomainSep, contents [32]byte
+	copy(appDomainSep[:], rawData[2:34])
+	copy(contents[:], rawData[34:66])
+	return auth.WrapERC7739Signature(signer, depositWallet, polygonChainID, appDomainSep, contents, contentsType)
 }
 
 // buildSignedOrderPayload constructs a signed V2 order payload from a draft.

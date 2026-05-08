@@ -102,10 +102,19 @@ func (c *Client) createAPIKey(ctx context.Context, privateKey string) (auth.APIK
 	return raw.apiKey(), nil
 }
 
-// CreateAPIKeyForAddress creates CLOB L2 credentials for a deposit/smart
-// wallet while signing L1 auth with the controlling EOA private key.
+// CreateAPIKeyForAddress creates CLOB L2 credentials bound to a Polymarket
+// deposit wallet. The EOA holding privateKey produces the inner ECDSA, but
+// POLY_ADDRESS is the deposit wallet and POLY_SIGNATURE is the ERC-7739
+// nested EIP-712 wrap that Solady's ERC1271 mixin (used by the production
+// DepositWallet impl) validates. The deposit wallet must be deployed
+// on-chain before this call.
+//
+// Why wrapped: with the L2 key bound to the deposit wallet, sigtype-3 orders
+// satisfy both the CLOB HTTP gate ("order signer == address of API KEY") and
+// the on-chain `_verifyPoly1271Signature(signer == maker)` because all three
+// are the deposit wallet.
 func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (auth.APIKey, error) {
-	headers, err := auth.BuildL1HeadersForAddress(privateKey, polygonChainID, time.Now().Unix(), 0, ownerAddress)
+	headers, err := auth.BuildL1HeadersForDepositWallet(privateKey, polygonChainID, time.Now().Unix(), 0, ownerAddress)
 	if err != nil {
 		return auth.APIKey{}, err
 	}
