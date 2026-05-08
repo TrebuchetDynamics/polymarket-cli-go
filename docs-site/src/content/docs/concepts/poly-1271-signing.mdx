@@ -1,0 +1,78 @@
+---
+title: POLY_1271 Signing Chain
+description: "The complete sigtype 3 signing flow — L2 key binding, CLOB HTTP gate, ERC-7739 order wrapping, and on-chain ERC-1271 validation."
+---
+
+For deposit wallet (sigtype 3 / POLY_1271) orders to work end-to-end, four conditions must hold:
+
+## The Full Chain
+
+```
+POST /auth/api-key          → bind L2 key to deposit wallet
+  POLY_ADDRESS = depositWallet (raw 65-byte ECDSA from EOA)
+
+POST /order (L2 HMAC)       → CLOB HTTP gate
+  POLY_ADDRESS = depositWallet → matches L2 key binding ✓
+
+signedOrderPayload {
+  maker  = depositWallet
+  signer = depositWallet     ← must equal maker for sigtype 3
+  signatureType = 3
+  signature = ERC-7739 wrapped (636 hex chars)
+}
+
+CTFExchangeV2.isValidSignature(depositWallet, hash, wrappedSig)
+  → deposit wallet validates EOA sig via ERC-1271 ✓
+```
+
+## Step 1 — L2 Key Binding
+
+The L2 API key must be bound to the **deposit wallet address**, not the EOA.
+
+```go
+headers, err := auth.BuildL1HeadersForAddress(
+    privateKeyHex,  // EOA signs
+    chainID, timestamp, nonce,
+    depositWallet,  // ← key bound to this address
+)
+// POLY_ADDRESS = depositWallet
+// POLY_SIGNATURE = raw 65-byte ECDSA (NOT ERC-7739 wrapped)
+```
+
+## Step 2 — CLOB HTTP Gate
+
+The CLOB checks that `POLY_ADDRESS` in L2 HMAC headers matches the address the API key was minted for. Since the key is bound to the deposit wallet, the L2 `POLY_ADDRESS` must be the deposit wallet.
+
+## Step 3 — Order Struct
+
+```json
+{
+  "order": {
+    "maker": "0xDepositWallet",
+    "signer": "0xDepositWallet",
+    "signatureType": 3,
+    "signature": "0x...636 chars..."
+  }
+}
+```
+
+The order signature is an ERC-7739 TypedDataSign wrapper:
+`innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186)` = 636 hex chars.
+
+## Step 4 — On-Chain Validation
+
+The CTF Exchange V2 calls `depositWallet.isValidSignature(hash, wrappedSig)`. The wallet unwraps the ERC-7739 envelope, verifies the EOA signature, and returns `0x1626ba7e` (ERC-1271 magic value).
+
+## L1 Auth vs Order Signing
+
+| Aspect | L1 (ClobAuth) | Order (POLY_1271) |
+|--------|--------------|-------------------|
+| Signature | Raw 65-byte ECDSA | ERC-7739 wrapped (636 chars) |
+| Domain | `ClobAuthDomain` v1 | `Polymarket CTF Exchange` v2 |
+| Purpose | Create L2 API key | Authorize trade |
+
+## See Also
+
+- [Deposit Wallets](/concepts/deposit-wallets) — wallet architecture
+- [Smart Contracts](/concepts/contracts) — factory and exchange addresses
+- [CLOB API](/reference/clob-api) — order placement endpoints

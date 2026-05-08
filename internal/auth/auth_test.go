@@ -211,3 +211,39 @@ func TestBuildL1HeadersForAddressEmptyFallsBackToSigner(t *testing.T) {
 		t.Errorf("empty override → POLY_ADDRESS = %s, want signer %s", headers["POLY_ADDRESS"], signer.Address())
 	}
 }
+
+// TestBuildL1HeadersForDepositWalletProducesERC7739Wrap pins the wrapped L1
+// ClobAuth signature shape: 65-byte inner ECDSA + 32-byte appDomainSep +
+// 32-byte contents + contentsType (70 bytes for ClobAuth) + uint16BE length
+// = 201 bytes = 402 hex chars + "0x" = 404 chars.
+//
+// This is the format Solady's ERC1271._erc1271IsValidSignatureViaNestedEIP712
+// validates (used by Polymarket's DepositWallet impl on Polygon at
+// 0x58Ca52EbE0DadFDF531cdE7062e76746De4dB1Eb).
+func TestBuildL1HeadersForDepositWalletProducesERC7739Wrap(t *testing.T) {
+	pk := "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	depositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
+
+	headers, err := BuildL1HeadersForDepositWallet(pk, 137, 1700000000, 0, depositWallet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if headers["POLY_ADDRESS"] != depositWallet {
+		t.Errorf("POLY_ADDRESS = %s, want depositWallet %s", headers["POLY_ADDRESS"], depositWallet)
+	}
+	sig := headers["POLY_SIGNATURE"]
+	if len(sig) != 404 {
+		t.Errorf("wrapped POLY_SIGNATURE length = %d, want 404 (0x + 65+32+32+70+2 bytes hex)", len(sig))
+	}
+	// Last 2 bytes are uint16BE(len(contentsType)) = 70 = 0x0046.
+	if sig[400:404] != "0046" {
+		t.Errorf("last uint16 = %s, want 0046 (= 70 = len(ClobAuth contentsType))", sig[400:404])
+	}
+}
+
+func TestBuildL1HeadersForDepositWalletRejectsEmptyAddress(t *testing.T) {
+	pk := "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	if _, err := BuildL1HeadersForDepositWallet(pk, 137, 1700000000, 0, ""); err == nil {
+		t.Fatal("expected error for empty depositWalletAddress")
+	}
+}

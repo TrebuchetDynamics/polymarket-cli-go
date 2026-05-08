@@ -42,6 +42,7 @@ export default defineConfig({
             { label: "Smart Contracts", link: "/concepts/contracts" },
             { label: "Deposit Wallets (POLY_1271)", link: "/concepts/deposit-wallets" },
             { label: "Secrets Management", link: "/concepts/secrets-management" },
+            { label: "POLY_1271 Signing Chain", link: "/concepts/poly-1271-signing" },
             { label: "Markets, Events & Tokens", link: "/concepts/markets-events-tokens" },
             { label: "Safety Model", link: "/concepts/safety" },
             { label: "Architecture", link: "/concepts/architecture" },
