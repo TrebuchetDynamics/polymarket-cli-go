@@ -226,6 +226,7 @@ func marketValueFromInternal(row polytypes.CLOBMarket) types.CLOBMarket {
 		ConditionID:           row.ConditionID,
 		QuestionID:            row.QuestionID,
 		Tokens:                tokensFromInternal(row.Tokens),
+		GameStartTime:         row.GameStartTime,
 		RewardsMinSize:        row.RewardsMinSize,
 		RewardsMaxSpread:      row.RewardsMaxSpread,
 		Spread:                row.Spread,
@@ -241,6 +242,15 @@ func marketValueFromInternal(row polytypes.CLOBMarket) types.CLOBMarket {
 		MakerBaseFee:          row.MakerBaseFee,
 		TakerBaseFee:          row.TakerBaseFee,
 		NotificationsEnabled:  row.NotificationsEnabled,
+		RFQEnabled:            row.RFQEnabled,
+		TakerOrderDelay:       row.TakerOrderDelay,
+		BlockaidCheckEnabled:  row.BlockaidCheckEnabled,
+		FeeDetails: types.CLOBFeeDetails{
+			Rate:      row.FeeDetails.Rate,
+			Exponent:  row.FeeDetails.Exponent,
+			TakerOnly: row.FeeDetails.TakerOnly,
+		},
+		MinimumOrderAge: row.MinimumOrderAge,
 	}
 }
 

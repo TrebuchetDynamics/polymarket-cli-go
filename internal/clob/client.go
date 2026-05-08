@@ -261,6 +261,85 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func parseTokenValueMap(raw json.RawMessage, params []polytypes.BookParams, valueKeys ...string) (map[string]string, error) {
+	var rows map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, err
+	}
+	sidesByToken := make(map[string]string, len(params))
+	for _, param := range params {
+		if param.TokenID != "" && param.Side != "" {
+			sidesByToken[param.TokenID] = strings.ToUpper(param.Side)
+		}
+	}
+	out := make(map[string]string, len(rows))
+	for tokenID, payload := range rows {
+		if value, ok := decodeNumericString(payload); ok {
+			out[tokenID] = value
+			continue
+		}
+		var nested map[string]json.RawMessage
+		if err := json.Unmarshal(payload, &nested); err != nil {
+			return nil, fmt.Errorf("decode token %s value: %w", tokenID, err)
+		}
+		if side := sidesByToken[tokenID]; side != "" {
+			if value, ok := decodeNumericString(nested[side]); ok {
+				out[tokenID] = value
+				continue
+			}
+			if value, ok := decodeNumericString(nested[strings.ToLower(side)]); ok {
+				out[tokenID] = value
+				continue
+			}
+		}
+		for _, key := range valueKeys {
+			if value, ok := decodeNumericString(nested[key]); ok {
+				out[tokenID] = value
+				break
+			}
+		}
+		if out[tokenID] != "" {
+			continue
+		}
+		for _, key := range []string{"BUY", "SELL", "buy", "sell"} {
+			if value, ok := decodeNumericString(nested[key]); ok {
+				out[tokenID] = value
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func parseLastTradePrices(raw json.RawMessage, params []polytypes.BookParams) (map[string]string, error) {
+	var rows []struct {
+		TokenID string                  `json:"token_id"`
+		Price   polytypes.NumericString `json:"price"`
+	}
+	if err := json.Unmarshal(raw, &rows); err == nil {
+		out := make(map[string]string, len(rows))
+		for _, row := range rows {
+			if row.TokenID != "" {
+				out[row.TokenID] = string(row.Price)
+			}
+		}
+		return out, nil
+	}
+	return parseTokenValueMap(raw, params, "price")
+}
+
+func decodeNumericString(raw json.RawMessage) (string, bool) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" || strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+		return "", false
+	}
+	var value polytypes.NumericString
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", false
+	}
+	return string(value), true
+}
+
 // Markets lists CLOB markets with cursor pagination.
 func (c *Client) Markets(ctx context.Context, nextCursor string) (*polytypes.CLOBPaginatedMarkets, error) {
 	path := "/markets"
@@ -277,8 +356,11 @@ func (c *Client) Markets(ctx context.Context, nextCursor string) (*polytypes.CLO
 // Market returns a single CLOB market by condition ID.
 func (c *Client) Market(ctx context.Context, conditionID string) (*polytypes.CLOBMarket, error) {
 	var result polytypes.CLOBMarket
-	if err := c.transport.Get(ctx, "/markets/"+conditionID, &result); err != nil {
+	if err := c.transport.Get(ctx, "/clob-markets/"+url.PathEscape(conditionID), &result); err != nil {
 		return nil, err
+	}
+	if result.ConditionID == "" {
+		result.ConditionID = conditionID
 	}
 	return &result, nil
 }
@@ -306,67 +388,45 @@ func (c *Client) OrderBooks(ctx context.Context, params []polytypes.BookParams) 
 func (c *Client) Price(ctx context.Context, tokenID, side string) (string, error) {
 	path := fmt.Sprintf("/price?token_id=%s&side=%s", url.QueryEscape(tokenID), url.QueryEscape(side))
 	var wrapper struct {
-		Price string `json:"price"`
+		Price polytypes.NumericString `json:"price"`
 	}
 	if err := c.transport.Get(ctx, path, &wrapper); err != nil {
 		return "", err
 	}
-	return wrapper.Price, nil
+	return string(wrapper.Price), nil
 }
 
 // Prices returns prices for multiple tokens (POST).
 func (c *Client) Prices(ctx context.Context, params []polytypes.BookParams) (map[string]string, error) {
-	var raw map[string]json.RawMessage
-	if err := c.transport.Post(ctx, "/prices-post", params, &raw); err != nil {
-		// Try legacy endpoint
-		if err2 := c.transport.Post(ctx, "/prices", params, &raw); err2 != nil {
-			return nil, fmt.Errorf("prices: %w (fallback also failed: %v)", err, err2)
+	var raw json.RawMessage
+	if err := c.transport.Post(ctx, "/prices", params, &raw); err != nil {
+		if err2 := c.transport.Post(ctx, "/prices-post", params, &raw); err2 != nil {
+			return nil, fmt.Errorf("prices: %w (legacy fallback also failed: %v)", err, err2)
 		}
 	}
-	result := make(map[string]string, len(raw))
-	for k, v := range raw {
-		var wrapper struct {
-			Price string `json:"price"`
-		}
-		if err := json.Unmarshal(v, &wrapper); err != nil {
-			result[k] = string(v)
-		} else {
-			result[k] = wrapper.Price
-		}
-	}
-	return result, nil
+	return parseTokenValueMap(raw, params, "price")
 }
 
 // Midpoint returns the midpoint price for a token.
 func (c *Client) Midpoint(ctx context.Context, tokenID string) (string, error) {
 	path := fmt.Sprintf("/midpoint?token_id=%s", url.QueryEscape(tokenID))
 	var wrapper struct {
-		Mid string `json:"mid"`
+		Mid      polytypes.NumericString `json:"mid"`
+		MidPrice polytypes.NumericString `json:"mid_price"`
 	}
 	if err := c.transport.Get(ctx, path, &wrapper); err != nil {
 		return "", err
 	}
-	return wrapper.Mid, nil
+	return firstNonEmpty(string(wrapper.Mid), string(wrapper.MidPrice)), nil
 }
 
 // Midpoints returns midpoints for multiple tokens (POST).
 func (c *Client) Midpoints(ctx context.Context, params []polytypes.BookParams) (map[string]string, error) {
-	var raw map[string]json.RawMessage
+	var raw json.RawMessage
 	if err := c.transport.Post(ctx, "/midpoints", params, &raw); err != nil {
 		return nil, err
 	}
-	result := make(map[string]string, len(raw))
-	for k, v := range raw {
-		var wrapper struct {
-			Mid string `json:"mid"`
-		}
-		if err := json.Unmarshal(v, &wrapper); err != nil {
-			result[k] = string(v)
-		} else {
-			result[k] = wrapper.Mid
-		}
-	}
-	return result, nil
+	return parseTokenValueMap(raw, params, "mid", "mid_price")
 }
 
 // Spread returns the spread for a token.
@@ -428,12 +488,19 @@ func (c *Client) NegRisk(ctx context.Context, tokenID string) (*polytypes.NegRis
 func (c *Client) FeeRateBps(ctx context.Context, tokenID string) (int, error) {
 	path := fmt.Sprintf("/fee-rate?token_id=%s", url.QueryEscape(tokenID))
 	var wrapper struct {
-		FeeRateBps int `json:"fee_rate_bps"`
+		FeeRateBps *int `json:"fee_rate_bps"`
+		BaseFee    *int `json:"base_fee"`
 	}
 	if err := c.transport.Get(ctx, path, &wrapper); err != nil {
 		return 0, err
 	}
-	return wrapper.FeeRateBps, nil
+	if wrapper.FeeRateBps != nil {
+		return *wrapper.FeeRateBps, nil
+	}
+	if wrapper.BaseFee != nil {
+		return *wrapper.BaseFee, nil
+	}
+	return 0, nil
 }
 
 // --- Rewards ---
@@ -559,32 +626,21 @@ func (c *Client) OrdersScoring(ctx context.Context, orderIDs []string) ([]bool, 
 func (c *Client) LastTradePrice(ctx context.Context, tokenID string) (string, error) {
 	path := fmt.Sprintf("/last-trade-price?token_id=%s", url.QueryEscape(tokenID))
 	var wrapper struct {
-		Price string `json:"price"`
+		Price polytypes.NumericString `json:"price"`
 	}
 	if err := c.transport.Get(ctx, path, &wrapper); err != nil {
 		return "", err
 	}
-	return wrapper.Price, nil
+	return string(wrapper.Price), nil
 }
 
 // LastTradesPrices returns last trade prices for multiple tokens (POST).
 func (c *Client) LastTradesPrices(ctx context.Context, params []polytypes.BookParams) (map[string]string, error) {
-	var raw map[string]json.RawMessage
+	var raw json.RawMessage
 	if err := c.transport.Post(ctx, "/last-trades-prices", params, &raw); err != nil {
 		return nil, err
 	}
-	result := make(map[string]string, len(raw))
-	for k, v := range raw {
-		var wrapper struct {
-			Price string `json:"price"`
-		}
-		if err := json.Unmarshal(v, &wrapper); err != nil {
-			result[k] = string(v)
-		} else {
-			result[k] = wrapper.Price
-		}
-	}
-	return result, nil
+	return parseLastTradePrices(raw, params)
 }
 
 // PricesHistory returns OHLCV price history.

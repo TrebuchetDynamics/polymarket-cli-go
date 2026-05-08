@@ -52,31 +52,138 @@ type PricePoint struct {
 	Interval string `json:"interval,omitempty"`
 }
 
+func (p *PricePoint) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		T        NumericString `json:"t"`
+		P        NumericString `json:"p"`
+		Volume   NumericString `json:"v"`
+		Interval string        `json:"interval"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	p.T = string(raw.T)
+	p.P = string(raw.P)
+	p.Volume = string(raw.Volume)
+	p.Interval = raw.Interval
+	return nil
+}
+
 // PriceHistory represents OHLCV price history.
 type PriceHistory struct {
 	History []PricePoint `json:"history"`
 }
 
+// CLOBFeeDetails is the fee curve metadata returned by CLOB market info.
+type CLOBFeeDetails struct {
+	Rate      float64 `json:"rate,omitempty"`
+	Exponent  float64 `json:"exponent,omitempty"`
+	TakerOnly bool    `json:"taker_only,omitempty"`
+}
+
 // CLOBMarket represents a market from the CLOB API.
 type CLOBMarket struct {
-	ConditionID           string  `json:"condition_id"`
-	QuestionID            string  `json:"question_id"`
-	Tokens                []Token `json:"tokens"`
-	RewardsMinSize        float64 `json:"rewards_min_size"`
-	RewardsMaxSpread      float64 `json:"rewards_max_spread"`
-	Spread                float64 `json:"spread"`
-	EnableOrderBook       bool    `json:"enable_order_book"`
-	OrderPriceMinTickSize float64 `json:"order_price_min_tick_size"`
-	OrderMinSize          float64 `json:"order_min_size"`
-	Closed                bool    `json:"closed"`
-	Archived              bool    `json:"archived"`
-	AcceptingOrders       bool    `json:"accepting_orders"`
-	NegRisk               bool    `json:"neg_risk"`
-	NegRiskMarketID       string  `json:"neg_risk_market_id,omitempty"`
-	NegRiskRequestID      string  `json:"neg_risk_request_id,omitempty"`
-	MakerBaseFee          int     `json:"maker_base_fee"`
-	TakerBaseFee          int     `json:"taker_base_fee"`
-	NotificationsEnabled  bool    `json:"notifications_enabled"`
+	ConditionID           string         `json:"condition_id"`
+	QuestionID            string         `json:"question_id"`
+	Tokens                []Token        `json:"tokens"`
+	GameStartTime         string         `json:"game_start_time,omitempty"`
+	RewardsMinSize        float64        `json:"rewards_min_size"`
+	RewardsMaxSpread      float64        `json:"rewards_max_spread"`
+	Spread                float64        `json:"spread"`
+	EnableOrderBook       bool           `json:"enable_order_book"`
+	OrderPriceMinTickSize float64        `json:"order_price_min_tick_size"`
+	OrderMinSize          float64        `json:"order_min_size"`
+	Closed                bool           `json:"closed"`
+	Archived              bool           `json:"archived"`
+	AcceptingOrders       bool           `json:"accepting_orders"`
+	NegRisk               bool           `json:"neg_risk"`
+	NegRiskMarketID       string         `json:"neg_risk_market_id,omitempty"`
+	NegRiskRequestID      string         `json:"neg_risk_request_id,omitempty"`
+	MakerBaseFee          int            `json:"maker_base_fee"`
+	TakerBaseFee          int            `json:"taker_base_fee"`
+	NotificationsEnabled  bool           `json:"notifications_enabled"`
+	RFQEnabled            bool           `json:"rfq_enabled,omitempty"`
+	TakerOrderDelay       bool           `json:"taker_order_delay,omitempty"`
+	BlockaidCheckEnabled  bool           `json:"blockaid_check_enabled,omitempty"`
+	FeeDetails            CLOBFeeDetails `json:"fee_details,omitempty"`
+	MinimumOrderAge       int            `json:"minimum_order_age,omitempty"`
+}
+
+func (m *CLOBMarket) UnmarshalJSON(b []byte) error {
+	type alias CLOBMarket
+	var raw struct {
+		alias
+		GameStartTimeShort string `json:"gst"`
+		TokensShort        []struct {
+			TokenID string `json:"t"`
+			Outcome string `json:"o"`
+		} `json:"t"`
+		OrderMinSizeShort          *float64 `json:"mos"`
+		OrderPriceMinTickSizeShort *float64 `json:"mts"`
+		MakerBaseFeeShort          *int     `json:"mbf"`
+		TakerBaseFeeShort          *int     `json:"tbf"`
+		RFQEnabledShort            *bool    `json:"rfqe"`
+		TakerOrderDelayShort       *bool    `json:"itode"`
+		BlockaidCheckEnabledShort  *bool    `json:"ibce"`
+		FeeDetailsShort            *struct {
+			Rate      *float64 `json:"r"`
+			Exponent  *float64 `json:"e"`
+			TakerOnly *bool    `json:"to"`
+		} `json:"fd"`
+		MinimumOrderAgeShort *int `json:"oas"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*m = CLOBMarket(raw.alias)
+	if m.GameStartTime == "" {
+		m.GameStartTime = raw.GameStartTimeShort
+	}
+	if len(m.Tokens) == 0 && len(raw.TokensShort) > 0 {
+		m.Tokens = make([]Token, len(raw.TokensShort))
+		for i, token := range raw.TokensShort {
+			m.Tokens[i] = Token{
+				TokenID: token.TokenID,
+				Outcome: token.Outcome,
+			}
+		}
+	}
+	if raw.OrderMinSizeShort != nil {
+		m.OrderMinSize = *raw.OrderMinSizeShort
+	}
+	if raw.OrderPriceMinTickSizeShort != nil {
+		m.OrderPriceMinTickSize = *raw.OrderPriceMinTickSizeShort
+	}
+	if raw.MakerBaseFeeShort != nil {
+		m.MakerBaseFee = *raw.MakerBaseFeeShort
+	}
+	if raw.TakerBaseFeeShort != nil {
+		m.TakerBaseFee = *raw.TakerBaseFeeShort
+	}
+	if raw.RFQEnabledShort != nil {
+		m.RFQEnabled = *raw.RFQEnabledShort
+	}
+	if raw.TakerOrderDelayShort != nil {
+		m.TakerOrderDelay = *raw.TakerOrderDelayShort
+	}
+	if raw.BlockaidCheckEnabledShort != nil {
+		m.BlockaidCheckEnabled = *raw.BlockaidCheckEnabledShort
+	}
+	if raw.FeeDetailsShort != nil {
+		if raw.FeeDetailsShort.Rate != nil {
+			m.FeeDetails.Rate = *raw.FeeDetailsShort.Rate
+		}
+		if raw.FeeDetailsShort.Exponent != nil {
+			m.FeeDetails.Exponent = *raw.FeeDetailsShort.Exponent
+		}
+		if raw.FeeDetailsShort.TakerOnly != nil {
+			m.FeeDetails.TakerOnly = *raw.FeeDetailsShort.TakerOnly
+		}
+	}
+	if raw.MinimumOrderAgeShort != nil {
+		m.MinimumOrderAge = *raw.MinimumOrderAgeShort
+	}
+	return nil
 }
 
 // Token represents a CLOB outcome token.

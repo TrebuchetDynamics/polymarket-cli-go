@@ -40,26 +40,39 @@ type CLOBNegRiskInfo struct {
 	NegRiskFeeBips  int    `json:"neg_risk_fee_bips,omitempty"`
 }
 
+// CLOBFeeDetails is the fee curve metadata returned by CLOB market info.
+type CLOBFeeDetails struct {
+	Rate      float64 `json:"rate,omitempty"`
+	Exponent  float64 `json:"exponent,omitempty"`
+	TakerOnly bool    `json:"taker_only,omitempty"`
+}
+
 // CLOBMarket is a market from the CLOB API.
 type CLOBMarket struct {
-	ConditionID           string      `json:"condition_id"`
-	QuestionID            string      `json:"question_id"`
-	Tokens                []CLOBToken `json:"tokens"`
-	RewardsMinSize        float64     `json:"rewards_min_size"`
-	RewardsMaxSpread      float64     `json:"rewards_max_spread"`
-	Spread                float64     `json:"spread"`
-	EnableOrderBook       bool        `json:"enable_order_book"`
-	OrderPriceMinTickSize float64     `json:"order_price_min_tick_size"`
-	OrderMinSize          float64     `json:"order_min_size"`
-	Closed                bool        `json:"closed"`
-	Archived              bool        `json:"archived"`
-	AcceptingOrders       bool        `json:"accepting_orders"`
-	NegRisk               bool        `json:"neg_risk"`
-	NegRiskMarketID       string      `json:"neg_risk_market_id,omitempty"`
-	NegRiskRequestID      string      `json:"neg_risk_request_id,omitempty"`
-	MakerBaseFee          int         `json:"maker_base_fee"`
-	TakerBaseFee          int         `json:"taker_base_fee"`
-	NotificationsEnabled  bool        `json:"notifications_enabled"`
+	ConditionID           string         `json:"condition_id"`
+	QuestionID            string         `json:"question_id"`
+	Tokens                []CLOBToken    `json:"tokens"`
+	GameStartTime         string         `json:"game_start_time,omitempty"`
+	RewardsMinSize        float64        `json:"rewards_min_size"`
+	RewardsMaxSpread      float64        `json:"rewards_max_spread"`
+	Spread                float64        `json:"spread"`
+	EnableOrderBook       bool           `json:"enable_order_book"`
+	OrderPriceMinTickSize float64        `json:"order_price_min_tick_size"`
+	OrderMinSize          float64        `json:"order_min_size"`
+	Closed                bool           `json:"closed"`
+	Archived              bool           `json:"archived"`
+	AcceptingOrders       bool           `json:"accepting_orders"`
+	NegRisk               bool           `json:"neg_risk"`
+	NegRiskMarketID       string         `json:"neg_risk_market_id,omitempty"`
+	NegRiskRequestID      string         `json:"neg_risk_request_id,omitempty"`
+	MakerBaseFee          int            `json:"maker_base_fee"`
+	TakerBaseFee          int            `json:"taker_base_fee"`
+	NotificationsEnabled  bool           `json:"notifications_enabled"`
+	RFQEnabled            bool           `json:"rfq_enabled,omitempty"`
+	TakerOrderDelay       bool           `json:"taker_order_delay,omitempty"`
+	BlockaidCheckEnabled  bool           `json:"blockaid_check_enabled,omitempty"`
+	FeeDetails            CLOBFeeDetails `json:"fee_details,omitempty"`
+	MinimumOrderAge       int            `json:"minimum_order_age,omitempty"`
 }
 
 // CLOBToken is an outcome token listed on a CLOB market.
