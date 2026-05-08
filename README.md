@@ -132,6 +132,7 @@ polygolem paper reset
 | `pkg/marketresolver` | Public market + token ID resolution |
 | `pkg/bridge` | Public Bridge API — supported assets, deposit addresses, quotes |
 | `pkg/pagination` | Cursor and offset pagination with concurrent batching |
+| `pkg/universal` | Universal read-only client — single surface for Gamma + CLOB + Data API + Discovery + Stream |
 
 ## Status
 
@@ -157,7 +158,11 @@ Short-form `BUILDER_API_KEY` / `BUILDER_SECRET` / `BUILDER_PASS_PHRASE` also acc
 
 ## Docs
 
+- [Builder Credential Issuance](docs/BUILDER-CREDENTIAL-ISSUANCE.md) — reverse engineering report, why curl-only is impossible
+- [Deposit Wallet Deployment](docs/DEPOSIT-WALLET-DEPLOYMENT.md) — full pipeline: derive → deploy → approve → fund → trade
+- [Contracts](docs/CONTRACTS.md) — smart contract addresses, permission model, on-chain research
 - [Deposit Wallet Migration Guide](docs/DEPOSIT-WALLET-MIGRATION.md) — bot killer survival guide
+- [Polydart PRD](PRD_POLYDART.md) — companion Dart SDK for Flutter / Arenaton
 - [PRD](docs/PRD.md) — full requirements
 - [Safety](docs/SAFETY.md) — read-only default, deposit wallet safety rules
 - [Commands](docs/COMMANDS.md) — full command reference

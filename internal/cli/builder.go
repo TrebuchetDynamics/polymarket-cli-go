@@ -30,7 +30,11 @@ const (
 	defaultClobBaseURL    = "https://clob.polymarket.com"
 )
 
-var uuidV4Pattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
+// Polymarket issues UUID-shaped keys but does not stick to RFC 4122 version
+// nibbles — observed values include v1-shape (existing accounts) and
+// non-conforming version digits (fresh accounts). Match any 8-4-4-4-12 hex
+// shape; the relayer is the authoritative validator.
+var uuidShapePattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 type builderCreds struct {
 	Key        string
@@ -242,8 +246,8 @@ func validateBuilderCredentialFormat(key, secret, passphrase string) error {
 	if key == "" {
 		return errors.New("api key is empty")
 	}
-	if !uuidV4Pattern.MatchString(key) {
-		return fmt.Errorf("api key %q is not in UUID v4 shape", key)
+	if !uuidShapePattern.MatchString(key) {
+		return fmt.Errorf("api key %q is not in UUID shape", key)
 	}
 	if secret == "" {
 		return errors.New("secret is empty")
