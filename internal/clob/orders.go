@@ -647,7 +647,7 @@ func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts
 		MakerAmount:   draft.makerAmount,
 		TakerAmount:   draft.takerAmount,
 		Side:          draft.side,
-		Expiration:    draft.expiration,
+		Expiration:    firstNonEmpty(draft.expiration, "0"),
 		SignatureType: draft.signatureType,
 		Timestamp:     fmt.Sprintf("%d", ts.UnixMilli()),
 		Metadata:      bytes32Zero,
