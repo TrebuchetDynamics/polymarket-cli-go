@@ -81,10 +81,10 @@ svg:where(.astro-c6vsoqas){color:var(--sl-icon-color);font-size:var(--sl-icon-si
 internal/ tree is <strong>not</strong> part of the stability promise and may change between
 minor releases — only depend on <code dir="auto">pkg/*</code>.</p>
 <aside aria-label="Note" class="starlight-aside starlight-aside--note"> <p class="starlight-aside__title" aria-hidden="true"> <svg aria-hidden="true" class="starlight-aside__icon astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 11a1 1 0 0 0-1 1v4a1 1 0 0 0 2 0v-4a1 1 0 0 0-1-1Zm.38-3.92a1 1 0 0 0-.76 0 1 1 0 0 0-.33.21 1.15 1.15 0 0 0-.21.33 1 1 0 0 0 .21 1.09c.097.088.209.16.33.21A1 1 0 0 0 13 8a1.05 1.05 0 0 0-.29-.71 1 1 0 0 0-.33-.21ZM12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16.001A8 8 0 0 1 12 20Z"/></svg> Note </p> <div class="starlight-aside__content"> <p>Stability note: Gamma, Data API, and read-only CLOB DTOs are public in
-<code dir="auto">pkg/types</code>; public market stream DTOs are public in <code dir="auto">pkg/stream</code>.
-Authenticated CLOB account/trading, rewards, enrichment, and user-stream
-signatures still expose implementation types from <code dir="auto">internal/*</code>; treat those
-paths as a documented SDK cleanup gap.</p> </div> </aside>
+<code dir="auto">pkg/types</code>; authenticated CLOB account/order DTOs are public in <code dir="auto">pkg/clob</code>;
+public market stream DTOs are public in <code dir="auto">pkg/stream</code>. Rewards, enrichment, and
+user-stream signatures still expose implementation types from <code dir="auto">internal/*</code>;
+treat those paths as a documented SDK cleanup gap.</p> </div> </aside>
 <h2 id="install">Install</h2>
 <div class="expressive-code"><link rel="stylesheet" href="/_astro/ec.tm3va.css"><script type="module" src="/_astro/ec.8zarh.js"></script><figure class="frame is-terminal not-content"><figcaption class="header"><span class="title"></span><span class="sr-only">Terminal window</span></figcaption><pre data-language="bash"><code><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">go</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">get</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">github.com/TrebuchetDynamics/polygolem</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="go get github.com/TrebuchetDynamics/polygolem"><div></div></button></div></figure></div>
 <p>Then import only the packages you need:</p>
