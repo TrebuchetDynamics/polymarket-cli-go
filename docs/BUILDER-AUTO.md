@@ -58,21 +58,14 @@ So the only working path is sigtype 3, and sigtype 3 has its own coupling: **the
 
 The well-formed end-to-end path is therefore:
 
-1. Mint Builder API Keys (manual browser click — see below).
-2. Deploy the deposit wallet via `relayer-v2/submit`.
-3. Mint a CLOB API key **owned by the deposit wallet**, not the EOA.
-4. Submit orders signed by the deposit wallet (sigtype 3).
+1. Mint CLOB L2 trading creds via `polygolem builder auto` (`POST /auth/api-key`, headless).
+2. Mint a CLOB Builder Fee Key via `polygolem clob create-builder-fee-key` (`POST /auth/builder-api-key`, headless — needs L2 creds from step 1).
+3. Mint a Relayer API Key via the **browser click** on `polymarket.com/settings?tab=builder` → "Create". This is the only step that currently requires a browser; see the "Relayer API Key" row in § Three Credential Types and § `/login/internal` sub-investigation below.
+4. Deploy the deposit wallet via `polygolem deposit-wallet deploy` (`POST relayer-v2/submit`, gated on the Relayer API Key from step 3).
+5. Mint a CLOB API key **owned by the deposit wallet**, not the EOA. (Run `clob create-api-key` after step 4 with the deposit wallet as signer; this is what unblocks `/order` validation.)
+6. Submit orders signed by the deposit wallet (sigtype 3).
 
-## Two distinct cred types
-
-Polymarket has split write credentials into two pots, and only one of them is mintable headlessly:
-
-| Cred | What it authenticates | How to mint | `polygolem builder auto`? |
-| --- | --- | --- | --- |
-| **CLOB L2 creds** (`apiKey` / `secret` / `passphrase`) | Reads on `clob.polymarket.com` and `relayer-v2.polymarket.com` (book, balances, /nonce, /deployed). Order placement when API-key owner == order signer. | `POST /auth/api-key` (ClobAuth EIP-712) | ✅ headless |
-| **Builder API Keys** | `relayer-v2/submit` writes — `WALLET-CREATE`, `WALLET` batches, deposit-wallet deploy, V2 approval bundles, on-order builder attribution. | Manual browser flow at `polymarket.com/settings?tab=builder` → "Create" | ❌ browser only |
-
-The two are NOT the same triple. A profiled EOA that has registered a builder code but never clicked "Create" under **Builder Keys** will see `relayer-v2/submit` return `HTTP 401 invalid authorization` even with valid CLOB L2 creds. Verified live on `0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C` 2026-05-07.
+> Empirically verified 2026-05-07 against profiled EOA `0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C`: registering a builder code without minting a Relayer API Key still returns `HTTP 401 invalid authorization` from `relayer-v2/submit`. The "Builder Keys: No builder API keys yet" UI label refers specifically to the Relayer API Key row.
 
 ## Full onboarding sequence
 
@@ -89,16 +82,21 @@ sequenceDiagram
     participant R as relayer-v2.polymarket.com
     participant P as Polygon chain
 
-    Note over U,A: Step 1 — auth (off-chain, no gas)
+    Note over U,A: Step 1 — L2 trading creds (off-chain, no gas)
     U->>A: provide EOA private key<br/>(or app generates fresh)
     A->>A: sign ClobAuth EIP-712 locally
     A->>C: POST /auth/api-key<br/>(POLY_ADDRESS, POLY_SIGNATURE,<br/>POLY_TIMESTAMP, POLY_NONCE)
-    C->>C: provision account record<br/>(read-only — write needs<br/>browser-issued profile)
     C-->>A: { apiKey, secret, passphrase }
-    A->>R: GET /nonce (HMAC-signed)
-    R-->>A: 200 → creds verified
 
-    Note over A,P: Step 2 — deploy deposit wallet (relayer pays gas)
+    Note over A,C: Step 2 — Builder Fee Key (off-chain, no gas)
+    A->>C: POST /auth/builder-api-key<br/>(L2 HMAC headers)
+    C-->>A: { key, secret, passphrase }<br/>→ goes in V2 order builder field
+
+    Note over U,A: Step 3 — Relayer API Key (manual browser click — see § sub-investigation)
+    U->>U: open polymarket.com/settings?tab=builder<br/>→ click "Create" under Builder Keys
+    U->>A: paste RELAYER_API_KEY + RELAYER_API_KEY_ADDRESS into env
+
+    Note over A,P: Step 4 — deploy deposit wallet (relayer pays gas)
     A->>A: sign DepositWallet Batch EIP-712
     A->>R: POST /relay-payload<br/>(factory.deploy via proxy)
     R->>P: submit tx (relayer pays)
@@ -106,22 +104,34 @@ sequenceDiagram
     A->>R: poll GET /deployed
     R-->>A: { wallet: 0x… }
 
-    Note over U,P: Step 3 — fund (only on-chain action by user)
+    Note over U,P: Step 5 — fund (only on-chain action by user)
     U->>P: transfer USDC.e or pUSD<br/>to deposit wallet
 
-    Note over A,P: Step 4 — approvals (relayer pays gas)
+    Note over A,P: Step 6 — approvals (relayer pays gas)
     A->>A: sign 6× Batch (pUSD + CTF<br/>→ 3× V2 spenders)
     A->>R: POST /relay-payload (factory.proxy)
     R->>P: submit tx (relayer pays)
     P-->>R: receipt
 
-    Note over A,C: Step 5 — trade
-    A->>A: sign V2 Order EIP-712<br/>(POLY_1271 sigtype 3,<br/>builder code attached)
+    Note over A,C: Step 7 — trade
+    A->>A: sign V2 Order EIP-712<br/>(POLY_1271 sigtype 3,<br/>builder fee key attached)
     A->>C: POST /order
     C-->>A: order accepted
 ```
 
-**User-facing total cost:** one private key + one funding tx. Zero browser interaction.
+**User-facing total cost:** one private key + one Relayer API Key browser click + one funding tx. Everything else runs headlessly through the SDK.
+
+## `/login/internal` sub-investigation
+
+The cookie that authenticates `/relayer/api/auth` (and therefore mints Relayer API Keys) is acquired from `/login/internal`. The frontend bundle characterizes it as "a browser-mediated wallet challenge" but did not deep-dive whether the challenge is SIWE-style (replicable headlessly with a wallet signer) or browser-fingerprint / CSRF / reCAPTCHA gated.
+
+A separate investigation tracks this question:
+
+- Source: a focused static-analysis pass on the same bundle chunks already in `/tmp`.
+- Verdict pending: `SIWE-REPLICABLE` (the gate dissolves with one more code change), `BROWSER-FINGERPRINT GATE` (we accept the manual click and document cleanly), or `INCONCLUSIVE` (need a different research angle).
+- Synthesized output: `polydart/docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md` plus an addendum landing once the sub-investigation reports.
+
+Until that lands, the manual browser click in step 3 of the onboarding sequence is load-bearing. The other five steps run headlessly today.
 
 ## Wire format
 

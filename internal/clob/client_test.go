@@ -123,3 +123,109 @@ func TestTickSizeCallsCorrectEndpoint(t *testing.T) {
 		t.Fatalf("MinimumTickSize = %q, want 0.01", ts.MinimumTickSize)
 	}
 }
+
+const builderFeeKeyTestPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+
+// builderFeeKeyServer mounts the L2-derive endpoint that every authenticated
+// builder-fee call needs alongside one extra handler for the test target.
+func builderFeeKeyServer(t *testing.T, target string, handler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"l2-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"l2-pass"}`))
+		case target:
+			handler(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+}
+
+func TestCreateBuilderFeeKeyHitsCorrectEndpointWithL2Headers(t *testing.T) {
+	var sawHeaders http.Header
+	server := builderFeeKeyServer(t, "/auth/builder-api-key", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		sawHeaders = r.Header.Clone()
+		_, _ = w.Write([]byte(`{"key":"fee-key-uuid","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"fee-pass"}`))
+	})
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	feeKey, err := client.CreateBuilderFeeKey(context.Background(), builderFeeKeyTestPrivateKey)
+	if err != nil {
+		t.Fatalf("CreateBuilderFeeKey returned error: %v", err)
+	}
+	if feeKey.Key != "fee-key-uuid" {
+		t.Fatalf("Key = %q, want fee-key-uuid", feeKey.Key)
+	}
+	for _, want := range []string{"POLY_API_KEY", "POLY_PASSPHRASE", "POLY_TIMESTAMP", "POLY_SIGNATURE", "POLY_ADDRESS"} {
+		if v := sawHeaders.Get(want); v == "" {
+			t.Errorf("missing %s header", want)
+		}
+	}
+}
+
+func TestListBuilderFeeKeysHitsPluralPath(t *testing.T) {
+	var sawMethod string
+	server := builderFeeKeyServer(t, "/auth/builder-api-keys", func(w http.ResponseWriter, r *http.Request) {
+		sawMethod = r.Method
+		_, _ = w.Write([]byte(`[{"key":"fee-1","created_at":"2026-05-08T00:00:00Z"},{"key":"fee-2"}]`))
+	})
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	rows, err := client.ListBuilderFeeKeys(context.Background(), builderFeeKeyTestPrivateKey)
+	if err != nil {
+		t.Fatalf("ListBuilderFeeKeys returned error: %v", err)
+	}
+	if sawMethod != http.MethodGet {
+		t.Fatalf("method = %s, want GET", sawMethod)
+	}
+	if len(rows) != 2 || rows[0].Key != "fee-1" || rows[1].Key != "fee-2" {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
+func TestRevokeBuilderFeeKeyHitsScopedPath(t *testing.T) {
+	var sawMethod, sawPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"l2-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"l2-pass"}`))
+		default:
+			sawMethod, sawPath = r.Method, r.URL.Path
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	if err := client.RevokeBuilderFeeKey(context.Background(), builderFeeKeyTestPrivateKey, "fee-1"); err != nil {
+		t.Fatalf("RevokeBuilderFeeKey returned error: %v", err)
+	}
+	if sawMethod != http.MethodDelete {
+		t.Fatalf("method = %s, want DELETE", sawMethod)
+	}
+	if sawPath != "/auth/builder-api-key/fee-1" {
+		t.Fatalf("path = %q, want /auth/builder-api-key/fee-1", sawPath)
+	}
+}
+
+func TestRevokeBuilderFeeKeyRejectsEmpty(t *testing.T) {
+	tc := transport.New(nil, transport.DefaultConfig("http://invalid.local/"))
+	client := NewClient("http://invalid.local/", tc)
+	if err := client.RevokeBuilderFeeKey(context.Background(), builderFeeKeyTestPrivateKey, "  "); err == nil {
+		t.Fatal("expected error for empty builderKey")
+	}
+}

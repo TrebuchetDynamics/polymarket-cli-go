@@ -408,6 +408,86 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(createKeyCmd, &createKeyOutput)
 	cmd.AddCommand(createKeyCmd)
 
+	var createBuilderFeeKeyOutput string
+	createBuilderFeeKeyCmd := &cobra.Command{
+		Use:   "create-builder-fee-key",
+		Short: "Mint a CLOB builder fee key (POST /auth/builder-api-key)",
+		Long: `Mints a builder fee key by signing an L2 HMAC-authenticated
+POST to /auth/builder-api-key. The returned triple is the fee
+attribution key — attach its 'key' to the 'builder' bytes32 field of V2
+orders to claim integrator fees.
+
+This is a different credential from the L2 trading triple minted by
+'create-api-key'; both are needed for full V2 integrator setup. See
+docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(createBuilderFeeKeyOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			feeKey, err := w.clob.CreateBuilderFeeKey(cmd.Context(), key)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, map[string]string{"builder_fee_key": feeKey.Key})
+		},
+	}
+	addOutput(createBuilderFeeKeyCmd, &createBuilderFeeKeyOutput)
+	cmd.AddCommand(createBuilderFeeKeyCmd)
+
+	var listBuilderFeeKeysOutput string
+	listBuilderFeeKeysCmd := &cobra.Command{
+		Use:   "list-builder-fee-keys",
+		Short: "List builder fee keys (GET /auth/builder-api-keys)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(listBuilderFeeKeysOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			records, err := w.clob.ListBuilderFeeKeys(cmd.Context(), key)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, records)
+		},
+	}
+	addOutput(listBuilderFeeKeysCmd, &listBuilderFeeKeysOutput)
+	cmd.AddCommand(listBuilderFeeKeysCmd)
+
+	var revokeBuilderFeeKeyOutput, revokeBuilderFeeKey string
+	revokeBuilderFeeKeyCmd := &cobra.Command{
+		Use:   "revoke-builder-fee-key",
+		Short: "Revoke a builder fee key (DELETE /auth/builder-api-key/{key})",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(revokeBuilderFeeKeyOutput); err != nil {
+				return err
+			}
+			if strings.TrimSpace(revokeBuilderFeeKey) == "" {
+				return fmt.Errorf("--key is required")
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			if err := w.clob.RevokeBuilderFeeKey(cmd.Context(), key, revokeBuilderFeeKey); err != nil {
+				return err
+			}
+			return w.printJSON(cmd, map[string]string{"revoked": revokeBuilderFeeKey})
+		},
+	}
+	addOutput(revokeBuilderFeeKeyCmd, &revokeBuilderFeeKeyOutput)
+	revokeBuilderFeeKeyCmd.Flags().StringVar(&revokeBuilderFeeKey, "key", "", "builder fee key to revoke")
+	cmd.AddCommand(revokeBuilderFeeKeyCmd)
+
 	var balanceOutput, balanceAssetType, balanceTokenID string
 	balanceCmd := &cobra.Command{Use: "balance", Short: "Get CLOB balance and allowances", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

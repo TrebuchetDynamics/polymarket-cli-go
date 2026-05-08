@@ -49,9 +49,13 @@ func TestRepositoryHygiene(t *testing.T) {
 		}
 	}
 
-	// pkg/ is the approved public SDK boundary (Phase 0 bookreader)
+	// pkg/ is the approved public SDK boundary.
+	if _, err := os.Stat(filepath.Join(root, "pkg/orderbook")); err != nil {
+		t.Fatalf("pkg/orderbook public boundary is missing: %v", err)
+	}
+	// Deprecated compatibility package retained for existing consumers.
 	if _, err := os.Stat(filepath.Join(root, "pkg/bookreader")); err != nil {
-		t.Fatalf("pkg/bookreader public boundary is missing: %v", err)
+		t.Fatalf("pkg/bookreader compatibility boundary is missing: %v", err)
 	}
 }
 

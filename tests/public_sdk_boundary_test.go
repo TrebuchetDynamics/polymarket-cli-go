@@ -31,12 +31,18 @@ import (
 	"testing"
 
 	"github.com/TrebuchetDynamics/polygolem/pkg/data"
+	"github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
 	"github.com/TrebuchetDynamics/polygolem/pkg/gamma"
+	"github.com/TrebuchetDynamics/polygolem/pkg/orderbook"
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 	"github.com/TrebuchetDynamics/polygolem/pkg/universal"
 )
 
 func TestPublicSDKSignatures(t *testing.T) {
+	var orderbookReader orderbook.Reader = orderbook.NewReader("")
+	var orderbookSnapshot orderbook.OrderBook
+	var orderbookLevel orderbook.Level
+	var legacyReader bookreader.Reader = bookreader.NewReader("")
 	var dataPositions func(*data.Client, context.Context, string) ([]types.Position, error) = (*data.Client).CurrentPositions
 	var universalPositions func(*universal.Client, context.Context, string) ([]types.Position, error) = (*universal.Client).CurrentPositions
 	var dataLeaderboard func(*data.Client, context.Context, int) ([]types.LeaderboardRow, error) = (*data.Client).TraderLeaderboard
@@ -48,6 +54,7 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var universalSearch func(*universal.Client, context.Context, *types.SearchParams) (*types.SearchResponse, error) = (*universal.Client).Search
 	var universalComments func(*universal.Client, context.Context, *types.CommentQuery) ([]types.Comment, error) = (*universal.Client).Comments
 
+	_, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, legacyReader
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
 	_, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments
 }

@@ -99,6 +99,7 @@ func (c *Client) createAPIKey(ctx context.Context, privateKey string) (auth.APIK
 type apiKeyResponse struct {
 	APIKey         string `json:"apiKey"`
 	APIKeySnake    string `json:"api_key"`
+	Key            string `json:"key"` // builder-fee key endpoint uses bare "key"
 	Secret         string `json:"secret"`
 	Passphrase     string `json:"passphrase"`
 	PassphraseAlt  string `json:"passPhrase"`
@@ -108,7 +109,7 @@ type apiKeyResponse struct {
 func (r apiKeyResponse) apiKey() auth.APIKey {
 	passphrase := firstNonEmpty(r.Passphrase, r.PassphraseAlt, r.PassphraseAlt2)
 	return auth.APIKey{
-		Key:        firstNonEmpty(r.APIKey, r.APIKeySnake),
+		Key:        firstNonEmpty(r.APIKey, r.APIKeySnake, r.Key),
 		Secret:     r.Secret,
 		Passphrase: passphrase,
 	}
