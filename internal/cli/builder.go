@@ -19,13 +19,15 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
+	"github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/relayer"
 )
 
 const (
-	builderURLPath          = "https://polymarket.com/settings?tab=builder"
-	defaultBuilderEnvFile   = "../go-bot/.env.builder"
-	defaultRelayerBaseURL   = "https://relayer-v2.polymarket.com"
+	builderURLPath        = "https://polymarket.com/settings?tab=builder"
+	defaultBuilderEnvFile = "../go-bot/.env.builder"
+	defaultRelayerBaseURL = "https://relayer-v2.polymarket.com"
+	defaultClobBaseURL    = "https://clob.polymarket.com"
 )
 
 var uuidV4Pattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
@@ -51,6 +53,101 @@ and provide order attribution. They are obtained from
 ` + builderURLPath + ` and persisted locally for use by polygolem and go-bot.`,
 	}
 	cmd.AddCommand(newBuilderOnboardCommand(jsonOut))
+	cmd.AddCommand(newBuilderAutoCommand(jsonOut))
+	return cmd
+}
+
+// newBuilderAutoCommand creates HMAC creds with the EOA's own ClobAuth
+// signature — no browser, no paste. Requires an existing builder profile
+// at polymarket.com/settings?tab=builder (the bytes32 builder code is
+// minted by the web UI; this command only mints the API-key triple that
+// authenticates relayer calls). The CLOB /auth/api-key endpoint is
+// idempotent under the same EOA: re-running this command derives the
+// existing key when one was already issued.
+func newBuilderAutoCommand(jsonOut bool) *cobra.Command {
+	w := newWire(jsonOut)
+	var envFile, clobURL string
+	var force, noValidate bool
+
+	cmd := &cobra.Command{
+		Use:   "auto",
+		Short: "Mint builder HMAC creds via ClobAuth signature",
+		Long: `Signs the canonical ClobAuth EIP-712 message with the EOA loaded from
+POLYMARKET_PRIVATE_KEY, posts it to /auth/api-key, and persists the
+returned {apiKey, secret, passphrase} to a 0600 env file.
+
+Pre-requisite: a builder profile must already exist for the EOA at
+` + builderURLPath + `. Profile creation itself is a web-form step
+with no transaction; this command only handles the API-key minting.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			privateKey := strings.TrimSpace(os.Getenv("POLYMARKET_PRIVATE_KEY"))
+			if privateKey == "" {
+				return errors.New("POLYMARKET_PRIVATE_KEY is required")
+			}
+			target := envFile
+			if target == "" {
+				target = defaultBuilderEnvFile
+			}
+			abs, err := filepath.Abs(target)
+			if err != nil {
+				return fmt.Errorf("resolve env file path: %w", err)
+			}
+
+			host := clobURL
+			if host == "" {
+				host = defaultClobBaseURL
+			}
+
+			stderr := cmd.ErrOrStderr()
+			fmt.Fprintf(stderr, "Signing ClobAuth and creating builder API key via %s...\n", host)
+
+			ctx, cancel := context.WithTimeout(cmd.Context(), 20*time.Second)
+			defer cancel()
+
+			c := clob.NewClient(host, nil)
+			key, err := c.CreateOrDeriveAPIKey(ctx, privateKey)
+			if err != nil {
+				return fmt.Errorf("create or derive api key: %w", err)
+			}
+			creds := &builderCreds{
+				Key:        key.Key,
+				Secret:     key.Secret,
+				Passphrase: key.Passphrase,
+			}
+			if err := validateBuilderCredentialFormat(creds.Key, creds.Secret, creds.Passphrase); err != nil {
+				return fmt.Errorf("server returned malformed creds: %w", err)
+			}
+			fmt.Fprintf(stderr, "✓ Received creds (key=%s)\n", creds.Key)
+
+			validated := false
+			if !noValidate {
+				if err := liveCheckBuilderCredentials(ctx, creds); err != nil {
+					return fmt.Errorf("relayer HMAC check failed (use --no-validate to skip): %w", err)
+				}
+				validated = true
+				fmt.Fprintln(stderr, "✓ HMAC-signed test request to relayer succeeded")
+			} else {
+				fmt.Fprintln(stderr, "skipped relayer validation (--no-validate)")
+			}
+
+			if err := persistBuilderCredentials(abs, *creds, force); err != nil {
+				return fmt.Errorf("persist creds: %w", err)
+			}
+			fmt.Fprintf(stderr, "✓ Wrote credentials to %s (mode 0600)\n", abs)
+
+			return w.printJSON(cmd, builderOnboardResult{
+				WroteTo:    abs,
+				Validated:  validated,
+				Permission: "0600",
+			})
+		},
+	}
+
+	cmd.Flags().StringVar(&envFile, "env-file", "", "target env file (default: ../go-bot/.env.builder)")
+	cmd.Flags().StringVar(&clobURL, "clob-url", "", "CLOB base URL (default: https://clob.polymarket.com)")
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing builder credentials")
+	cmd.Flags().BoolVar(&noValidate, "no-validate", false, "skip the relayer HMAC liveness check")
 	return cmd
 }
 
