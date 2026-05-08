@@ -138,6 +138,7 @@ polygolem paper reset
 | `pkg/orderbook` | Read-only CLOB order book reader |
 | `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook` |
 | `pkg/marketresolver` | Market + token ID resolution |
+| `pkg/builder` | Builder HMAC signer helpers for local or remote signing |
 | `pkg/bridge` | Bridge API — supported assets, deposit addresses, quotes |
 | `pkg/relayer` | Builder relayer primitives for wallet create and wallet batch flows |
 | `pkg/ctf` | Conditional Tokens calldata and ID helpers |

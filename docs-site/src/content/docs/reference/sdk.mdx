@@ -607,6 +607,32 @@ func (c *Client) GetDepositStatus(ctx context.Context, depositAddress string) (*
 func (c *Client) GetQuote(ctx context.Context, req QuoteRequest) (*QuoteResponse, error)
 ```
 
+## `pkg/builder` — Builder Header Signing
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/builder"
+```
+
+### Contract: Types and Functions
+
+```go
+const POLY_BUILDER_API_KEY = "POLY_BUILDER_API_KEY"
+const POLY_BUILDER_PASSPHRASE = "POLY_BUILDER_PASSPHRASE"
+const POLY_BUILDER_TIMESTAMP = "POLY_BUILDER_TIMESTAMP"
+const POLY_BUILDER_SIGNATURE = "POLY_BUILDER_SIGNATURE"
+
+type Signer interface {
+    CreateHeaders(method, path string, body *string, timestamp *int64) (map[string]string, error)
+}
+
+type LocalSignerConfig struct { Key, Secret, Passphrase string }
+type RemoteSignerConfig struct { URL, Token string }
+
+func NewLocalSigner(config LocalSignerConfig) (*LocalSigner, error)
+func NewRemoteSigner(config RemoteSignerConfig) (*RemoteSigner, error)
+func GenSignature(secret string, timestamp int64, method, path string, body *string) string
+```
+
 ## `pkg/ctf` — Conditional Tokens Helpers
 
 ```go
