@@ -300,19 +300,19 @@ func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, param
 }
 
 func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]OrderRecord, error) {
-	var result []OrderRecord
-	if err := c.authenticatedL2GET(ctx, privateKey, "/data/orders", &result); err != nil {
+	raw, err := c.authenticatedRawGET(ctx, privateKey, "/data/orders")
+	if err != nil {
 		return nil, err
 	}
-	return result, nil
+	return decodeAuthenticatedList[OrderRecord](raw, "orders")
 }
 
 func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]TradeRecord, error) {
-	var result []TradeRecord
-	if err := c.authenticatedL2GET(ctx, privateKey, "/data/trades", &result); err != nil {
+	raw, err := c.authenticatedRawGET(ctx, privateKey, "/data/trades")
+	if err != nil {
 		return nil, err
 	}
-	return result, nil
+	return decodeAuthenticatedList[TradeRecord](raw, "trades")
 }
 
 func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*OrderRecord, error) {
@@ -512,6 +512,29 @@ func (c *Client) authenticatedL2GET(ctx context.Context, privateKey string, path
 	return c.transport.GetWithHeaders(ctx, path, headers, result)
 }
 
+func decodeAuthenticatedList[T any](raw json.RawMessage, keys ...string) ([]T, error) {
+	var rows []T
+	if err := json.Unmarshal(raw, &rows); err == nil {
+		return rows, nil
+	}
+
+	var wrapped map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		return nil, err
+	}
+	for _, key := range append(keys, "data", "results") {
+		payload, ok := wrapped[key]
+		if !ok {
+			continue
+		}
+		if err := json.Unmarshal(payload, &rows); err != nil {
+			return nil, fmt.Errorf("decode %q list: %w", key, err)
+		}
+		return rows, nil
+	}
+	return nil, fmt.Errorf("authenticated list response missing %s/data/results array", strings.Join(keys, "/"))
+}
+
 func cleanOrderIDs(orderIDs []string) []string {
 	out := make([]string, 0, len(orderIDs))
 	for _, id := range orderIDs {
@@ -603,7 +626,10 @@ func (c *Client) signAndPostOrder(ctx context.Context, privateKey string, draft 
 		PostOnly:  draft.postOnly,
 		DeferExec: false,
 	}
-	return c.postOrder(ctx, &key, depositWallet, payload, draft.orderType)
+	// HMAC POLY_ADDRESS is the EOA (HTTP-layer auth), not the deposit
+	// wallet. The deposit-wallet identity rides on the order body's
+	// signatureType=3 field via ERC-1271 — see [DeriveAPIKeyForAddress].
+	return c.postOrder(ctx, &key, signer.Address(), payload, draft.orderType)
 }
 
 func (c *Client) postOrder(ctx context.Context, key *auth.APIKey, polyAddress string, payload interface{}, orderType string) (*OrderPlacementResponse, error) {

@@ -85,14 +85,12 @@ func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (a
 	return c.DeriveAPIKey(ctx, privateKey)
 }
 
-// CreateOrDeriveAPIKeyForAddress creates CLOB L2 credentials bound to a
-// deposit wallet, falling back to owner-scoped derivation when a key exists.
+// CreateOrDeriveAPIKeyForAddress creates CLOB L2 credentials, falling back
+// to derivation when a key already exists. The ownerAddress parameter is
+// retained for source-compat but ignored (see [DeriveAPIKeyForAddress]).
 func (c *Client) CreateOrDeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (auth.APIKey, error) {
-	key, err := c.createAPIKeyForAddress(ctx, privateKey, ownerAddress)
-	if err == nil {
-		return key, nil
-	}
-	return c.DeriveAPIKeyForAddress(ctx, privateKey, ownerAddress)
+	_ = ownerAddress
+	return c.CreateOrDeriveAPIKey(ctx, privateKey)
 }
 
 // DeriveAPIKey derives existing CLOB L2 credentials with L1 auth.
@@ -108,18 +106,18 @@ func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (auth.APIK
 	return raw.apiKey(), nil
 }
 
-// DeriveAPIKeyForAddress derives existing CLOB L2 credentials bound to a
-// deposit wallet while signing L1 auth with the controlling EOA private key.
+// DeriveAPIKeyForAddress derives existing CLOB L2 credentials. The 2026-05-08
+// web-UI capture (BLOCKERS.md) showed that even for sigtype-3 deposit-wallet
+// users, the CLOB API key is **EOA-bound**: POLY_ADDRESS=EOA, raw 65-byte
+// ECDSA POLY_SIGNATURE — no ERC-7739 wrap. The deposit-wallet identity rides
+// on the order's `signatureType=3` field at the EIP-712 layer plus the
+// `signature_type=3` query param on read endpoints; HTTP-layer auth is EOA.
+//
+// The ownerAddress parameter is retained for source-compat but is ignored:
+// L1 always signs with the EOA derived from privateKey.
 func (c *Client) DeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (auth.APIKey, error) {
-	headers, err := auth.BuildL1HeadersForDepositWallet(privateKey, polygonChainID, time.Now().Unix(), 0, ownerAddress)
-	if err != nil {
-		return auth.APIKey{}, err
-	}
-	var raw apiKeyResponse
-	if err := c.transport.GetWithHeaders(ctx, "/auth/derive-api-key", headers, &raw); err != nil {
-		return auth.APIKey{}, err
-	}
-	return raw.apiKey(), nil
+	_ = ownerAddress
+	return c.DeriveAPIKey(ctx, privateKey)
 }
 
 func (c *Client) createAPIKey(ctx context.Context, privateKey string) (auth.APIKey, error) {
@@ -134,31 +132,14 @@ func (c *Client) createAPIKey(ctx context.Context, privateKey string) (auth.APIK
 	return raw.apiKey(), nil
 }
 
-// CreateAPIKeyForAddress creates CLOB L2 credentials bound to a Polymarket
-// deposit wallet. The EOA holding privateKey produces the inner ECDSA, but
-// POLY_ADDRESS is the deposit wallet and POLY_SIGNATURE is the ERC-7739
-// nested EIP-712 wrap that Solady's ERC1271 mixin (used by the production
-// DepositWallet impl) validates. The deposit wallet must be deployed
-// on-chain before this call.
-//
-// Why wrapped: with the L2 key bound to the deposit wallet, sigtype-3 orders
-// satisfy both the CLOB HTTP gate ("order signer == address of API KEY") and
-// the on-chain `_verifyPoly1271Signature(signer == maker)` because all three
-// are the deposit wallet.
+// CreateAPIKeyForAddress creates CLOB L2 credentials. Since the 2026-05-08
+// capture proved the web UI uses EOA-bound CLOB keys for both sigtype-1 and
+// sigtype-3 paths, this is now a thin wrapper over [createAPIKey] — the
+// ownerAddress parameter is retained for source-compat but ignored. See
+// DeriveAPIKeyForAddress for the rationale.
 func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (auth.APIKey, error) {
-	return c.createAPIKeyForAddress(ctx, privateKey, ownerAddress)
-}
-
-func (c *Client) createAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (auth.APIKey, error) {
-	headers, err := auth.BuildL1HeadersForDepositWallet(privateKey, polygonChainID, time.Now().Unix(), 0, ownerAddress)
-	if err != nil {
-		return auth.APIKey{}, err
-	}
-	var raw apiKeyResponse
-	if err := c.transport.PostWithHeaders(ctx, "/auth/api-key", nil, headers, &raw); err != nil {
-		return auth.APIKey{}, err
-	}
-	return raw.apiKey(), nil
+	_ = ownerAddress
+	return c.createAPIKey(ctx, privateKey)
 }
 
 type apiKeyResponse struct {
@@ -317,27 +298,37 @@ func signerAndDepositWallet(privateKey string) (*auth.PrivateKeySigner, string, 
 	return signer, depositWallet, nil
 }
 
+// depositWalletAPIKey returns the EOA-bound CLOB credentials and the EOA
+// address to use as POLY_ADDRESS in HMAC headers. Per the 2026-05-08 web-UI
+// capture, V2 CLOB authentication is EOA-bound at the HTTP layer for both
+// sigtype-1 and sigtype-3 orders; the deposit-wallet identity travels in
+// the order's signatureType=3 field at the EIP-712 layer.
 func (c *Client) depositWalletAPIKey(ctx context.Context, privateKey string) (auth.APIKey, string, error) {
-	_, depositWallet, err := signerAndDepositWallet(privateKey)
+	signer, _, err := signerAndDepositWallet(privateKey)
 	if err != nil {
 		return auth.APIKey{}, "", err
 	}
-	key, err := c.depositWalletAPIKeyForAddress(ctx, privateKey, depositWallet)
+	key, err := c.depositWalletAPIKeyForAddress(ctx, privateKey, "")
 	if err != nil {
 		return auth.APIKey{}, "", err
 	}
-	return key, depositWallet, nil
+	return key, signer.Address(), nil
 }
 
+// depositWalletAPIKeyForAddress retains the depositWallet parameter for
+// source-compat with callers in orders.go, but only the EOA-bound key is
+// returned (see [DeriveAPIKeyForAddress]). Tries derive first, falls back
+// to create — matches the order the web UI uses (captured 2026-05-08).
 func (c *Client) depositWalletAPIKeyForAddress(ctx context.Context, privateKey, depositWallet string) (auth.APIKey, error) {
+	_ = depositWallet
 	if key, ok := c.configuredL2Credentials(); ok {
 		return key, nil
 	}
-	key, err := c.DeriveAPIKeyForAddress(ctx, privateKey, depositWallet)
-	if err != nil {
-		return auth.APIKey{}, err
+	key, err := c.DeriveAPIKey(ctx, privateKey)
+	if err == nil {
+		return key, nil
 	}
-	return key, nil
+	return c.createAPIKey(ctx, privateKey)
 }
 
 func (c *Client) configuredL2Credentials() (auth.APIKey, bool) {

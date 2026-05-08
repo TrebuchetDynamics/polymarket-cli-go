@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
@@ -13,6 +14,11 @@ import (
 const testPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
 const testBuilderCode = "0x1111111111111111111111111111111111111111111111111111111111111111"
 const testDepositWallet = "0x19bE70b1e4F59C0663a999C0dC6f5b3C68CFCaF3"
+
+// EOA derived from testPrivateKey. Per the 2026-05-08 web-UI capture,
+// CLOB POLY_ADDRESS is always the EOA at the HTTP layer; the
+// deposit-wallet identity rides on the order body's signatureType=3.
+const testEOA = "0x2c7536E3605D9C16a7a3D7b1898e529396a65c23"
 
 func TestClientOrderBookReturnsPublicDTO(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -165,8 +171,8 @@ func TestClientCreateAPIKeyForAddressReturnsPublicAPIKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAPIKeyForAddress returned error: %v", err)
 	}
-	if sawAddress != testDepositWallet {
-		t.Fatalf("POLY_ADDRESS = %s, want %s", sawAddress, testDepositWallet)
+	if !strings.EqualFold(sawAddress, testEOA) {
+		t.Fatalf("POLY_ADDRESS = %s, want EOA %s", sawAddress, testEOA)
 	}
 	if key.Key != "owner-key" || key.Passphrase != "owner-pass" {
 		t.Fatalf("unexpected key: %+v", key)
@@ -190,8 +196,8 @@ func TestClientDeriveAPIKeyForAddressReturnsPublicAPIKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeriveAPIKeyForAddress returned error: %v", err)
 	}
-	if sawAddress != testDepositWallet {
-		t.Fatalf("POLY_ADDRESS = %s, want %s", sawAddress, testDepositWallet)
+	if !strings.EqualFold(sawAddress, testEOA) {
+		t.Fatalf("POLY_ADDRESS = %s, want EOA %s", sawAddress, testEOA)
 	}
 	if key.Key != "owner-key" || key.Passphrase != "owner-pass" {
 		t.Fatalf("unexpected key: %+v", key)

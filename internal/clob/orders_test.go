@@ -15,6 +15,12 @@ import (
 )
 
 const testOrderPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+
+// EOA derived from testOrderPrivateKey. Per the 2026-05-08 web-UI capture,
+// the CLOB authenticates at the HTTP layer with the EOA, not the deposit
+// wallet. Deposit-wallet identity rides on the order body's signatureType=3
+// + EIP-712 sig (ERC-1271 verified on-chain), which is a separate concern.
+const testOrderEOA = "0x2c7536E3605D9C16a7a3D7b1898e529396a65c23"
 const testBuilderCode = "0x1111111111111111111111111111111111111111111111111111111111111111"
 
 func TestBuildSignedOrderPayloadV2UsesCurrentCLOBShape(t *testing.T) {
@@ -175,7 +181,7 @@ func TestCreateMarketOrderPostsV2PayloadWhenCLOBVersionIsTwo(t *testing.T) {
 	}
 }
 
-func TestCreateLimitOrderUsesDepositWalletBoundL2Auth(t *testing.T) {
+func TestCreateLimitOrderUsesEOABoundL2AuthAndDepositMaker(t *testing.T) {
 	wantDepositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
 	var deriveAddress string
 	var orderAddress string
@@ -215,23 +221,24 @@ func TestCreateLimitOrderUsesDepositWalletBoundL2Auth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.EqualFold(deriveAddress, wantDepositWallet) {
-		t.Fatalf("derive POLY_ADDRESS=%s want deposit wallet %s", deriveAddress, wantDepositWallet)
+	if !strings.EqualFold(deriveAddress, testOrderEOA) {
+		t.Fatalf("derive POLY_ADDRESS=%s want EOA %s (HTTP-layer auth)", deriveAddress, testOrderEOA)
 	}
-	if !strings.EqualFold(orderAddress, wantDepositWallet) {
-		t.Fatalf("order POLY_ADDRESS=%s want deposit wallet %s", orderAddress, wantDepositWallet)
+	if !strings.EqualFold(orderAddress, testOrderEOA) {
+		t.Fatalf("order POLY_ADDRESS=%s want EOA %s (HTTP-layer auth)", orderAddress, testOrderEOA)
 	}
 	order, ok := posted["order"].(map[string]any)
 	if !ok {
 		t.Fatalf("posted order missing: %#v", posted)
 	}
+	// maker/signer are still the deposit wallet — EIP-712 layer carries
+	// the deposit-wallet identity for ERC-1271 on-chain validation.
 	if !strings.EqualFold(order["maker"].(string), wantDepositWallet) || !strings.EqualFold(order["signer"].(string), wantDepositWallet) {
 		t.Fatalf("maker/signer=%v/%v want deposit wallet %s", order["maker"], order["signer"], wantDepositWallet)
 	}
 }
 
 func TestCreateLimitOrderUsesConfiguredL2CredentialsWithoutDerive(t *testing.T) {
-	wantDepositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
 	var derived bool
 	var orderAddress string
 	var orderAPIKey string
@@ -272,8 +279,8 @@ func TestCreateLimitOrderUsesConfiguredL2CredentialsWithoutDerive(t *testing.T) 
 	if derived {
 		t.Fatal("CreateLimitOrder called /auth/derive-api-key despite configured L2 credentials")
 	}
-	if !strings.EqualFold(orderAddress, wantDepositWallet) {
-		t.Fatalf("order POLY_ADDRESS=%s want deposit wallet %s", orderAddress, wantDepositWallet)
+	if !strings.EqualFold(orderAddress, testOrderEOA) {
+		t.Fatalf("order POLY_ADDRESS=%s want EOA %s", orderAddress, testOrderEOA)
 	}
 	if orderAPIKey != "configured-key" {
 		t.Fatalf("POLY_API_KEY=%q want configured-key", orderAPIKey)
@@ -474,6 +481,58 @@ func TestOrderQueriesSingleOrderByID(t *testing.T) {
 	}
 }
 
+func TestListOrdersAcceptsPaginatedObjectResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/data/orders":
+			_, _ = w.Write([]byte(`{"orders":[{"id":"0xabc","status":"ORDER_STATUS_LIVE"}],"next_cursor":"LTE=","count":1}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	orders, err := client.ListOrders(context.Background(), testOrderPrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(orders) != 1 || orders[0].ID != "0xabc" {
+		t.Fatalf("orders=%+v", orders)
+	}
+}
+
+func TestListTradesAcceptsPaginatedObjectResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/data/trades":
+			_, _ = w.Write([]byte(`{"trades":[{"id":"trade-1","status":"MATCHED"}],"next_cursor":"LTE=","count":1}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	trades, err := client.ListTrades(context.Background(), testOrderPrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(trades) != 1 || trades[0].ID != "trade-1" {
+		t.Fatalf("trades=%+v", trades)
+	}
+}
+
 func TestCancelOrdersDeletesBatchEndpointWithOrderIDs(t *testing.T) {
 	var posted map[string][]string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -507,8 +566,7 @@ func TestCancelOrdersDeletesBatchEndpointWithOrderIDs(t *testing.T) {
 	}
 }
 
-func TestCancelOrderUsesDepositWalletBoundL2Auth(t *testing.T) {
-	wantDepositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
+func TestCancelOrderUsesEOABoundL2Auth(t *testing.T) {
 	var deriveAddress string
 	var cancelAddress string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -539,11 +597,11 @@ func TestCancelOrderUsesDepositWalletBoundL2Auth(t *testing.T) {
 	if len(res.Canceled) != 1 {
 		t.Fatalf("response=%+v", res)
 	}
-	if !strings.EqualFold(deriveAddress, wantDepositWallet) {
-		t.Fatalf("derive POLY_ADDRESS=%s want deposit wallet %s", deriveAddress, wantDepositWallet)
+	if !strings.EqualFold(deriveAddress, testOrderEOA) {
+		t.Fatalf("derive POLY_ADDRESS=%s want EOA %s", deriveAddress, testOrderEOA)
 	}
-	if !strings.EqualFold(cancelAddress, wantDepositWallet) {
-		t.Fatalf("cancel POLY_ADDRESS=%s want deposit wallet %s", cancelAddress, wantDepositWallet)
+	if !strings.EqualFold(cancelAddress, testOrderEOA) {
+		t.Fatalf("cancel POLY_ADDRESS=%s want EOA %s", cancelAddress, testOrderEOA)
 	}
 }
 

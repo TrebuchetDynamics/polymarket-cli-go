@@ -127,6 +127,11 @@ func TestTickSizeCallsCorrectEndpoint(t *testing.T) {
 
 const builderFeeKeyTestPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
 
+// EOA derived from builderFeeKeyTestPrivateKey. Per the 2026-05-08 web-UI
+// capture, V2 CLOB authentication is EOA-bound at the HTTP layer (POLY_ADDRESS
+// is the EOA, not the deposit wallet).
+const builderFeeKeyTestEOA = "0x2c7536E3605D9C16a7a3D7b1898e529396a65c23"
+
 // builderFeeKeyServer mounts the L2-derive endpoint that every authenticated
 // builder-fee call needs alongside one extra handler for the test target.
 func builderFeeKeyServer(t *testing.T, target string, handler http.HandlerFunc) *httptest.Server {
@@ -231,7 +236,12 @@ func TestRevokeBuilderFeeKeyRejectsEmpty(t *testing.T) {
 	}
 }
 
-func TestCreateAPIKeyForAddressSendsOverridePolyAddress(t *testing.T) {
+func TestCreateAPIKeyForAddressIgnoresOwnerAndSignsWithEOA(t *testing.T) {
+	// Per the 2026-05-08 web-UI capture, the CLOB API key is EOA-bound at
+	// the HTTP layer regardless of which maker (proxy or deposit wallet)
+	// the user signs orders with. CreateAPIKeyForAddress retains its
+	// ownerAddress parameter for source-compat, but POLY_ADDRESS is the
+	// EOA derived from the private key.
 	var sawAddress string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/auth/api-key" || r.Method != http.MethodPost {
@@ -251,16 +261,18 @@ func TestCreateAPIKeyForAddressSendsOverridePolyAddress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAPIKeyForAddress: %v", err)
 	}
-	if !strings.EqualFold(sawAddress, deposit) {
-		t.Fatalf("POLY_ADDRESS = %s, want %s", sawAddress, deposit)
+	if !strings.EqualFold(sawAddress, builderFeeKeyTestEOA) {
+		t.Fatalf("POLY_ADDRESS = %s, want EOA %s (deposit %s should be ignored)", sawAddress, builderFeeKeyTestEOA, deposit)
 	}
 	if key.Key != "k" {
 		t.Fatalf("Key = %s", key.Key)
 	}
 }
 
-func TestBalanceAllowanceUsesDepositWalletBoundL2Auth(t *testing.T) {
-	wantDepositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
+func TestBalanceAllowanceUsesEOABoundL2Auth(t *testing.T) {
+	// Per the 2026-05-08 web-UI capture: HTTP-layer auth (POLY_ADDRESS,
+	// HMAC) is EOA-bound. Deposit-wallet identity rides on the
+	// signature_type=3 query param, not POLY_ADDRESS.
 	var deriveAddress string
 	var balanceAddress string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -293,10 +305,10 @@ func TestBalanceAllowanceUsesDepositWalletBoundL2Auth(t *testing.T) {
 	if resp.Balance != "1000000" {
 		t.Fatalf("balance=%q", resp.Balance)
 	}
-	if !strings.EqualFold(deriveAddress, wantDepositWallet) {
-		t.Fatalf("derive POLY_ADDRESS=%s want deposit wallet %s", deriveAddress, wantDepositWallet)
+	if !strings.EqualFold(deriveAddress, builderFeeKeyTestEOA) {
+		t.Fatalf("derive POLY_ADDRESS=%s want EOA %s", deriveAddress, builderFeeKeyTestEOA)
 	}
-	if !strings.EqualFold(balanceAddress, wantDepositWallet) {
-		t.Fatalf("balance POLY_ADDRESS=%s want deposit wallet %s", balanceAddress, wantDepositWallet)
+	if !strings.EqualFold(balanceAddress, builderFeeKeyTestEOA) {
+		t.Fatalf("balance POLY_ADDRESS=%s want EOA %s", balanceAddress, builderFeeKeyTestEOA)
 	}
 }
