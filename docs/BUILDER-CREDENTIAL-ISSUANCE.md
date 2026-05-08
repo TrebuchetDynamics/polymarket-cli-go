@@ -1,8 +1,29 @@
-# Builder Credential Issuance — How to Get Your Keys
+# Builder Credential Issuance — SUPERSEDED
 
-> **Date:** 2026-05-07
-> **Status:** Complete — one manual step, then fully automated
-> **Companion:** [CONTRACTS.md](./CONTRACTS.md), [DEPOSIT-WALLET-DEPLOYMENT.md](./DEPOSIT-WALLET-DEPLOYMENT.md)
+> **Status:** SUPERSEDED by [BUILDER-AUTO.md](./BUILDER-AUTO.md)
+> **Why:** This document incorrectly concluded that builder credentials require a manual browser step. The empirical proof in BUILDER-AUTO.md shows that `POST https://clob.polymarket.com/auth/api-key` with ClobAuth EIP-712 signature creates builder credentials programmatically.
+>
+> **Key corrections:**
+> 1. The same HMAC triple works for BOTH CLOB L2 and relayer v2 — there are not separate "builder" and "CLOB" credential types
+> 2. The `POST /auth/api-key` endpoint lazy-creates the builder profile, builder code, and HMAC creds
+> 3. `polygolem builder auto` fully automates this — no browser required
+>
+> **See BUILDER-AUTO.md for the authoritative flow.**
+
+---
+
+## What Was Right
+
+- No KYC required for builder access ✅
+- Builder credentials never expire ✅
+- The Unverified tier is free and starts immediately ✅
+- Headless browser automation is not needed (because programmatic works) ✅
+
+## What Was Wrong
+
+- "Curl-only is impossible" — ❌ Wrong. `POST /auth/api-key` at clob.polymarket.com IS the programmatic path
+- "Only creates CLOB L2 creds" — ❌ Wrong. Same creds work for relayer v2
+- "Requires Gamma auth session cookie" — ❌ Wrong. ClobAuth EIP-712 signature is sufficient
 
 ---
 

@@ -145,6 +145,185 @@ The `polymarket.com/settings?tab=builder` UI exposes state; it does not create i
 - `--no-validate` skips the relayer round-trip — useful for offline runs but loses the existence check.
 - The throwaway-key proof above generated and discarded the EOA in seconds; the orphan account on Polymarket is harmless.
 
+## End-to-End Cost to the User
+
+| Item | Cost | Who Pays |
+|------|------|---------|
+| Generate EOA key | Free | N/A |
+| Builder profile + HMAC creds | Free | N/A |
+| Wallet deploy | Free (gas sponsored) | Polymarket relayer |
+| 6 contract approvals | Free (gas sponsored) | Polymarket relayer |
+| Place orders | Free (gas sponsored) | Polymarket relayer |
+| **Fund wallet (one tx)** | **~$0.01 POL** | **User** |
+| pUSD to trade with | Whatever you deposit | User (your money) |
+
+**Total hard cost to user:** ~$0.01 in POL gas for one transfer. Everything else is free and automated.
+
+---
+
+## Flow A — Wallet Already Deployed (Returning User)
+
+When the user returns, skip deploy and approve:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│            RETURNING USER — WALLET ALREADY DEPLOYED              │
+│                                                                 │
+│  1. App has EOA private key (or MetaMask connected)            │
+│  2. Derive wallet address (local CREATE2 — instant)             │
+│  3. GET /deployed?address=EOA → { deployed: true }             │
+│                                                                 │
+│     ✅ Wallet exists — skip deploy                              │
+│     ✅ Approvals exist — skip approve                           │
+│                                                                 │
+│  4. Check balance (CLOB /balance-allowance)                     │
+│                                                                 │
+│     ┌──────────────────┬──────────────────────┐                 │
+│     │  Has pUSD        │  Needs funding        │                 │
+│     │  → Trade         │  → Fund first         │                 │
+│     └──────────────────┴──────────────────────┘                 │
+│                                                                 │
+│  5. Trade — build order → sign EIP-712 → POST to CLOB          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+```bash
+polygolem deposit-wallet status
+# {
+#   "eoa": "0x...",
+#   "deposit_wallet": "0x...",
+#   "deployed": true,
+#   "approvals": 6,
+#   "pUSD_balance": "5.00",
+#   "ready_to_trade": true
+# }
+```
+
+---
+
+## Funding Flow — POL → pUSD → Deposit Wallet
+
+### The POL Requirement
+
+The user needs ~0.01 POL for exactly ONE transaction — the ERC-20 pUSD transfer from EOA to deposit wallet. Every other operation is gas-sponsored.
+
+### Path 1: Exchange → POL → pUSD (Recommended)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    FUNDING FLOW — FRESH EOA                      │
+│                                                                 │
+│  Step 1: Get POL (for one transfer only, ~$0.01)                │
+│    Buy POL on any exchange → withdraw to EOA on Polygon          │
+│                                                                 │
+│  Step 2: Get USDC on Polygon                                    │
+│    Option A: Buy USDC on exchange → withdraw to EOA on Polygon  │
+│    Option B: Bridge from Ethereum/Arbitrum/Base via Across.to   │
+│    Option C: Use Polymarket Bridge API (auto-converts to pUSD)  │
+│                                                                 │
+│  Step 3: Convert USDC → pUSD                                    │
+│    Polymarket bridge does this automatically                    │
+│    Or call CollateralOnramp.deposit() manually                  │
+│                                                                 │
+│  Step 4: Transfer pUSD EOA → Deposit Wallet                     │
+│    polygolem deposit-wallet fund --amount X                     │
+│    (This is the one tx you pay gas for — ~$0.01 POL)            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Path 2: Bridge API (Programmatic)
+
+```bash
+# Get deposit addresses for your EOA
+curl -X POST https://bridge.polymarket.com/deposit \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0xYOUR_EOA_ADDRESS"}'
+# Response: { "evm": "0x...", "svm": "...", "btc": "..." }
+
+# Bridge auto-converts to pUSD and credits your EOA
+polygolem bridge deposit <wallet-address>
+
+# Then transfer to deposit wallet
+polygolem deposit-wallet fund --amount X
+```
+
+---
+
+## The Deposit Wallet — Beyond Polymarket
+
+The deposit wallet is an ERC-1967 proxy smart contract on Polygon. It's NOT Polymarket-specific — it's a general-purpose smart contract wallet implementing ERC-1271.
+
+### What the Wallet CAN Do
+
+| Capability | Standard | Polymarket-Specific? |
+|-----------|----------|---------------------|
+| Hold pUSD | ERC-20 | No — any ERC-20 works |
+| Hold USDC, USDC.e | ERC-20 | No |
+| Hold POL (native) | Native balance | No |
+| Hold outcome tokens | ERC-1155 (CTF) | Yes (CTF-specific) |
+| Sign typed data | ERC-1271 (EIP-1271) | No — any protocol can validate |
+| Execute batched calls | factory.proxy(batch[], sig[]) | No — general-purpose proxy |
+| Approve token spenders | ERC-20 approve via batch | No — any spender |
+| Interact with ANY contract | Via proxy batch calls | No — fully programmable |
+
+### ERC-1271 Interoperability
+
+The wallet implements `isValidSignature(bytes32 hash, bytes signature)` per EIP-1271. Any protocol that accepts ERC-1271 signatures can validate EOA-signed messages through this wallet. The wallet itself has no private key — the EOA signs, the wallet validates.
+
+### Potential Use Cases Beyond Polymarket
+
+| Use Case | How |
+|----------|-----|
+| Other prediction markets | Settle in ERC-20 tokens on Polygon |
+| DeFi (Aave, Uniswap) | Approve + interact via proxy batch |
+| NFT marketplaces | Hold/trade ERC-721/ERC-1155 |
+| Multi-market aggregators | One wallet, multiple platforms, unified balance |
+| DAO voting | ERC-1271 signatures for snapshot |
+| Account abstraction | Extendable via factory upgrade |
+
+### Wallet Interface
+
+```solidity
+// Core capabilities of the deposit wallet
+interface IDepositWallet {
+    // ERC-1271 — any protocol calls this to validate EOA signatures
+    function isValidSignature(bytes32 hash, bytes calldata signature) 
+        external view returns (bytes4 magicValue);
+    // Token receiver (ERC-1155 compatible)
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata) 
+        external returns (bytes4);
+    // The wallet owner
+    function owner() external view returns (address);
+}
+
+// Factory — deploy + execute
+interface IDepositWalletFactory {
+    function deploy(address[] owners, bytes32[] ids) external;
+    function proxy(Batch[] batches, bytes[] signatures) external;  // UNGATED
+    function predictWalletAddress(address impl, bytes32 id) external view returns (address);
+}
+```
+
+**Key insight:** The deposit wallet is a standard ERC-1271 smart contract wallet. Polymarket uses it as the funder address. Any protocol that accepts smart contract wallet signatures can use it.
+
+---
+
+## Polygolem API Surface
+
+| Command | What it does | Gas Cost |
+|---------|-------------|----------|
+| `polygolem builder auto` | Create builder profile + HMAC creds (ClobAuth EIP-712) | Free |
+| `polygolem deposit-wallet derive` | Predict CREATE2 wallet address (local) | Free |
+| `polygolem deposit-wallet status` | Check deployed?, approvals?, balance? | Free |
+| `polygolem deposit-wallet deploy --wait` | WALLET-CREATE via relayer | Sponsored |
+| `polygolem deposit-wallet approve --submit` | 6-call WALLET batch via relayer | Sponsored |
+| `polygolem deposit-wallet fund --amount X` | ERC-20 transfer EOA → deposit wallet | ~$0.01 POL |
+| `polygolem deposit-wallet onboard --fund-amount X` | deploy + approve + fund (all-in-one) | ~$0.01 POL |
+| `polygolem bridge deposit <addr>` | Get EVM/Solana/BTC deposit addresses | Free |
+| `polygolem clob create-order ...` | Place order (POLY_1271 signed) | Sponsored |
+
+---
+
 ## Why the old doc was wrong
 
 `docs/BUILDER-CREDENTIAL-ISSUANCE.md` asserted that builder creds are gated behind a Polymarket session cookie and that `/auth/api-key` only issues "CLOB L2" creds (a separate type from "Builder API Keys"). Both claims are false:
@@ -152,4 +331,4 @@ The `polymarket.com/settings?tab=builder` UI exposes state; it does not create i
 - There is one HMAC cred type. The same triple authenticates against `clob.polymarket.com` (L2 endpoints) and `relayer-v2.polymarket.com` (deposit-wallet/relay endpoints).
 - The "+ Create New" button under Settings → Builder Codes calls the same endpoint; the browser's wallet popup is signing the same ClobAuth payload polygolem now signs locally.
 
-The old doc should be deleted or replaced with a pointer to this one.
+**BUILDER-AUTO.md is the authoritative document. BUILD-CREDENTIAL-ISSUANCE.md is superseded and should be treated as historical investigation.**

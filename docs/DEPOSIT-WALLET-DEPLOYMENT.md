@@ -6,57 +6,66 @@
 
 ---
 
-## Requirements Checklist — What You Need (and Don't Need)
+## Requirements — What You Need (and What You Don't)
 
-| Requirement | Needed? | Details |
-|------------|---------|---------|
-| **EOA private key** | ✅ YES | A Polygon EOA with a private key. Can be a fresh wallet with 0 MATIC. |
-| **MATIC (gas)** | ❌ NO | Polymarket relayer sponsors ALL gas for deploy, approve, and batch operations. |
-| **pUSD** | ✅ YES | ~$0.71 minimum to fund the deposit wallet. This is trading collateral, not gas. |
-| **Builder credentials** | ✅ YES | One-time copy from `polymarket.com/settings?tab=builder` (free, no KYC). |
-| **KYC** | ❌ NO | Builder program has no KYC requirement. Unverified tier starts immediately. |
-| **Polymarket account** | ⚠️ SORTA | Need a Polymarket account linked to your wallet to access builder settings. Sign-in via wallet. |
-| **RPC endpoint** | ⚠️ OPTIONAL | Only needed for `fund` (direct ERC-20 transfer). Use public Polygon RPC or Infura/Alchemy. |
-| **External/exchange account** | ❌ NO | No CEX, no bridge, no exchange needed. Just EOA + builder creds + pUSD. |
+### What You Need
+
+| Requirement | Details |
+|------------|---------|
+| **EOA private key** | A Polygon EOA with a private key. Can be a fresh wallet with zero history and zero MATIC. |
+| **pUSD** | ~$0.71 minimum to fund the deposit wallet. This is your trading collateral (not gas). |
+| **Builder credentials** | Obtained programmatically via `polygolem builder auto` (ClobAuth EIP-712 signature). No browser needed. |
+
+### What You DON'T Need (Every Absence Is a Feature)
+
+| Don't Need | Why This Matters |
+|------------|-----------------|
+| ✅ **No KYC** | Builder program Unverified tier starts immediately. No ID, no SSN, no documents, no approval wait. |
+| ✅ **No MATIC gas** | Polymarket relayer sponsors ALL on-chain operations. Deploy, approve, batch — fully gasless. |
+| ✅ **No external account** | No exchange, no bridge, no third-party custody. Just your EOA in self-custody. |
+| ✅ **No Polymarket email/phone login** | Wallet-only authentication. No personal data collected by Polymarket for builder access. |
+| ✅ **No ongoing maintenance** | Builder credentials don't expire. Set once, use forever (rotate on compromise). |
+| ✅ **No server dependency** | After initial deploy, post-deployment operations are permissionless. Submit batches directly from your EOA. |
+| ✅ **No minimum wallet age** | Fresh EOA works. No history, no prior trading, no deposits needed beforehand. |
+| ✅ **No premium/paid tier** | Unverified tier includes full relayer access with daily rate limits. Verified tier is optional. |
 
 ### Gas Sponsorship Breakdown
 
-| Operation | Who pays gas? | Gas paid in? |
-|-----------|--------------|--------------|
-| `deploy` (WALLET-CREATE via relayer) | Polymarket relayer | MATIC |
-| `approve` (WALLET batch via relayer) | Polymarket relayer | MATIC |
-| `fund` (ERC-20 transfer EOA→wallet) | **YOU** (EOA) | MATIC |
-| `trade` (order placement on CLOB) | Polymarket relayer | MATIC |
-| CTF split/merge/redeem (via relayer) | Polymarket relayer | MATIC |
+| Operation | Who pays gas? | Cost to you |
+|-----------|--------------|-------------|
+| `deploy` (WALLET-CREATE via relayer) | Polymarket relayer | FREE |
+| `approve` (6-call WALLET batch) | Polymarket relayer | FREE |
+| `trade` (order placement on CLOB) | Polymarket relayer | FREE |
+| CTF split/merge/redeem | Polymarket relayer | FREE |
+| `fund` (ERC-20 pUSD transfer EOA→wallet) | **You** | ~0.01 MATIC |
 
-**The only operation that costs you MATIC is `fund`** — a single ERC-20 pUSD transfer from your EOA to the deposit wallet. Everything else is gas-sponsored by Polymarket. After funding, your EOA needs ~0.01 MATIC for this one transfer only.
+The only operation that costs you anything is the single `fund` transfer — send pUSD from your EOA to the deposit wallet. Everything else is sponsored.
 
-### To Replicate From Scratch (4-Step Experiment)
+### Replicate From Scratch — 3 Steps (Fully Automated)
 
 ```bash
-# Step 1 — Generate a fresh EOA (no MATIC, no history)
+# Step 1 — Generate a fresh EOA (no MATIC, no history, completely empty)
 openssl rand -hex 32 > fresh_key.txt
-# Or use cast/wagmi/ethers to generate
 
-# Step 2 — Get builder creds (2 min, one-time, in browser)
-# Open polymarket.com/settings?tab=builder
-# Sign in with the fresh EOA → create profile → click "+ Create New"
-# Copy BUILDER_API_KEY, BUILDER_SECRET, BUILDER_PASSPHRASE
+# Step 2 — Builder profile + HMAC creds + wallet onboard (fully automated)
+POLYMARKET_PRIVATE_KEY="0x$(cat fresh_key.txt)" \
+  polygolem builder auto
 
-# Step 3 — Deposit wallet onboard (all automated)
 POLYMARKET_PRIVATE_KEY="0x$(cat fresh_key.txt)" \
 POLYMARKET_BUILDER_API_KEY="..." \
 POLYMARKET_BUILDER_SECRET="..." \
 POLYMARKET_BUILDER_PASSPHRASE="..." \
   polygolem deposit-wallet onboard --fund-amount 0.71 --json
 
-# Step 4 — Sync and trade
+# Step 3 — Sync and trade
 POLYMARKET_PRIVATE_KEY="0x$(cat fresh_key.txt)" \
   polygolem clob update-balance --asset-type collateral --signature-type deposit
 
 POLYMARKET_PRIVATE_KEY="0x$(cat fresh_key.txt)" \
   polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --signature-type deposit
 ```
+
+> **Note:** Builder credentials are obtained programmatically via `polygolem builder auto`. See [BUILDER-AUTO.md](./BUILDER-AUTO.md) for the full sequence diagram and empirical proof.
 
 ---
 
