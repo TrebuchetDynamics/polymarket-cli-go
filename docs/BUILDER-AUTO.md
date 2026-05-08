@@ -27,6 +27,53 @@ Signing ClobAuth and creating builder API key via https://clob.polymarket.com...
 
 The same call ran twice returned the same key — `/auth/api-key` is idempotent per EOA.
 
+## Full onboarding sequence
+
+The minimum the user provides end-to-end is **(1) an EOA private key** and **(2) one USDC/pUSD transfer**. Everything else — account, profile, builder code, HMAC creds, deposit-wallet deploy, V2 approvals — happens via signatures the app generates locally and HTTP calls the app makes on the user's behalf. The deploy and approval transactions are paid by the Polymarket relayer; only the funding transfer comes from the user.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant A as App<br/>(polygolem / Arenaton)
+    participant C as clob.polymarket.com
+    participant R as relayer-v2.polymarket.com
+    participant P as Polygon chain
+
+    Note over U,A: Step 1 — auth (off-chain, no gas)
+    U->>A: provide EOA private key<br/>(or app generates fresh)
+    A->>A: sign ClobAuth EIP-712 locally
+    A->>C: POST /auth/api-key<br/>(POLY_ADDRESS, POLY_SIGNATURE,<br/>POLY_TIMESTAMP, POLY_NONCE)
+    C->>C: lazy-create account +<br/>builder profile + bytes32 code
+    C-->>A: { apiKey, secret, passphrase }
+    A->>R: GET /nonce (HMAC-signed)
+    R-->>A: 200 → creds verified
+
+    Note over A,P: Step 2 — deploy deposit wallet (relayer pays gas)
+    A->>A: sign DepositWallet Batch EIP-712
+    A->>R: POST /relay-payload<br/>(factory.deploy via proxy)
+    R->>P: submit tx (relayer pays)
+    P-->>R: receipt
+    A->>R: poll GET /deployed
+    R-->>A: { wallet: 0x… }
+
+    Note over U,P: Step 3 — fund (only on-chain action by user)
+    U->>P: transfer USDC.e or pUSD<br/>to deposit wallet
+
+    Note over A,P: Step 4 — approvals (relayer pays gas)
+    A->>A: sign 6× Batch (pUSD + CTF<br/>→ 3× V2 spenders)
+    A->>R: POST /relay-payload (factory.proxy)
+    R->>P: submit tx (relayer pays)
+    P-->>R: receipt
+
+    Note over A,C: Step 5 — trade
+    A->>A: sign V2 Order EIP-712<br/>(POLY_1271 sigtype 3,<br/>builder code attached)
+    A->>C: POST /order
+    C-->>A: order accepted
+```
+
+**User-facing total cost:** one private key + one funding tx. Zero browser interaction.
+
 ## Wire format
 
 ### Request
