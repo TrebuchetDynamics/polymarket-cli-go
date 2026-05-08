@@ -85,6 +85,51 @@ func TestBatch(t *testing.T) {
 	}
 }
 
+func TestStreamItemsYieldsIndividualElements(t *testing.T) {
+	calls := 0
+	fn := func(ctx context.Context, cursor string) ([]string, string, error) {
+		calls++
+		switch cursor {
+		case "":
+			return []string{"a", "b"}, "page2", nil
+		case "page2":
+			return []string{"c"}, "", nil
+		default:
+			return nil, "", nil
+		}
+	}
+
+	var all []string
+	for result := range StreamItems(context.Background(), fn) {
+		if result.Err != nil {
+			t.Fatal(result.Err)
+		}
+		all = append(all, result.Item)
+	}
+	if len(all) != 3 || all[0] != "a" || all[1] != "b" || all[2] != "c" {
+		t.Fatalf("expected [a b c], got %v", all)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 page calls, got %d", calls)
+	}
+}
+
+func TestStreamItemsPropagatesErrors(t *testing.T) {
+	fn := func(ctx context.Context, cursor string) ([]string, string, error) {
+		return nil, "", fmt.Errorf("page error")
+	}
+
+	var gotErr bool
+	for result := range StreamItems(context.Background(), fn) {
+		if result.Err != nil {
+			gotErr = true
+		}
+	}
+	if !gotErr {
+		t.Fatal("expected error propagation")
+	}
+}
+
 // Example_collectAll demonstrates iterating through every page of a
 // cursor-based source and collecting all items. The page function is
 // in-memory so the example is hermetic.

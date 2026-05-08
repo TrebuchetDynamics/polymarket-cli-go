@@ -32,6 +32,12 @@ type StreamResult[T any] struct {
 	Err   error
 }
 
+// ItemResult is a single item emitted on the channel returned by StreamItems.
+type ItemResult[T any] struct {
+	Item T
+	Err  error
+}
+
 // StreamPages iterates through all pages of a cursor-based endpoint.
 // Calls pageFn until the next cursor is empty or an error occurs.
 // Returns a channel that closes when iteration completes or ctx is
@@ -65,6 +71,32 @@ func StreamPages[T any](ctx context.Context, pageFn Page[T]) <-chan StreamResult
 		}
 	}()
 
+	return ch
+}
+
+// StreamItems iterates through all pages and yields individual items on a
+// channel. It wraps StreamPages, flattening each page into its elements.
+func StreamItems[T any](ctx context.Context, pageFn Page[T]) <-chan ItemResult[T] {
+	ch := make(chan ItemResult[T])
+	go func() {
+		defer close(ch)
+		for result := range StreamPages(ctx, pageFn) {
+			if result.Err != nil {
+				select {
+				case ch <- ItemResult[T]{Err: result.Err}:
+				case <-ctx.Done():
+				}
+				return
+			}
+			for _, item := range result.Items {
+				select {
+				case ch <- ItemResult[T]{Item: item}:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
 	return ch
 }
 
