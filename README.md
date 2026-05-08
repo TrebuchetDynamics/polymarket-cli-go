@@ -7,12 +7,15 @@
 
 **Production-safe Polymarket infrastructure for the deposit-wallet era.**
 
-A single Go binary and SDK for trading on Polymarket V2. Built specifically
-for the deposit-wallet (POLY_1271 / type 3) signing path — the only path that
-works for new production API users since the April 2026 migration. No external
-SDKs, no Python runtime, no opaque signing wrappers. Every byte of wallet
-derivation, EIP-712 payload, ERC-7739 envelope, and relayer call is
-implemented directly from spec in Go.
+A single Go binary and SDK for trading on Polymarket V2 — built specifically
+for the deposit-wallet signing path (Polymarket's current production model
+for new API users; sometimes called *type 3* or *POLY_1271* in the docs).
+No external SDKs. No Python runtime. No opaque signing wrappers. Wallet
+derivation, signing, relayer flows, and protocol logic are implemented
+directly from spec in Go.
+
+*For operators who want verifiable trading infrastructure instead of opaque
+wrappers.*
 
 ---
 
@@ -40,19 +43,15 @@ EOA, proxy, and Gnosis Safe paths are intentionally not supported.
 
 ## What Works Today
 
-Verified against Polygon mainnet on the 2026-05-08 reference run
-([full walkthrough with every tx hash, gas figure, and pUSD movement](docs/LIVE-TRADE-WALKTHROUGH.md)):
+Verified end-to-end against Polygon mainnet on the 2026-05-08 reference run:
 
-- Headless V2 relayer onboarding (SIWE → `/profiles` → `/relayer-auth`)
-- Deposit-wallet derivation, deployment, and approvals (relayer-sponsored, $0 user gas)
-- POL → pUSD swap via Uniswap V3 multihop (no L2 bridge required)
-- pUSD funding (EOA → deposit wallet ERC-20 transfer)
-- CLOB V2 limit and market orders with post-only / GTC / GTD / FOK
+- Headless V2 relayer onboarding + deposit-wallet deploy and funding
+- CLOB V2 limit and market orders (post-only / GTC / GTD / FOK) with cancels
 - Builder-code attribution (V2 bytes32 model)
-- Cancels (single, batch, all, per-market)
-- Public market discovery via Gamma + CLOB
-- Public WebSocket market stream
-- Local risk controls (per-trade caps, daily loss limits, circuit breaker)
+- Public market discovery + streaming (Gamma, CLOB, Data API, WebSocket)
+- Local risk controls — per-trade caps, daily loss limits, circuit breaker
+
+→ [Full walkthrough — every tx hash, gas figure, and pUSD movement](docs/LIVE-TRADE-WALKTHROUGH.md)
 
 ---
 
@@ -97,6 +96,33 @@ sign-up. Read-only is the default for everything until you set
 
 ---
 
+## Demo Pipeline
+
+The planned `polygolem demo` command is the new-user showroom for the SDK and
+CLI. It should walk through the Polymarket API graph in one run, choosing live
+read-only data and explaining how Gamma, CLOB, Data, and CTF identifiers connect.
+
+```bash
+polygolem demo              # default: L1 public, unauthenticated, read-only
+polygolem demo --layer l1   # explicit public API demo
+polygolem demo --layer l2   # authenticated CLOB L2 read-only account context
+polygolem demo --query btc --limit 5 --seed 123
+polygolem demo --json
+```
+
+`--layer l1` uses only public APIs. It lists a small set of active campaigns
+(Polymarket events/series/markets), shows their tags/categories, picks one
+market, then reads Gamma metadata, CLOB market/order-book/price/tick/history
+data, and Data API analytics. No signup, private key, funding, approvals,
+orders, or cancels are involved.
+
+`--layer l2` runs the same public pipeline and adds authenticated read-only
+CLOB context from configured L2 credentials: open orders, trade history, and
+balance/allowance. It must remain read-only: no `POST /order`, no cancels, no
+wallet deployment, no approvals, and no funding.
+
+---
+
 ## Trade in Four Commands
 
 ```bash
@@ -105,21 +131,29 @@ export POLYMARKET_PRIVATE_KEY="0x..."
 polygolem auth headless-onboard                     # mint V2 relayer key (gasless)
 polygolem deposit-wallet onboard --fund-amount 0.71 # deploy + approve + fund
 polygolem clob update-balance --asset-type collateral
-polygolem clob create-order --token <ID> --side buy --price 0.5 --size 10
+polygolem clob market-order --token <ID> --side buy --amount 1 --price 0.012 --order-type FOK
+# {
+#   "success": true,
+#   "orderID": "0x43083109...c423d793d",
+#   "status": "matched",
+#   "makingAmount": "1",
+#   "takingAmount": "86.606666",
+#   "transactionsHashes": ["0x74ad015d...4f7adc"]
+# }
 ```
 
-**Total user-paid cost: ~$0.01 in POL gas** for the single ERC-20 transfer
-that funds the deposit wallet. WALLET-CREATE, the 6-call approval batch, and
-every CLOB settlement are sponsored by Polymarket-run services. See
-[the walkthrough](docs/LIVE-TRADE-WALKTHROUGH.md) for the per-tx gas
-breakdown.
+**After onboarding, every trade is fully headless.** Total user-paid cost on
+the reference run was **~$0.01 in POL gas** for the single ERC-20 transfer
+that funds the deposit wallet — `WALLET-CREATE`, the 6-call approval batch,
+and every CLOB settlement are sponsored by Polymarket-run services. See
+[the walkthrough](docs/LIVE-TRADE-WALKTHROUGH.md) for the per-tx breakdown.
 
-> **One-time browser step for new users.** Polymarket's L1 auth endpoint
+> ⚠️ **New users need one browser login.** Polymarket's L1 auth endpoint
 > (`/auth/api-key`) does not currently support ERC-1271 validation, so a
 > brand-new EOA needs one browser login at polymarket.com to mint the
-> deposit-wallet-bound CLOB API key. After that, everything is headless. See
-> [docs/BROWSER-SETUP.md](docs/BROWSER-SETUP.md). Existing Polymarket users
-> with an already-minted CLOB key skip this entirely.
+> deposit-wallet-bound CLOB API key. **After that, all trading is fully
+> headless.** Existing Polymarket users with an already-minted CLOB key skip
+> this entirely. See [docs/BROWSER-SETUP.md](docs/BROWSER-SETUP.md).
 
 ---
 
@@ -142,11 +176,22 @@ is a thin wrapper around an importable `pkg/` package:
 | [`pkg/types`](pkg/types) | Shared public DTOs |
 
 ```go
-import "github.com/TrebuchetDynamics/polygolem/pkg/universal"
+import (
+    "context"
+    "fmt"
+
+    "github.com/TrebuchetDynamics/polygolem/pkg/universal"
+)
 
 c := universal.NewClient(universal.Config{})
-price, _ := c.OrderbookPrice(ctx, tokenID)
-fmt.Println(price)
+ctx := context.Background()
+
+const btcYesToken = "13915689317269078219168496739008737517740566192006337297676041270492637394586"
+
+price, _ := c.Price(ctx, btcYesToken, "buy")
+spread, _ := c.Spread(ctx, btcYesToken)
+fmt.Printf("BTC $150k YES — price %s, spread %s\n", price, spread)
+// BTC $150k YES — price 0.012, spread 0.002
 ```
 
 Internal implementation details live under `internal/` and are documented in
@@ -173,15 +218,13 @@ Full CLI reference (auto-generated, every flag and example):
 
 ## Environment
 
-| Variable | When required |
-|---|---|
-| `POLYMARKET_PRIVATE_KEY` | Any authenticated command. |
-| `POLYMARKET_RELAYER_API_KEY` / `_ADDRESS` | Auto-minted by `auth headless-onboard`. |
-| `POLYMARKET_CLOB_API_KEY` / `_SECRET` / `_PASSPHRASE` | One-time browser-minted for new users; persisted afterwards. |
-| `POLYMARKET_BUILDER_CODE` | Optional V2 order attribution. |
+- **Required for any authenticated command:** `POLYMARKET_PRIVATE_KEY`.
+- **Auto-minted by polygolem on first use:** V2 relayer key, CLOB L2 key
+  (existing users) — persisted to local env files.
+- **Optional:** `POLYMARKET_BUILDER_CODE` for V2 order attribution.
 
-The deposit wallet address is derived locally from the private key — no API
-call required.
+The deposit wallet address is derived locally from the private key; no API
+call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
 
 ---
 
@@ -203,5 +246,20 @@ call required.
 
 ## Status
 
-`v0.1.0` — Full deposit-wallet lifecycle, CLOB V2 trading, builder-code
-attribution, universal SDK client. See [`CHANGELOG.md`](CHANGELOG.md).
+`v0.1.0` — production-validated against Polygon mainnet on **2026-05-08**
+([reference run](docs/LIVE-TRADE-WALKTHROUGH.md)).
+
+**Current scope**
+
+- Deposit-wallet lifecycle (derive, deploy, approve, fund)
+- CLOB V2 trading (limit, market, post-only, GTC / GTD / FOK, cancels)
+- Builder-code attribution
+- Universal SDK client over Gamma + CLOB + Data + Stream
+
+**Still hardening**
+
+- Broader exchange abstractions
+- Release signing
+- Extended automation surfaces
+
+See [`CHANGELOG.md`](CHANGELOG.md) for per-version detail.
