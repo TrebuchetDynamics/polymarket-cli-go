@@ -22,12 +22,66 @@ func depositWalletCmd(jsonOut bool) *cobra.Command {
 
 	cmd.AddCommand(depositWalletDeriveCmd(jsonOut))
 	cmd.AddCommand(depositWalletDeployCmd(jsonOut))
+	cmd.AddCommand(depositWalletDeployOnchainCmd(jsonOut))
 	cmd.AddCommand(depositWalletNonceCmd(jsonOut))
 	cmd.AddCommand(depositWalletStatusCmd(jsonOut))
 	cmd.AddCommand(depositWalletBatchCmd(jsonOut))
 	cmd.AddCommand(depositWalletApproveCmd(jsonOut))
 	cmd.AddCommand(depositWalletFundCmd(jsonOut))
 	cmd.AddCommand(depositWalletOnboardCmd(jsonOut))
+	return cmd
+}
+
+// depositWalletDeployOnchainCmd lets the EOA call the deposit-wallet
+// factory's deploy() function directly on Polygon — no relayer, no builder
+// credentials. With --dry-run, only gas-estimation runs (no tx sent, no gas
+// spent), which is enough to determine whether deploy() accepts EOA callers
+// or is gated to admin/operator only.
+func depositWalletDeployOnchainCmd(jsonOut bool) *cobra.Command {
+	w := newWire(jsonOut)
+	var dryRun bool
+	var rpcURL string
+	cmd := &cobra.Command{
+		Use:   "deploy-onchain",
+		Short: "Deploy the deposit wallet directly on-chain from the EOA (no relayer / no builder creds)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			key, err := requirePrivateKey()
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), 60*time.Second)
+			defer cancel()
+
+			if dryRun {
+				gas, err := rpc.DeployDepositWalletEstimate(ctx, key, rpcURL)
+				if err != nil {
+					return err
+				}
+				return w.printJSON(cmd, map[string]interface{}{
+					"dryRun":            true,
+					"estimatedGas":      gas,
+					"deployGated":       false,
+					"note":              "EstimateGas succeeded — deploy() accepts EOA callers; on-chain path is available without builder credentials",
+				})
+			}
+
+			txHash, err := rpc.DeployDepositWalletOnchain(ctx, key, rpcURL)
+			if err != nil {
+				if txHash != "" {
+					return fmt.Errorf("deploy-onchain failed (txHash=%s): %w", txHash, err)
+				}
+				return err
+			}
+			return w.printJSON(cmd, map[string]string{
+				"txHash":          txHash,
+				"factoryAddress":  "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07",
+				"status":          "deployed",
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "estimate gas only; do not send a transaction (no gas spent)")
+	cmd.Flags().StringVar(&rpcURL, "rpc-url", "", "Polygon RPC URL (default: public node)")
 	return cmd
 }
 
