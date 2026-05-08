@@ -11,12 +11,20 @@
 //   cd scripts/playwright-capture
 //   npm install
 //   npm run install:browser
-//   npm run capture
+//   npm run capture           # headed Chromium; needs an X/Wayland display
+//   npm run capture:xvfb      # runs under Xvfb so it works on a tty
+//   HEADLESS=1 npm run capture  # fully headless (no UI; for scripted flows)
 //
 // Then in the launched browser: sign up / log in via whichever path you want
 // to capture (Email-Magic, Wallet-Connect, MetaMask, etc.). Stdout will print
 // every clob.polymarket.com /auth/* request and the full POLY_* headers. A HAR
 // file with the full session is written to ./captures/<timestamp>.har.
+//
+// To interact with a browser running inside Xvfb, attach a VNC server to the
+// Xvfb display in a second terminal:
+//   x11vnc -display :$XVFB_DISPLAY -localhost -forever -nopw -rfbport 5900
+// Then connect a VNC client to localhost:5900 from your normal desktop.
+// (Set XVFB_DISPLAY=99 below to pin the display number.)
 //
 // Press Ctrl+C in the terminal to stop and finalize the HAR.
 
@@ -44,7 +52,8 @@ function isInteresting(url) {
   return INTERESTING_HOSTS.some((h) => url.includes(h));
 }
 
-const browser = await chromium.launch({ headless: false, devtools: false });
+const headless = process.env.HEADLESS === "1";
+const browser = await chromium.launch({ headless, devtools: false });
 const context = await browser.newContext({
   recordHar: { path: harPath, mode: "full", content: "embed" },
   viewport: { width: 1280, height: 900 },
@@ -90,6 +99,8 @@ page.on("response", async (res) => {
 await page.goto("https://polymarket.com");
 
 console.log(`\nHAR will be written to: ${harPath}`);
+console.log(`Mode: ${headless ? "headless (no UI)" : "headed"}`);
+if (process.env.DISPLAY) console.log(`DISPLAY: ${process.env.DISPLAY}`);
 console.log(
   "Browser open. Sign up / log in manually, then trigger an API-key creation",
 );

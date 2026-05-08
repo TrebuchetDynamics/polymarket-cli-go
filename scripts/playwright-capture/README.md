@@ -27,6 +27,27 @@ is written to `./captures/<timestamp>.har`.
 
 `Ctrl+C` to finalize the HAR.
 
+## Run modes
+
+| Script | What it does | When to use |
+|---|---|---|
+| `npm run capture` | Headed Chromium on `$DISPLAY` | You're on a graphical session and can drive the browser yourself. |
+| `npm run capture:xvfb` | Headed Chromium under Xvfb | TTY-only session — pair with VNC to interact (see below). |
+| `npm run capture:headless` | Headless Chromium (no UI) | Sanity-checking the request logger; not useful for real signup. |
+
+### VNC into the Xvfb session
+
+`xvfb-run` allocates a free display number; print it from inside
+`capture.mjs` (logged on startup as `DISPLAY:`). In another terminal:
+
+```bash
+x11vnc -display "$DISPLAY_FROM_LOG" -localhost -forever -nopw -rfbport 5900
+```
+
+Then connect any VNC client to `localhost:5900`. Run `xvfb-run` and
+`x11vnc` from the same parent shell so both see the same `DISPLAY`,
+or grab the display from the capture's startup banner.
+
 ## What to capture
 
 The first L1 request the browser issues after a fresh signup. Specifically:
