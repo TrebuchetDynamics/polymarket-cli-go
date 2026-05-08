@@ -2,6 +2,7 @@ package clob
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
@@ -334,6 +335,20 @@ func apiKeyFromInternal(row auth.APIKey) APIKey {
 		Secret:     row.Secret,
 		Passphrase: row.Passphrase,
 	}
+}
+
+func apiKeyToInternal(row APIKey) auth.APIKey {
+	return auth.APIKey{
+		Key:        row.Key,
+		Secret:     row.Secret,
+		Passphrase: row.Passphrase,
+	}
+}
+
+func apiKeyConfigured(row APIKey) bool {
+	return strings.TrimSpace(row.Key) != "" ||
+		strings.TrimSpace(row.Secret) != "" ||
+		strings.TrimSpace(row.Passphrase) != ""
 }
 
 func balanceAllowanceParamsToInternal(params BalanceAllowanceParams) internalclob.BalanceAllowanceParams {

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TrebuchetDynamics/polygolem/internal/auth"
 	"github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/dataapi"
 	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
@@ -50,9 +51,14 @@ func (w *wire) printJSON(cmd *cobra.Command, v interface{}) error {
 }
 
 func newWire(jsonOut bool) *wire {
+	clobClient := clob.NewClient(clobBaseURL, nil)
+	if key, ok := clobL2CredentialsFromEnv(); ok {
+		clobClient.SetL2Credentials(key)
+	}
+
 	return &wire{
 		gamma:    gamma.NewClient(gammaBaseURL, nil),
-		clob:     clob.NewClient(clobBaseURL, nil),
+		clob:     clobClient,
 		data:     dataapi.NewClient(dataBaseURL, nil),
 		discover: marketdiscovery.New(gamma.NewClient(gammaBaseURL, nil), clob.NewClient(clobBaseURL, nil)),
 		jsonOut:  jsonOut,
@@ -1249,6 +1255,20 @@ func builderCodeFromFlagOrEnv(flagValue string) string {
 		return value
 	}
 	return firstEnv("POLYMARKET_BUILDER_CODE", "POLYMARKET_CLOB_BUILDER_CODE")
+}
+
+func clobL2CredentialsFromEnv() (auth.APIKey, bool) {
+	key := auth.APIKey{
+		Key:        firstEnv("POLYMARKET_CLOB_API_KEY", "CLOB_API_KEY"),
+		Secret:     firstEnv("POLYMARKET_CLOB_SECRET", "CLOB_SECRET"),
+		Passphrase: firstEnv("POLYMARKET_CLOB_PASSPHRASE", "CLOB_PASSPHRASE", "CLOB_PASS_PHRASE"),
+	}
+	if strings.TrimSpace(key.Key) == "" &&
+		strings.TrimSpace(key.Secret) == "" &&
+		strings.TrimSpace(key.Passphrase) == "" {
+		return auth.APIKey{}, false
+	}
+	return key, true
 }
 
 func validateBuilderCodeForCLI(builderCode string) error {

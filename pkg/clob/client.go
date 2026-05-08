@@ -24,6 +24,10 @@ type Config struct {
 	// BuilderCode is the optional V2 order builder attribution bytes32.
 	// Empty values sign orders with the zero bytes32 builder code.
 	BuilderCode string
+	// Credentials are pre-provisioned CLOB L2 HMAC credentials. When set,
+	// authenticated deposit-wallet calls use them instead of deriving a key
+	// through /auth/derive-api-key.
+	Credentials APIKey
 }
 
 // DefaultConfig returns production CLOB defaults.
@@ -43,6 +47,9 @@ func NewClient(cfg Config) *Client {
 	}
 	inner := internalclob.NewClient(cfg.BaseURL, nil)
 	inner.SetBuilderCode(cfg.BuilderCode)
+	if apiKeyConfigured(cfg.Credentials) {
+		inner.SetL2Credentials(apiKeyToInternal(cfg.Credentials))
+	}
 	return &Client{inner: inner}
 }
 

@@ -230,6 +230,56 @@ func TestCreateLimitOrderUsesDepositWalletBoundL2Auth(t *testing.T) {
 	}
 }
 
+func TestCreateLimitOrderUsesConfiguredL2CredentialsWithoutDerive(t *testing.T) {
+	wantDepositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
+	var derived bool
+	var orderAddress string
+	var orderAPIKey string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/tick-size":
+			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.001","minimum_order_size":"1"}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		case "/auth/derive-api-key":
+			derived = true
+			http.Error(w, "derive should not be called", http.StatusTeapot)
+		case "/order":
+			orderAddress = r.Header.Get("POLY_ADDRESS")
+			orderAPIKey = r.Header.Get("POLY_API_KEY")
+			_, _ = w.Write([]byte(`{"success":true,"orderID":"0xabc","status":"live"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+	client.SetL2Credentials(auth.APIKey{Key: "configured-key", Secret: "c2VjcmV0", Passphrase: "pass"})
+
+	_, err := client.CreateLimitOrder(context.Background(), testOrderPrivateKey, CreateOrderParams{
+		TokenID:   "12345",
+		Side:      "buy",
+		Price:     "0.500000",
+		Size:      "2.000000",
+		OrderType: "GTC",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if derived {
+		t.Fatal("CreateLimitOrder called /auth/derive-api-key despite configured L2 credentials")
+	}
+	if !strings.EqualFold(orderAddress, wantDepositWallet) {
+		t.Fatalf("order POLY_ADDRESS=%s want deposit wallet %s", orderAddress, wantDepositWallet)
+	}
+	if orderAPIKey != "configured-key" {
+		t.Fatalf("POLY_API_KEY=%q want configured-key", orderAPIKey)
+	}
+}
+
 func TestCreateLimitOrderPostsConfiguredBuilderCode(t *testing.T) {
 	var posted map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -576,6 +626,47 @@ func TestCreateBatchOrdersPostsArrayToOrdersEndpoint(t *testing.T) {
 	}
 	if res.Orders[0].OrderID != "0xabc" || res.Orders[1].OrderID != "0xdef" {
 		t.Fatalf("order IDs=%v", []string{res.Orders[0].OrderID, res.Orders[1].OrderID})
+	}
+}
+
+func TestCreateBatchOrdersUsesConfiguredL2CredentialsWithoutDerive(t *testing.T) {
+	var derived bool
+	var orderAPIKey string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		case "/auth/derive-api-key":
+			derived = true
+			http.Error(w, "derive should not be called", http.StatusTeapot)
+		case "/orders":
+			orderAPIKey = r.Header.Get("POLY_API_KEY")
+			_, _ = w.Write([]byte(`[{"success":true,"orderID":"0xabc","status":"live"}]`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+	client.SetL2Credentials(auth.APIKey{Key: "configured-key", Secret: "c2VjcmV0", Passphrase: "pass"})
+
+	res, err := client.CreateBatchOrders(context.Background(), testOrderPrivateKey, []CreateOrderParams{
+		{TokenID: "12345", Side: "buy", Price: "0.500000", Size: "2.000000", OrderType: "GTC"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if derived {
+		t.Fatal("CreateBatchOrders called /auth/derive-api-key despite configured L2 credentials")
+	}
+	if orderAPIKey != "configured-key" {
+		t.Fatalf("POLY_API_KEY=%q want configured-key", orderAPIKey)
+	}
+	if len(res.Orders) != 1 || res.Orders[0].OrderID != "0xabc" {
+		t.Fatalf("response=%+v", res)
 	}
 }
 

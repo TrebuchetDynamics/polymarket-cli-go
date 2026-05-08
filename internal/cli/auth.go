@@ -58,8 +58,12 @@ is faster but may report a stale key as existing.`,
 			}
 
 			depositKeyExists := false
+			if key, ok := clobL2CredentialsFromEnv(); ok {
+				c.SetL2Credentials(key)
+				depositKeyExists = key.Validate() == nil
+			}
 			if deployed && checkDepositKey {
-				_, err := c.DeriveAPIKeyForAddress(cmd.Context(), privateKey, owner)
+				_, err := c.ListOrders(cmd.Context(), privateKey)
 				depositKeyExists = (err == nil)
 			}
 
@@ -111,8 +115,12 @@ func warnIfNoDepositKey(ctx context.Context, stderr io.Writer, privateKey string
 		return
 	}
 
+	if key, ok := clobL2CredentialsFromEnv(); ok && key.Validate() == nil {
+		return
+	}
+
 	c := clob.NewClient(clobBaseURL, nil)
-	_, err = c.DeriveAPIKeyForAddress(ctx, privateKey, owner)
+	_, err = c.DeriveAPIKeyForAddress(ctx, privateKey, depositWallet)
 	if err == nil {
 		return
 	}

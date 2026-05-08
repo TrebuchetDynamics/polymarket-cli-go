@@ -6,7 +6,7 @@
 // clients. The client also exposes the authenticated CLOB surface — API-key
 // minting, balance/allowance, order placement and cancellation — so a Go
 // SDK consumer can run the headless onboarding and trading flow described
-// in docs/BUILDER-AUTO.md without dropping into internal packages.
+// in docs/ONBOARDING.md without dropping into internal packages.
 //
 // When not to use this package:
 //   - For deposit wallet lifecycle (deploy / proxy / approvals) — that
@@ -61,6 +61,10 @@ type Config struct {
 	// BuilderCode is the optional V2 order builder attribution bytes32 used by
 	// authenticated CLOB order placement. Empty values use zero bytes32.
 	BuilderCode string
+	// CLOBCredentials are pre-provisioned CLOB L2 HMAC credentials used by
+	// authenticated CLOB account and trading calls. When set, the client does
+	// not call /auth/derive-api-key before those operations.
+	CLOBCredentials sdkclob.APIKey
 }
 
 // DefaultConfig returns production defaults.
@@ -91,6 +95,7 @@ func NewClient(cfg Config) *Client {
 	cr := sdkclob.NewClient(sdkclob.Config{
 		BaseURL:     cfg.CLOBBaseURL,
 		BuilderCode: cfg.BuilderCode,
+		Credentials: cfg.CLOBCredentials,
 	})
 	dc := sdkdata.NewClient(sdkdata.Config{BaseURL: cfg.DataBaseURL})
 

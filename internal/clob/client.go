@@ -18,8 +18,9 @@ import (
 // Client provides read-only access to the Polymarket CLOB API.
 // Base URL: https://clob.polymarket.com
 type Client struct {
-	transport   *transport.Client
-	builderCode string
+	transport     *transport.Client
+	builderCode   string
+	l2Credentials *auth.APIKey
 }
 
 const polygonChainID = 137
@@ -51,6 +52,13 @@ func NewClient(baseURL string, tc *transport.Client) *Client {
 // SetBuilderCode configures the V2 order builder attribution bytes32.
 func (c *Client) SetBuilderCode(builderCode string) {
 	c.builderCode = builderCode
+}
+
+// SetL2Credentials configures pre-provisioned CLOB L2 credentials for
+// authenticated deposit-wallet requests. When set, authenticated CLOB calls
+// use these HMAC credentials instead of deriving a key through L1 auth.
+func (c *Client) SetL2Credentials(key auth.APIKey) {
+	c.l2Credentials = &key
 }
 
 // Health checks the CLOB API is reachable.
@@ -314,11 +322,35 @@ func (c *Client) depositWalletAPIKey(ctx context.Context, privateKey string) (au
 	if err != nil {
 		return auth.APIKey{}, "", err
 	}
-	key, err := c.DeriveAPIKeyForAddress(ctx, privateKey, depositWallet)
+	key, err := c.depositWalletAPIKeyForAddress(ctx, privateKey, depositWallet)
 	if err != nil {
 		return auth.APIKey{}, "", err
 	}
 	return key, depositWallet, nil
+}
+
+func (c *Client) depositWalletAPIKeyForAddress(ctx context.Context, privateKey, depositWallet string) (auth.APIKey, error) {
+	if key, ok := c.configuredL2Credentials(); ok {
+		return key, nil
+	}
+	key, err := c.DeriveAPIKeyForAddress(ctx, privateKey, depositWallet)
+	if err != nil {
+		return auth.APIKey{}, err
+	}
+	return key, nil
+}
+
+func (c *Client) configuredL2Credentials() (auth.APIKey, bool) {
+	if c.l2Credentials == nil {
+		return auth.APIKey{}, false
+	}
+	key := *c.l2Credentials
+	if strings.TrimSpace(key.Key) == "" &&
+		strings.TrimSpace(key.Secret) == "" &&
+		strings.TrimSpace(key.Passphrase) == "" {
+		return auth.APIKey{}, false
+	}
+	return key, true
 }
 
 func balanceAllowancePath(base string, params BalanceAllowanceParams) string {

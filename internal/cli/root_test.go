@@ -521,6 +521,46 @@ func TestBuilderCodeFromFlagOrEnv(t *testing.T) {
 	}
 }
 
+func TestCLOBL2CredentialsFromEnvUsesCanonicalNames(t *testing.T) {
+	t.Setenv("POLYMARKET_CLOB_API_KEY", "clob-key")
+	t.Setenv("POLYMARKET_CLOB_SECRET", "clob-secret")
+	t.Setenv("POLYMARKET_CLOB_PASSPHRASE", "clob-pass")
+
+	key, ok := clobL2CredentialsFromEnv()
+	if !ok {
+		t.Fatal("expected configured CLOB L2 credentials")
+	}
+	if key.Key != "clob-key" || key.Secret != "clob-secret" || key.Passphrase != "clob-pass" {
+		t.Fatalf("credentials=%+v", key)
+	}
+}
+
+func TestCLOBL2CredentialsFromEnvUsesShortAliases(t *testing.T) {
+	t.Setenv("CLOB_API_KEY", "clob-key")
+	t.Setenv("CLOB_SECRET", "clob-secret")
+	t.Setenv("CLOB_PASSPHRASE", "clob-pass")
+
+	key, ok := clobL2CredentialsFromEnv()
+	if !ok {
+		t.Fatal("expected configured CLOB L2 credentials")
+	}
+	if key.Key != "clob-key" || key.Secret != "clob-secret" || key.Passphrase != "clob-pass" {
+		t.Fatalf("credentials=%+v", key)
+	}
+}
+
+func TestCLOBL2CredentialsFromEnvTreatsPartialConfigAsConfigured(t *testing.T) {
+	t.Setenv("POLYMARKET_CLOB_API_KEY", "clob-key")
+
+	key, ok := clobL2CredentialsFromEnv()
+	if !ok {
+		t.Fatal("expected partial CLOB L2 config to be surfaced")
+	}
+	if key.Key != "clob-key" || key.Secret != "" || key.Passphrase != "" {
+		t.Fatalf("credentials=%+v", key)
+	}
+}
+
 func TestPreflightRejectsInvalidBuilderCodeEnv(t *testing.T) {
 	t.Setenv("POLYMARKET_BUILDER_CODE", "0x1234")
 

@@ -21,11 +21,14 @@ Generated command reference for `polygolem`.
 | `POLYMARKET_BUILDER_API_KEY` | Legacy builder-relayer fallback for deposit-wallet relayer commands. |
 | `POLYMARKET_BUILDER_SECRET` | Legacy builder-relayer fallback for deposit-wallet relayer commands. |
 | `POLYMARKET_BUILDER_PASSPHRASE` | Legacy builder-relayer fallback for deposit-wallet relayer commands. |
+| `POLYMARKET_CLOB_API_KEY` | Optional pre-provisioned CLOB L2 key for authenticated account and trading commands. |
+| `POLYMARKET_CLOB_SECRET` | Secret for `POLYMARKET_CLOB_API_KEY`. |
+| `POLYMARKET_CLOB_PASSPHRASE` | Passphrase for `POLYMARKET_CLOB_API_KEY`. |
 | `POLYMARKET_BUILDER_CODE` | Optional CLOB V2 order builder attribution bytes32. |
 | `POLYMARKET_CLOB_BUILDER_CODE` | Alias for `POLYMARKET_BUILDER_CODE`. |
 | `POLYMARKET_RELAYER_URL` | Optional relayer URL override. |
 
-Short-form `BUILDER_API_KEY`, `BUILDER_SECRET`, and `BUILDER_PASS_PHRASE` are also accepted for legacy relayer fallback credentials.
+Short-form `CLOB_API_KEY`, `CLOB_SECRET`, `CLOB_PASSPHRASE`, `CLOB_PASS_PHRASE`, `BUILDER_API_KEY`, `BUILDER_SECRET`, and `BUILDER_PASS_PHRASE` are also accepted for local automation.
 
 ## Automation Smoke Check
 

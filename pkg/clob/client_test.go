@@ -349,6 +349,47 @@ func TestClientAuthenticatedMethodsReturnPublicDTOs(t *testing.T) {
 	}
 }
 
+func TestClientUsesConfiguredCredentialsForAuthenticatedMethods(t *testing.T) {
+	var derived bool
+	var orderAPIKey string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			derived = true
+			http.Error(w, "derive should not be called", http.StatusTeapot)
+		case "/data/orders":
+			orderAPIKey = r.Header.Get("POLY_API_KEY")
+			_, _ = w.Write([]byte(`[{"id":"0xorder","status":"ORDER_STATUS_LIVE"}]`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{
+		BaseURL: server.URL,
+		Credentials: APIKey{
+			Key:        "configured-key",
+			Secret:     "c2VjcmV0",
+			Passphrase: "pass",
+		},
+	})
+	orders, err := client.ListOrders(context.Background(), testPrivateKey)
+	if err != nil {
+		t.Fatalf("ListOrders returned error: %v", err)
+	}
+	if derived {
+		t.Fatal("ListOrders called /auth/derive-api-key despite configured credentials")
+	}
+	if orderAPIKey != "configured-key" {
+		t.Fatalf("POLY_API_KEY=%q want configured-key", orderAPIKey)
+	}
+	if len(orders) != 1 || orders[0].ID != "0xorder" {
+		t.Fatalf("orders=%+v", orders)
+	}
+}
+
 func TestClientCreateLimitOrderUsesConfiguredBuilderCode(t *testing.T) {
 	var posted map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

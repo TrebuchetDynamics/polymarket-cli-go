@@ -339,6 +339,47 @@ func TestOrderRoutes(t *testing.T) {
 	}
 }
 
+func TestConfiguredCLOBCredentialsBypassDerive(t *testing.T) {
+	var derived bool
+	var orderAPIKey string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			derived = true
+			http.Error(w, "derive should not be called", http.StatusTeapot)
+		case "/data/orders":
+			orderAPIKey = r.Header.Get("POLY_API_KEY")
+			json.NewEncoder(w).Encode([]map[string]string{{"id": "0xabc", "status": "LIVE"}})
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{
+		CLOBBaseURL: srv.URL,
+		CLOBCredentials: sdkclob.APIKey{
+			Key:        "configured-key",
+			Secret:     "c2VjcmV0",
+			Passphrase: "pass",
+		},
+	})
+	orders, err := c.ListOrders(context.Background(), testPrivateKey)
+	if err != nil {
+		t.Fatalf("ListOrders error: %v", err)
+	}
+	if derived {
+		t.Fatal("ListOrders called /auth/derive-api-key despite configured CLOB credentials")
+	}
+	if orderAPIKey != "configured-key" {
+		t.Fatalf("POLY_API_KEY=%q want configured-key", orderAPIKey)
+	}
+	if len(orders) != 1 || orders[0].ID != "0xabc" {
+		t.Fatalf("orders=%+v", orders)
+	}
+}
+
 func TestCancelOrdersRoutes(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

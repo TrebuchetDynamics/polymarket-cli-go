@@ -225,7 +225,7 @@ func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, param
 	if err != nil {
 		return nil, err
 	}
-	key, err := c.DeriveAPIKeyForAddress(ctx, privateKey, depositWallet)
+	key, err := c.depositWalletAPIKeyForAddress(ctx, privateKey, depositWallet)
 	if err != nil {
 		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
@@ -583,7 +583,7 @@ func (c *Client) signAndPostOrder(ctx context.Context, privateKey string, draft 
 	if err != nil {
 		return nil, err
 	}
-	key, err := c.DeriveAPIKeyForAddress(ctx, privateKey, depositWallet)
+	key, err := c.depositWalletAPIKeyForAddress(ctx, privateKey, depositWallet)
 	if err != nil {
 		return nil, fmt.Errorf("derive deposit-wallet api key: %w", err)
 	}
