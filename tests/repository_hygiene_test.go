@@ -37,7 +37,8 @@ func TestRepositoryHygiene(t *testing.T) {
 		"Cargo.lock",
 		"Formula",
 		"install.sh",
-		"scripts",
+		"scripts/install.sh",
+		"scripts/release.sh",
 		"src",
 		".github/workflows/release.yml",
 		"cmd/polymarket",
@@ -47,6 +48,15 @@ func TestRepositoryHygiene(t *testing.T) {
 		} else if !os.IsNotExist(err) {
 			t.Fatalf("could not inspect %s: %v", unsafePath, err)
 		}
+	}
+	if entries, err := os.ReadDir(filepath.Join(root, "scripts")); err == nil {
+		for _, entry := range entries {
+			if entry.Name() != "playwright-capture" {
+				t.Fatalf("unexpected scripts path still exists: scripts/%s", entry.Name())
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("could not inspect scripts: %v", err)
 	}
 
 	// pkg/ is the approved public SDK boundary.
