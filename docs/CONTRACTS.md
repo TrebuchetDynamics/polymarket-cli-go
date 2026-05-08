@@ -134,18 +134,21 @@ This is pure local computation — no on-chain call needed for derivation.
 
 ### 4.2 How to Obtain
 
-**Manual web UI only.** Go to `polymarket.com/settings?tab=builder`, sign in with an Ethereum wallet, create a builder profile, click "+ Create New" to generate keys.
+Preferred V2 relayer keys are minted by `polygolem auth headless-onboard`
+through SIWE login plus `POST /relayer/api/auth`. The settings page remains a
+manual fallback for legacy builder-relayer HMAC credentials.
 
 - **No KYC required** for the Unverified tier
 - **Geoblock applies** — 33 restricted countries are blocked
 - **No programmatic endpoint** exists at `relayer-v2.polymarket.com/auth/api-key` (returns 404)
-- The web UI uses a browser-authenticated POST that cannot be replicated without login flow
+- The V2 relayer key endpoint is `relayer-v2.polymarket.com/relayer/api/auth`
+  and requires a SIWE-backed session.
 
 ### 4.3 Builder Credentials vs CLOB Auth
 
 | Auth System | Credentials | Scope |
 |------------|-------------|-------|
-| **Relayer auth** | `BUILDER_API_KEY` / `SECRET` / `PASSPHRASE` + HMAC-SHA256 | Wallet lifecycle (deploy, batch, approve) |
+| **Relayer auth** | `RELAYER_API_KEY` + `RELAYER_API_KEY_ADDRESS`, or legacy `BUILDER_API_KEY` / `SECRET` / `PASSPHRASE` + HMAC-SHA256 | Wallet lifecycle (deploy, batch, approve) |
 | **CLOB L1** | EOA private key + EIP-712 typed data signature | Create/derive CLOB API keys |
 | **CLOB L2** | CLOB `apiKey` / `secret` / `passphrase` + HMAC-SHA256 | Order placement, balance queries, trades |
 
@@ -191,14 +194,15 @@ The relayer pays gas for all on-chain operations. Users need pUSD for trading am
 
 ---
 
-## 6. The Irreducible Manual Step
+## 6. Headless Automation Boundary
 
-### 6.1 What CAN'T Be Automated
+### 6.1 What Is Automated
 
-1. **Builder credential issuance** — requires clicking "Create New" at `polymarket.com/settings?tab=builder`
-2. **Initial builder profile creation** — requires signing in with an Ethereum wallet and creating a profile
+1. **CLOB L2 credential issuance** — `polygolem builder auto`
+2. **V2 relayer key issuance** — `polygolem auth headless-onboard`
+3. **Builder fee key issuance** — `polygolem clob create-builder-fee-key`
 
-### 6.2 What CAN Be Automated (Everything Else)
+### 6.2 Wallet Lifecycle Automation
 
 1. Wallet address prediction (`derive`) — local CREATE2 computation
 2. Wallet deployment (`deploy`) — POST to relayer with builder creds

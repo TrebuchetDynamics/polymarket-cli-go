@@ -139,19 +139,22 @@ This is already implemented in `polygolem/internal/clob/orders.go` (636-byte out
 ### Prerequisites
 
 1. **EOA with private key** — you have this
-2. **Builder Program credentials** — get from [polymarket.com/settings?tab=builder](https://polymarket.com/settings?tab=builder)
+2. **V2 relayer credentials** — mint with `polygolem auth headless-onboard`
 3. **POL for gas** on Polygon (minimum ~50 POL reserve recommended)
 4. **pUSD** to fund the deposit wallet
 
-### Step 1: Get Builder Credentials
+### Step 1: Get CLOB and Relayer Credentials
 
-Go to [polymarket.com/settings?tab=builder](https://polymarket.com/settings?tab=builder) and create a builder profile. You'll receive credentials that authenticate with the relayer.
+Create or derive CLOB L2 credentials, then mint V2 relayer credentials:
 
 **Environment variables:**
 ```bash
-export POLYMARKET_BUILDER_API_KEY="your-builder-key"
-export POLYMARKET_BUILDER_SECRET="your-builder-secret"
-export POLYMARKET_BUILDER_PASSPHRASE="your-builder-passphrase"
+export POLYMARKET_PRIVATE_KEY="0x..."
+polygolem builder auto
+polygolem auth headless-onboard
+
+export RELAYER_API_KEY="your-relayer-key"
+export RELAYER_API_KEY_ADDRESS="0x..."
 # Optional: set custom relayer URL
 export POLYMARKET_RELAYER_URL="https://relayer-v2.polymarket.com"
 ```
@@ -259,7 +262,7 @@ Expected output shows non-zero balance and non-zero allowances.
 Orders must use:
 - `signatureType = 3` (POLY_1271)
 - `maker = depositWalletAddress`
-- `signer = depositWalletAddress`
+- `signer = owner EOA`
 - ERC-7739 wrapped signature
 
 Polygolem handles this automatically — sigtype 3 is the only type the SDK signs with.
@@ -275,7 +278,7 @@ Polygolem handles this automatically — sigtype 3 is the only type the SDK sign
 ### 5.2 "invalid authorization" on WALLET-CREATE
 
 **Root cause**: Builder/relayer credentials are missing or wrong format. Verify:
-1. You have a builder profile at polymarket.com/settings?tab=builder
+1. `RELAYER_API_KEY` and `RELAYER_API_KEY_ADDRESS` are set, or legacy builder HMAC credentials are set
 2. Environment variables are set correctly
 3. Try alternate header format if POLY_BUILDER_* fails
 
@@ -396,8 +399,9 @@ POLYMARKET_SIGNATURE_TYPE="deposit"  # for live trading
 If your bot is down with deposit wallet issues:
 
 - [ ] Confirm you're in the "new API user" category (EOA orders rejected)
-- [ ] Create builder profile at polymarket.com/settings?tab=builder
-- [ ] Set `POLYMARKET_BUILDER_API_KEY/SECRET/PASSPHRASE` env vars
+- [ ] Run `polygolem builder auto` for CLOB L2 credentials
+- [ ] Run `polygolem auth headless-onboard` for V2 relayer credentials
+- [ ] Set `RELAYER_API_KEY` / `RELAYER_API_KEY_ADDRESS` env vars
 - [ ] Run `polygolem deposit-wallet derive` — note the deposit wallet address
 - [ ] Run `polygolem deposit-wallet deploy --wait` — deploy the wallet
 - [ ] Transfer pUSD from EOA to deposit wallet address (ERC-20 transfer)

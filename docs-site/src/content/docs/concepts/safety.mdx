@@ -52,7 +52,7 @@ is the CLOB `maker`). These must never be confused:
 
 ### Builder Credential Isolation
 
-Builder credentials authenticate with the relayer for WALLET-CREATE and WALLET batch. They are a separate auth system and must never be:
+V2 relayer keys and legacy builder HMAC credentials authenticate with the relayer for WALLET-CREATE and WALLET batch. They are a separate auth system and must never be:
 - Reused as CLOB L2 credentials
 - Stored alongside CLOB API keys in the same config section
 - Added to order-signing headers (orders use `builderCode`, not builder HMAC)
@@ -68,7 +68,7 @@ When `signature_type = 3` (deposit), the CLOB balance endpoint returns the
 
 ### Relayer Auth vs Trading Auth
 
-- **Relayer auth**: Builder HMAC credentials → wallet lifecycle operations
+- **Relayer auth**: V2 relayer key or builder HMAC credentials → wallet lifecycle operations
 - **Trading auth**: CLOB L1/L2 credentials → order placement and balance queries
 - These systems are independent. A failed relayer call must not be retried as a CLOB call.
 

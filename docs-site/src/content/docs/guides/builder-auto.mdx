@@ -1,36 +1,51 @@
 ---
-title: Builder Auto — Zero-Browser Onboarding
-description: Onboard to Polymarket without a browser — generate a fresh key, create builder credentials programmatically, deploy a deposit wallet, and start trading.
+title: Headless V2 Onboarding
+description: Create CLOB L2 credentials, mint V2 relayer keys, deploy a deposit wallet, and attach builder attribution without a browser.
 ---
 
-Polygolem's `builder auto` command eliminates the last manual step in Polymarket onboarding. A fresh EOA key, signed once locally, creates a builder profile, builder code, and HMAC credentials — no browser, no polymarket.com visit, no webview.
+Polygolem splits the V2 setup into three credential systems:
 
-## The One-Command Pipeline
+- `builder auto` creates CLOB L2 credentials at `clob.polymarket.com/auth/api-key`.
+- `auth headless-onboard` performs SIWE login and mints `RELAYER_API_KEY` +
+  `RELAYER_API_KEY_ADDRESS` for deposit-wallet deploy and approval batches.
+- `clob create-builder-fee-key` creates the builder attribution value used in
+  the V2 order `builder` bytes32 field.
+
+## Pipeline
 
 ```bash
 # Step 1: Generate a fresh EOA
 openssl rand -hex 32 > key.txt
 
-# Step 2: Create builder profile + get HMAC credentials (programmatic, zero browser)
+# Step 2: Create or derive CLOB L2 credentials
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
   polygolem builder auto
 
-# Step 3: Deploy deposit wallet + approve + fund (all gas-sponsored)
+# Step 3: Mint a V2 relayer API key
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
-POLYMARKET_BUILDER_API_KEY="..." \
-POLYMARKET_BUILDER_SECRET="..." \
-POLYMARKET_BUILDER_PASSPHRASE="..." \
+  polygolem auth headless-onboard
+
+# Step 4: Mint a builder fee key, then export its key as a bytes32 builder code
+POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
+  polygolem clob create-builder-fee-key
+export POLYMARKET_BUILDER_CODE="0x..."
+
+# Step 5: Deploy deposit wallet + approve + fund
+POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
+RELAYER_API_KEY="..." \
+RELAYER_API_KEY_ADDRESS="..." \
   polygolem deposit-wallet onboard --fund-amount 10 --json
 
-# Step 4: Sync balance and trade
+# Step 6: Sync balance and trade
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
   polygolem clob update-balance --asset-type collateral
 
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
-  polygolem clob create-order --token <id> --side buy --price 0.5 --size 10
+  polygolem clob create-order --token <id> --side buy --price 0.5 --size 10 \
+    --builder-code "$POLYMARKET_BUILDER_CODE"
 ```
 
-## How It Works
+## CLOB L2 Credentials
 
 `builder auto` signs a **ClobAuth EIP-712** typed data message locally and posts it to `clob.polymarket.com/auth/api-key`:
 
@@ -49,37 +64,34 @@ EIP-712 typed data:
   message: "This message attests that I control the given wallet"
 ```
 
-The Polymarket backend **lazy-creates** on first contact:
-1. User account
-2. Builder profile (visible at `polymarket.com/settings?tab=builder`)
-3. `bytes32` builder code (for V2 order `builder` field attributes)
-4. HMAC triple: `{ apiKey, secret, passphrase }`
+The endpoint returns the CLOB L2 HMAC triple: `{ apiKey, secret, passphrase }`.
+Those credentials authenticate CLOB balances, orders, trades, cancellations,
+and same-address order placement.
 
 ## Idempotent
 
 Re-running `builder auto` for the same EOA returns the same credentials. The endpoint is idempotent — one EOA, one set of keys. Use `--force` to re-fetch and overwrite the local env file.
 
-## Validation
+## Relayer Keys
 
-The command validates by HMAC-signing a `GET /nonce` against `relayer-v2.polymarket.com` using the freshly-issued credentials. A successful response confirms the builder profile exists and the keys are valid.
+Relayer writes use a different key. `auth headless-onboard` signs a SIWE
+message with the EOA, exchanges it for a Gamma session, and mints the V2
+relayer key at `relayer-v2.polymarket.com/relayer/api/auth`.
 
-## The Same Credentials Work Everywhere
-
-The HMAC triple returned by `builder auto` authenticates against:
-- **CLOB v2 L2 endpoints** — order placement, cancellation, balance queries
-- **Relayer v2** — WALLET-CREATE, WALLET batch, nonce, deployment checks
-
-There is no separate "builder" vs "CLOB" credential type. One triple, both services.
+`deposit-wallet deploy`, `deposit-wallet approve`, and
+`deposit-wallet onboard` prefer `RELAYER_API_KEY` +
+`RELAYER_API_KEY_ADDRESS` when present.
 
 ## Cost to the User
 
 | Item | Cost |
 |------|------|
 | Generate EOA | Free |
-| Builder profile + creds | Free |
+| CLOB L2 creds | Free |
+| V2 relayer key | Free |
+| Builder fee key | Free |
 | Wallet deploy | Free (gas sponsored) |
 | Approvals (6 contracts) | Free (gas sponsored) |
-| All trading | Free (gas sponsored) |
 | **Fund wallet (one tx)** | **~$0.01 POL** |
 
 **Total: ~$0.01 POL + whatever pUSD you want to trade.** Everything else is free and automated.
@@ -95,8 +107,11 @@ final client = await Polydart.live(
   eoaAddress: '0x...',
 );
 
-// Builder profile created via ClobAuth
+// CLOB L2 credentials created via ClobAuth
 await client.builder.auto();
+
+// Relayer key minted via SIWE + relayer auth
+await client.auth.headlessOnboard();
 
 // Deploy wallet via server proxy → relayer
 await client.wallet.deploy();

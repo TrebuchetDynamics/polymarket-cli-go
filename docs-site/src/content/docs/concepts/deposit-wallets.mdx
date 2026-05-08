@@ -83,8 +83,10 @@ V2 orders include a `builder` field (bytes32). Upstream uses this builder code
 for order attribution. It is distinct from builder relayer credentials and does
 not use `POLY_BUILDER_*` HMAC headers on the order request.
 
-Polygolem currently signs orders with `builder = bytes32(0)`. Configurable
-non-zero builder attribution is tracked as an SDK/CLI gap.
+Polygolem signs orders with `builder = bytes32(0)` by default. Configure a
+non-zero builder code with `pkg/clob.Config.BuilderCode`,
+`pkg/universal.Config.BuilderCode`, CLI `--builder-code`, or
+`POLYMARKET_BUILDER_CODE`.
 
 Builder credentials (API key/secret/passphrase) are separate — used only for
 relayer auth (`WALLET-CREATE`, `WALLET` batch). Never mix builder creds with

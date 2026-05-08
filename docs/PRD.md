@@ -432,7 +432,7 @@ Requirements:
   size or USDC amount, order type, signature type, tick size, negative-risk
   flag, fee rate, nonce, expiration where required, signer, and funder.
 - V2 deposit-wallet orders must use `signatureType = 3`, `maker =
-  deposit_wallet`, `signer = deposit_wallet`, and an ERC-7739-wrapped
+  deposit_wallet`, `signer = owner EOA`, and an ERC-7739-wrapped
   `TypedDataSign` signature signed by the owner EOA or approved session signer.
 - Validate price range, tick-size multiple, minimum order size, side, order
   type, expiration for GTD, decimal precision, fee-rate consistency, and

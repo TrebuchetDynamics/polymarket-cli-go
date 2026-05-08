@@ -19,6 +19,76 @@ Source of truth for flag semantics: `polygolem <cmd> --help`.
 
 ## Commands
 
+### builder
+
+Manage CLOB L2 credentials and legacy builder-relayer HMAC credentials.
+
+**Usage:**
+
+```
+polygolem builder [flags]
+polygolem builder [command]
+```
+
+**Subcommands:** `auto`, `onboard`. Command group; see subcommands.
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | bool | `false` | Help for `builder`. |
+| `--json` | bool | `false` | Emit JSON output (global). |
+
+### builder auto
+
+Create or derive CLOB L2 credentials via ClobAuth and persist them to a local
+0600 env file.
+
+**Usage:**
+
+```
+polygolem builder auto [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--clob-url` | string | `""` | CLOB base URL (default: https://clob.polymarket.com). |
+| `--env-file` | string | `""` | Target env file (default: ../go-bot/.env.builder). |
+| `--force` | bool | `false` | Overwrite existing builder credentials. |
+| `-h, --help` | bool | `false` | Help for `auto`. |
+| `--no-validate` | bool | `false` | Skip the relayer HMAC liveness check. |
+| `--json` | bool | `false` | Emit JSON output (global). |
+
+**Example:**
+
+```bash
+POLYMARKET_PRIVATE_KEY="0x..." polygolem --json builder auto
+```
+
+### builder onboard
+
+Capture legacy builder-relayer HMAC credentials from the settings-page manual
+flow and persist them to a local 0600 env file.
+
+**Usage:**
+
+```
+polygolem builder onboard [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--env-file` | string | `""` | Target env file (default: ../go-bot/.env.builder). |
+| `--force` | bool | `false` | Overwrite existing builder credentials. |
+| `-h, --help` | bool | `false` | Help for `onboard`. |
+| `--no-validate` | bool | `false` | Skip the relayer HMAC liveness check. |
+| `--open-browser` | bool | `false` | Attempt to open polymarket.com/settings?tab=builder. |
+| `--json` | bool | `false` | Emit JSON output (global). |
+
 ### auth
 
 Inspect authentication readiness.
@@ -30,7 +100,7 @@ polygolem auth [flags]
 polygolem auth [command]
 ```
 
-**Subcommands:** `status`. Command group; see subcommands.
+**Subcommands:** `headless-onboard`, `status`. Command group; see subcommands.
 
 **Flags:**
 
@@ -83,15 +153,19 @@ polygolem clob [command]
 ```
 
 **Subcommands:** `balance`, `book`, `cancel`, `cancel-all`,
-`cancel-market`, `cancel-orders`, `create-api-key`, `create-order`, `market`,
-`market-order`, `markets`, `order`, `orders`, `price-history`, `tick-size`,
-`trades`, `update-balance`. Command group; see subcommands.
+`cancel-market`, `cancel-orders`, `create-api-key`,
+`create-api-key-for-address`, `create-builder-fee-key`, `create-order`,
+`list-builder-fee-keys`, `market`, `market-order`, `markets`, `order`,
+`orders`, `price-history`, `revoke-builder-fee-key`, `tick-size`, `trades`,
+`update-balance`. Command group; see subcommands.
 
 **Authenticated mutation note:** `cancel`, `cancel-orders`, `cancel-market`,
 and `cancel-all` require `POLYMARKET_PRIVATE_KEY` to derive L2 credentials, but
 they reduce or remove open exposure. `create-order` and `market-order` always
 sign as sigtype 3 (POLY_1271, deposit wallet) — the only signature type
-Polymarket V2 accepts since the 2026-04-28 cutover.
+Polymarket V2 accepts since the 2026-04-28 cutover. Builder attribution is
+configured with `--builder-code` or `POLYMARKET_BUILDER_CODE`; malformed
+bytes32 values fail preflight and never reach `/order`.
 
 **Flags:**
 
@@ -413,6 +487,33 @@ polygolem auth status [flags]
 polygolem --json auth status
 ```
 
+### auth headless-onboard
+
+Run SIWE login and mint a V2 relayer API key without a browser.
+
+**Usage:**
+
+```
+polygolem auth headless-onboard [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--env-file` | string | `""` | Target env file (default: ../go-bot/.env.relayer-v2). |
+| `--force` | bool | `false` | Overwrite existing env file. |
+| `--gamma-url` | string | `""` | Gamma API base URL (default: https://gamma-api.polymarket.com). |
+| `-h, --help` | bool | `false` | Help for `headless-onboard`. |
+| `--relayer-url` | string | `""` | Relayer base URL (default: https://relayer-v2.polymarket.com). |
+| `--json` | bool | `false` | Emit JSON output (global). |
+
+**Example:**
+
+```bash
+POLYMARKET_PRIVATE_KEY="0x..." polygolem --json auth headless-onboard
+```
+
 ### bridge assets
 
 List supported bridge assets.
@@ -533,6 +634,57 @@ polygolem clob create-api-key [flags]
 polygolem --json clob create-api-key
 ```
 
+### clob create-api-key-for-address
+
+Create CLOB API credentials for a deposit wallet or smart-wallet owner address
+while signing L1 auth with `POLYMARKET_PRIVATE_KEY`.
+
+**Usage:**
+
+```
+polygolem clob create-api-key-for-address [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | bool | `false` | Help for `create-api-key-for-address`. |
+| `--output` | string | `json` | Output format (json). |
+| `--owner` | string | `""` | Deposit wallet owner address. |
+| `--json` | bool | `false` | Emit JSON output (global). |
+
+**Example:**
+
+```bash
+polygolem --json clob create-api-key-for-address --owner 0xDepositWallet
+```
+
+### clob create-builder-fee-key
+
+Mint a CLOB builder fee key via `POST /auth/builder-api-key`. The returned
+`key` is the bytes32-compatible builder attribution value used by V2 orders.
+
+**Usage:**
+
+```
+polygolem clob create-builder-fee-key [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | bool | `false` | Help for `create-builder-fee-key`. |
+| `--output` | string | `json` | Output format (json). |
+| `--json` | bool | `false` | Emit JSON output (global). |
+
+**Example:**
+
+```bash
+polygolem --json clob create-builder-fee-key
+```
+
 ### clob create-order
 
 Create a signed CLOB limit order.
@@ -547,6 +699,7 @@ polygolem clob create-order [flags]
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--builder-code` | string | `""` | 0x-prefixed bytes32 builder attribution code. |
 | `-h, --help` | bool | `false` | Help for `create-order`. |
 | `--expiration` | string | `0` | Unix timestamp for GTD orders (`0` = no expiration). |
 | `--order-type` | string | `GTC` | Order type. |
@@ -565,6 +718,9 @@ polygolem --json clob create-order \
 polygolem --json clob create-order \
   --token <token-id> --side buy --price 0.51 --size 10 \
   --order-type GTD --expiration 1778125000
+polygolem --json clob create-order \
+  --token <token-id> --side buy --price 0.51 --size 10 \
+  --builder-code "$POLYMARKET_BUILDER_CODE"
 ```
 
 ### clob market
@@ -631,6 +787,7 @@ polygolem clob market-order [flags]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `--amount` | string | `""` | USDC amount. |
+| `--builder-code` | string | `""` | 0x-prefixed bytes32 builder attribution code. |
 | `-h, --help` | bool | `false` | Help for `market-order`. |
 | `--order-type` | string | `FOK` | Order type. |
 | `--output` | string | `json` | Output format (json). |
@@ -644,6 +801,55 @@ polygolem clob market-order [flags]
 ```bash
 polygolem --json clob market-order \
   --token <token-id> --side buy --amount 5
+```
+
+### clob list-builder-fee-keys
+
+List CLOB builder fee keys for the authenticated wallet.
+
+**Usage:**
+
+```
+polygolem clob list-builder-fee-keys [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | bool | `false` | Help for `list-builder-fee-keys`. |
+| `--output` | string | `json` | Output format (json). |
+| `--json` | bool | `false` | Emit JSON output (global). |
+
+**Example:**
+
+```bash
+polygolem --json clob list-builder-fee-keys
+```
+
+### clob revoke-builder-fee-key
+
+Revoke one CLOB builder fee key.
+
+**Usage:**
+
+```
+polygolem clob revoke-builder-fee-key [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | bool | `false` | Help for `revoke-builder-fee-key`. |
+| `--key` | string | `""` | Builder fee key to revoke. |
+| `--output` | string | `json` | Output format (json). |
+| `--json` | bool | `false` | Emit JSON output (global). |
+
+**Example:**
+
+```bash
+polygolem --json clob revoke-builder-fee-key --key "$POLYMARKET_BUILDER_CODE"
 ```
 
 ### clob orders
@@ -1800,6 +2006,10 @@ polygolem --json stream market --asset-ids <token-id-1>,<token-id-2> --max-messa
 | `POLYMARKET_BUILDER_API_KEY` | Deposit-wallet deploy/batch/onboard. |
 | `POLYMARKET_BUILDER_SECRET` | Deposit-wallet deploy/batch/onboard. |
 | `POLYMARKET_BUILDER_PASSPHRASE` | Deposit-wallet deploy/batch/onboard. |
+| `POLYMARKET_BUILDER_CODE` | Optional CLOB V2 order builder attribution. |
+| `POLYMARKET_CLOB_BUILDER_CODE` | Alias for `POLYMARKET_BUILDER_CODE`. |
+| `RELAYER_API_KEY` | V2 relayer deploy/batch/onboard auth. |
+| `RELAYER_API_KEY_ADDRESS` | Owner address for `RELAYER_API_KEY`. |
 | `POLYMARKET_RELAYER_URL` | Override relayer URL (default: relayer-v2.polymarket.com). |
 
 Short-form `BUILDER_API_KEY` / `BUILDER_SECRET` / `BUILDER_PASS_PHRASE` are

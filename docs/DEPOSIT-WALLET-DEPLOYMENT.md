@@ -96,24 +96,29 @@ POLYMARKET_PRIVATE_KEY="0x$(cat fresh_key.txt)" \
 
 ## 2. Prerequisites
 
-### 2.1 Builder Credentials
+### 2.1 CLOB and Relayer Credentials
 
-Preferred headless flow:
+Create CLOB L2 credentials:
 
 ```bash
 POLYMARKET_PRIVATE_KEY="0x..." polygolem builder auto
 ```
 
 This signs the canonical ClobAuth EIP-712 message locally, calls
-`/auth/api-key`, validates the returned HMAC credentials against the relayer,
-and writes them to a local env file with `0600` permissions. No browser or
-wallet UI is required for the automated path.
+`/auth/api-key`, and writes CLOB L2 credentials to a local env file with `0600`
+permissions.
+
+Create V2 relayer credentials for deploy and approval batches:
+
+```bash
+POLYMARKET_PRIVATE_KEY="0x..." polygolem auth headless-onboard
+```
 
 Manual fallback:
 
 1. Open `polymarket.com/settings?tab=builder` in a browser
 2. Sign in with your Ethereum wallet (MetaMask, Rabby, etc.)
-3. Click **"+ Create New"** to generate Relayer API keys
+3. Click **"+ Create New"** to generate legacy builder-relayer HMAC keys
 4. Copy these three values:
 
 | Variable | Source |
@@ -382,9 +387,12 @@ The proxy:
 | Variable | Required for |
 |----------|-------------|
 | `POLYMARKET_PRIVATE_KEY` | All authenticated commands |
-| `POLYMARKET_BUILDER_API_KEY` | Relayer: deploy, batch, onboard |
-| `POLYMARKET_BUILDER_SECRET` | Relayer: deploy, batch, onboard |
-| `POLYMARKET_BUILDER_PASSPHRASE` | Relayer: deploy, batch, onboard |
+| `RELAYER_API_KEY` | Preferred V2 relayer deploy/batch/onboard auth |
+| `RELAYER_API_KEY_ADDRESS` | Owner address for `RELAYER_API_KEY` |
+| `POLYMARKET_BUILDER_API_KEY` | Legacy relayer deploy/batch/onboard auth |
+| `POLYMARKET_BUILDER_SECRET` | Legacy relayer deploy/batch/onboard auth |
+| `POLYMARKET_BUILDER_PASSPHRASE` | Legacy relayer deploy/batch/onboard auth |
+| `POLYMARKET_BUILDER_CODE` | Optional CLOB V2 order builder attribution |
 | `POLYMARKET_GAMMA_URL` | Override Gamma URL (default: `gamma-api.polymarket.com`) |
 | `POLYMARKET_CLOB_URL` | Override CLOB URL (default: `clob.polymarket.com`) |
 | `POLYMARKET_RELAYER_URL` | Override relayer URL (default: `relayer-v2.polymarket.com`) |
@@ -444,4 +452,4 @@ Short-form alternatives (`BUILDER_API_KEY`, `BUILDER_SECRET`, `BUILDER_PASS_PHRA
 
 ---
 
-*This document defines the complete deposit wallet deployment pipeline as implemented in polygolem. Every step is live-tested against Polymarket production. Builder credential issuance is automated by `polygolem builder auto`; the browser flow remains only as a manual fallback.*
+*This document defines the complete deposit wallet deployment pipeline as implemented in polygolem. CLOB L2 credentials are automated by `polygolem builder auto`; V2 relayer credentials are automated by `polygolem auth headless-onboard`; the browser flow remains only as a manual fallback for legacy builder-relayer HMAC keys.*

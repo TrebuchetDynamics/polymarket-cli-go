@@ -20,11 +20,15 @@ order books through `pkg/orderbook`, and facade methods through
 | Public | None | Books, prices, spreads, market lists, price history |
 | CLOB L1 | EOA EIP-712 `ClobAuth` signature | Create or derive CLOB API credentials |
 | CLOB L2 | `POLY_ADDRESS`, `POLY_API_KEY`, `POLY_PASSPHRASE`, `POLY_TIMESTAMP`, `POLY_SIGNATURE` | Post orders, cancel orders, balances, user orders, trades |
-| Relayer | `POLYMARKET_BUILDER_API_KEY`, `POLYMARKET_BUILDER_SECRET`, `POLYMARKET_BUILDER_PASSPHRASE` | Deposit-wallet deploy and `WALLET` batches |
+| CLOB builder fee | L2-authenticated `POST /auth/builder-api-key` | V2 order `builder` bytes32 attribution |
+| Relayer | `RELAYER_API_KEY` + `RELAYER_API_KEY_ADDRESS`, or legacy `POLYMARKET_BUILDER_API_KEY` / `POLYMARKET_BUILDER_SECRET` / `POLYMARKET_BUILDER_PASSPHRASE` | Deposit-wallet deploy and `WALLET` batches |
 
 Builder relayer credentials are not CLOB L2 credentials. CLOB V2 order
 attribution is the order's `builder` bytes32 field, not `POLY_BUILDER_*`
-headers. Polygolem currently signs orders with `builder = bytes32(0)`.
+headers. Polygolem signs zero attribution by default and accepts a non-zero
+builder code through `pkg/clob.Config.BuilderCode`,
+`pkg/universal.Config.BuilderCode`, CLI `--builder-code`, or
+`POLYMARKET_BUILDER_CODE`.
 
 <Aside type="caution">
 Do not reuse builder relayer secrets as CLOB L2 secrets in your own
@@ -56,6 +60,10 @@ Authenticated commands:
 
 ```bash
 polygolem clob create-api-key
+polygolem clob create-api-key-for-address --owner <deposit-wallet>
+polygolem clob create-builder-fee-key
+polygolem clob list-builder-fee-keys
+polygolem clob revoke-builder-fee-key --key <builder-code>
 polygolem clob balance        --asset-type collateral
 polygolem clob update-balance --asset-type collateral
 
@@ -70,10 +78,12 @@ polygolem clob cancel-market  --asset <token-id>
 polygolem clob cancel-all
 
 polygolem clob create-order \
-  --token <token-id> --side buy --price 0.5 --size 10
+  --token <token-id> --side buy --price 0.5 --size 10 \
+  --builder-code "$POLYMARKET_BUILDER_CODE"
 
 polygolem clob market-order \
-  --token <token-id> --side buy --amount 5
+  --token <token-id> --side buy --amount 5 \
+  --builder-code "$POLYMARKET_BUILDER_CODE"
 ```
 
 `cancel-market` requires at least one filter in polygolem. Use `cancel-all` for
@@ -96,6 +106,10 @@ the upstream "omit both filters" behavior.
 | `Markets` | `GET /markets` | Public | Cursor pagination |
 | `Market` | `GET /clob-markets/{condition_id}` | Public | One CLOB market with compact V2 fields expanded into SDK DTOs |
 | `CreateOrDeriveAPIKey` | `POST /auth/api-key`, then `GET /auth/derive-api-key` fallback | L1 | Returns L2 `{ apiKey, secret, passphrase }` |
+| `CreateAPIKeyForAddress` | `POST /auth/api-key` with owner override | L1 + ERC-1271 owner | Creates L2 credentials owned by a deployed deposit/smart wallet |
+| `CreateBuilderFeeKey` | `POST /auth/builder-api-key` | L2 | Mints a builder fee key for V2 order attribution |
+| `ListBuilderFeeKeys` | `GET /auth/builder-api-keys` | L2 | Lists existing builder fee keys |
+| `RevokeBuilderFeeKey` | `DELETE /auth/builder-api-key/{key}` | L2 | Deletes one builder fee key |
 | `BalanceAllowance` | `GET /balance-allowance` | L2 | Use `signature_type=3` for deposit wallet balances |
 | `UpdateBalanceAllowance` | `GET /balance-allowance/update` | L2 | Refreshes CLOB balance cache |
 | `CreateLimitOrder` / `CreateMarketOrder` | `POST /order` | L2 + order signature | Signs V2 order locally, then posts |
@@ -150,7 +164,7 @@ The POST body shape is:
   "order": {
     "salt": 12345,
     "maker": "0xDepositWallet",
-    "signer": "0xDepositWallet",
+    "signer": "0xOwnerEOA",
     "tokenId": "123...",
     "makerAmount": "5000000",
     "takerAmount": "10000000",
@@ -169,10 +183,10 @@ The POST body shape is:
 }
 ```
 
-For `signatureType = 3` (`POLY_1271`), `maker` and `signer` are the deposit
-wallet address. The owner EOA signs an ERC-7739 `TypedDataSign` wrapper that
-the deposit wallet validates through ERC-1271. Polygolem's wrapped signature is
-`0x` plus 634 hex chars:
+For `signatureType = 3` (`POLY_1271`), `maker` is the deposit wallet and
+`signer` is the owner EOA, matching the current upstream client shape. The owner
+EOA signs an ERC-7739 `TypedDataSign` wrapper that the deposit wallet validates
+through ERC-1271. Polygolem's wrapped signature is `0x` plus 634 hex chars:
 
 ```text
 innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186)
@@ -195,7 +209,6 @@ live CLOB order and balance command to `deposit`.
 These upstream V2 capabilities are not yet exposed as stable polygolem SDK/CLI
 contracts:
 
-- Configured non-zero `builderCode` / `builder` attribution on orders.
 - Batch order placement (`POST /orders`) for multiple new orders.
 - Authenticated user WebSocket stream. Authenticated REST account/order/trading
   DTOs are public through `pkg/clob`.

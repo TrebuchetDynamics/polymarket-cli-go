@@ -11,7 +11,7 @@ Polygolem interacts with three distinct Polymarket credential systems. They are 
 |-----------|----------|--------------|-----------|----------|
 | **CLOB L2 Trading Key** | `POST /auth/api-key` | L1 EIP-712 (EOA signs) | ✅ Yes — `builder auto` | Order placement, balance queries, trade history |
 | **Builder Fee Key** | `POST /auth/builder-api-key` | L2 HMAC (existing L2 creds) | ✅ Yes — `CreateBuilderFeeKey` | V2 order `builder` field attribution |
-| **Relayer API Key** | `POST /relayer/api/auth` | Cookie (Gamma session) | ❌ Browser-gated | WALLET-CREATE, WALLET batch, relayer operations |
+| **Relayer API Key** | `POST /relayer/api/auth` | SIWE-backed Gamma session | ✅ Yes — `auth headless-onboard` | WALLET-CREATE, WALLET batch, relayer operations |
 
 ### Builder Fee Key (headless, new)
 
@@ -23,11 +23,18 @@ feeKey, err := client.CreateBuilderFeeKey(ctx, privateKey)
 // feeKey.Key → used as builderCode in V2 order struct
 ```
 
-This is distinct from the Relayer API Key which gates `/relayer/api/auth` behind a cookie from `/login/internal`.
+This is distinct from the Relayer API Key, which is minted through the
+SIWE-backed `auth headless-onboard` flow and used by relayer `WALLET-CREATE`
+and `WALLET` batch calls.
 
-### Relayer API Key (cookie-gated)
+### Relayer API Key (SIWE-backed)
 
-The relayer's `/relayer/api/auth` endpoint requires a Gamma session cookie — obtained through a browser-mediated wallet challenge at `/login/internal`. This is the true gate: Relayer API Key issuance cannot be fully automated without characterizing the `/login/internal` flow (SIWE-style vs CSRF + fingerprinting). See [Sub-investigation: /login/internal](#logininternal-sub-investigation).
+The relayer's `/relayer/api/auth` endpoint requires a Gamma session cookie.
+Polygolem obtains that cookie headlessly with EIP-4361 SIWE against
+`gamma-api.polymarket.com/login`, then mints and persists
+`RELAYER_API_KEY` + `RELAYER_API_KEY_ADDRESS` via
+`polygolem auth headless-onboard`. The settings-page button remains a manual
+fallback, not the primary path.
 
 ## Empirical proof
 
@@ -60,18 +67,26 @@ The well-formed end-to-end path is therefore:
 
 1. Mint CLOB L2 trading creds via `polygolem builder auto` (`POST /auth/api-key`, headless).
 2. Mint a CLOB Builder Fee Key via `polygolem clob create-builder-fee-key` (`POST /auth/builder-api-key`, headless — needs L2 creds from step 1).
-3. Mint a Relayer API Key via the **browser click** on `polymarket.com/settings?tab=builder` → "Create". This is the only step that currently requires a browser; see the "Relayer API Key" row in § Three Credential Types and § `/login/internal` sub-investigation below.
+3. Mint a Relayer API Key via `polygolem auth headless-onboard` (SIWE login + `POST /relayer/api/auth`).
 4. Deploy the deposit wallet via `polygolem deposit-wallet deploy` (`POST relayer-v2/submit`, gated on the Relayer API Key from step 3).
-5. Mint a CLOB API key **owned by the deposit wallet**, not the EOA. (Run `clob create-api-key` after step 4 with the deposit wallet as signer; this is what unblocks `/order` validation.)
+5. Mint a CLOB API key **owned by the deposit wallet**, not the EOA, when an owner-scoped key is required: `polygolem clob create-api-key-for-address --owner <deposit-wallet>`.
 6. Submit orders signed by the deposit wallet (sigtype 3).
 
 > Empirically verified 2026-05-07 against profiled EOA `0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C`: registering a builder code without minting a Relayer API Key still returns `HTTP 401 invalid authorization` from `relayer-v2/submit`. The "Builder Keys: No builder API keys yet" UI label refers specifically to the Relayer API Key row.
 
 ## Full onboarding sequence
 
-The minimum the user provides end-to-end is **(1) an EOA private key**, **(2) one click on `polymarket.com/settings?tab=builder` to mint Builder API Keys**, and **(3) one USDC/pUSD transfer**. Everything else — CLOB L2 creds, deposit-wallet deploy, V2 approvals — happens via signatures the app generates locally and HTTP calls the app makes on the user's behalf. The deploy and approval transactions are paid by the Polymarket relayer; only the funding transfer comes from the user.
+The minimum the user provides end-to-end is **(1) an EOA private key** and
+**(2) one USDC/pUSD transfer**. Everything else — CLOB L2 creds, V2 relayer
+keys, deposit-wallet deploy, V2 approvals, and builder-code attribution —
+happens via signatures the app generates locally and HTTP calls the app makes
+on the user's behalf. The deploy and approval transactions are paid by the
+Polymarket relayer; only the funding transfer comes from the user.
 
-> The browser click in step 2 is the gate that the rest of polygolem cannot work around. Once the user has Builder API Keys, the remaining flow is fully automated — but until then, `deposit-wallet deploy` will return `HTTP 401 invalid authorization` from the relayer.
+> Earlier revisions treated the settings-page click as mandatory. The current
+> CLI uses `auth headless-onboard` to mint the V2 relayer key without a
+> browser. If relayer credentials are missing, `deposit-wallet deploy` returns
+> `HTTP 401 invalid authorization`.
 
 ```mermaid
 sequenceDiagram
@@ -92,9 +107,10 @@ sequenceDiagram
     A->>C: POST /auth/builder-api-key<br/>(L2 HMAC headers)
     C-->>A: { key, secret, passphrase }<br/>→ goes in V2 order builder field
 
-    Note over U,A: Step 3 — Relayer API Key (manual browser click — see § sub-investigation)
-    U->>U: open polymarket.com/settings?tab=builder<br/>→ click "Create" under Builder Keys
-    U->>A: paste RELAYER_API_KEY + RELAYER_API_KEY_ADDRESS into env
+    Note over U,A,R: Step 3 — Relayer API Key (headless SIWE)
+    A->>C: SIWE login at gamma-api.polymarket.com/login
+    A->>R: POST /relayer/api/auth
+    R-->>A: RELAYER_API_KEY + RELAYER_API_KEY_ADDRESS
 
     Note over A,P: Step 4 — deploy deposit wallet (relayer pays gas)
     A->>A: sign DepositWallet Batch EIP-712
@@ -187,11 +203,11 @@ A new EOA's first signed `POST /auth/api-key` issues an HMAC triple
 endpoints (`GET /nonce`, `GET /deployed`). HMAC verifies on the server
 side; the EOA can poll its own nonce and deployment status.
 
-**Relayer writes — gated on Builder API Keys.** The relayer's
+**Relayer writes — gated on Relayer API Keys.** The relayer's
 `POST /submit` endpoint (used for `WALLET-CREATE`, `WALLET` batches)
 returns `HTTP 401 invalid authorization` for any EOA whose triple was
-issued by `/auth/api-key` rather than by the browser-side **Builder
-Keys** issuer. Verified 2026-05-07:
+issued by `/auth/api-key` rather than by the V2 relayer key issuer.
+Verified 2026-05-07 before `auth headless-onboard` was implemented:
 
 - Throwaway EOA `0xf76Ca737f9c768fc3562fbFbF8A748A4718f2a61` (no
   browser interaction): builder-auto succeeded, `/nonce` + `/deployed`
@@ -200,9 +216,8 @@ Keys** issuer. Verified 2026-05-07:
   builder code, builder enabled, **no Builder Keys minted**):
   same result — `/submit` 401.
 
-The settings page makes the distinction explicit: "Builder Keys: No
-builder API keys yet. Create one to get started." The "Create" button
-is what mints relayer-write creds; `/auth/api-key` does not.
+The settings page's "Create" button and `polygolem auth headless-onboard`
+both mint relayer-write creds; `/auth/api-key` does not.
 
 **CLOB writes — sigtype 3 only.** `clob.polymarket.com/order` accepts
 sigtype 3 (deposit wallet) and nothing else; sigtypes 0/1/2 return
@@ -220,17 +235,17 @@ So the canonical onboarding **today** is:
 | Mint CLOB L2 creds (read access + signing identity) | `polygolem builder auto` | ✅ headless |
 | Authenticate relayer reads (`/nonce`, `/deployed`) | same creds | ✅ headless |
 | Mint CLOB Builder Fee Key (`/auth/builder-api-key`) | `polygolem clob create-builder-fee-key` | ✅ headless |
-| Mint **Relayer API Key** (`/relayer/api/auth`) | `polymarket.com/settings?tab=builder` → "Create" | ❌ browser only — see § sub-investigation |
+| Mint **Relayer API Key** (`/relayer/api/auth`) | `polygolem auth headless-onboard` | ✅ headless |
 | Deploy deposit wallet (`WALLET-CREATE` via `/submit`) | `polygolem deposit-wallet deploy` | ✅ headless after Relayer API Key exists |
 | Approve V2 spenders (6× ERC-20/ERC-1155 approvals) | `polygolem deposit-wallet approve` | ✅ headless |
-| Mint a deposit-wallet-owned CLOB API key | (TBD — see below) | not yet wired |
+| Mint a deposit-wallet-owned CLOB API key | `polygolem clob create-api-key-for-address --owner <deposit-wallet>` | ✅ headless |
 | Place orders (sigtype 3) | `polygolem clob create-order` | ✅ headless after the key swap |
 
 Earlier revisions of this doc claimed the first `/auth/api-key` POST
 lazy-created the full builder profile end-to-end. That was over-stated
 based on a single observation against an EOA that already had a
 manually-created profile and Relayer API Keys. They also conflated the
-CLOB Builder Fee Key (headless) with the Relayer API Key (browser-gated)
+CLOB Builder Fee Key (headless) with the Relayer API Key (now headless via SIWE)
 under one "Builder API Keys" label. The corrected behaviour and split
 above is what production enforces today.
 
@@ -276,14 +291,14 @@ above is what production enforces today.
 | Generate EOA key | Free | N/A |
 | CLOB L2 creds (`builder auto`) | Free, headless | N/A |
 | CLOB Builder Fee Key (`clob create-builder-fee-key`) | Free, headless | N/A |
-| **Mint Relayer API Key** (one browser click on `polymarket.com/settings?tab=builder`) | Free, manual | User |
+| **Mint Relayer API Key** (`auth headless-onboard`) | Free, headless | N/A |
 | Wallet deploy | Free (gas sponsored) | Polymarket relayer |
 | 6 contract approvals | Free (gas sponsored) | Polymarket relayer |
 | Place orders | Free (gas sponsored) | Polymarket relayer |
 | **Fund wallet (one tx)** | **~$0.01 POL** | **User** |
 | pUSD to trade with | Whatever you deposit | User (your money) |
 
-**Total hard cost to user:** ~$0.01 in POL gas for one transfer plus one browser click to mint Builder API Keys. Everything else is automated.
+**Total hard cost to user:** ~$0.01 in POL gas for one transfer. Everything else is automated.
 
 ---
 
@@ -423,7 +438,10 @@ interface IDepositWalletFactory {
 
 | Command | What it does | Gas Cost |
 |---------|-------------|----------|
-| `polygolem builder auto` | Create builder profile + HMAC creds (ClobAuth EIP-712) | Free |
+| `polygolem builder auto` | Create or derive CLOB L2 creds (ClobAuth EIP-712) | Free |
+| `polygolem auth headless-onboard` | Mint V2 relayer API key via SIWE | Free |
+| `polygolem clob create-builder-fee-key` | Mint CLOB builder attribution key | Free |
+| `polygolem clob create-api-key-for-address --owner <wallet>` | Mint owner-scoped CLOB L2 creds | Free |
 | `polygolem deposit-wallet derive` | Predict CREATE2 wallet address (local) | Free |
 | `polygolem deposit-wallet status` | Check deployed?, approvals?, balance? | Free |
 | `polygolem deposit-wallet deploy --wait` | WALLET-CREATE via relayer | Sponsored |
@@ -439,8 +457,8 @@ interface IDepositWalletFactory {
 
 `docs/BUILDER-CREDENTIAL-ISSUANCE.md` asserted that builder creds are gated behind a Polymarket session cookie and that `/auth/api-key` only issues "CLOB L2" creds (a separate type from "Builder API Keys").
 
-**The two-cred-types observation was correct.** As of the V2 cutover, `/auth/api-key` issues CLOB L2 creds, and Builder API Keys are a distinct triple minted only by the browser flow at `polymarket.com/settings?tab=builder`. See § Two distinct cred types above for the empirical 401 evidence.
+**The two-cred-types observation was correct.** As of the V2 cutover, `/auth/api-key` issues CLOB L2 creds, and Relayer API Keys are a distinct key minted by `auth headless-onboard` or the settings page. See § Three Credential Types above for the empirical 401 evidence.
 
-**The session-cookie claim was wrong.** The browser's wallet popup signs a standard ClobAuth EIP-712 payload identical to what polygolem signs in `builder auto`. There is no proprietary session-cookie handshake on the wire; the mint is gated by the **frontend's "Create" button calling a different endpoint**, not by anything that strictly needs a browser. A future polygolem revision could reach the same endpoint headlessly once we identify it; until then the manual step stands.
+**The session-cookie claim was wrong.** The browser flow mints a standard session through SIWE; polygolem now reproduces that flow headlessly and then calls the relayer key endpoint.
 
-**Bottom line:** `polygolem builder auto` is the headless half of the onboarding flow. Minting Builder API Keys is the manual half, and is currently load-bearing for every relayer-write code path (`deposit-wallet deploy/approve`, on-order builder attribution).
+**Bottom line:** `polygolem builder auto` mints CLOB L2 creds, `polygolem auth headless-onboard` mints relayer creds, and `polygolem clob create-builder-fee-key` mints order-attribution keys.

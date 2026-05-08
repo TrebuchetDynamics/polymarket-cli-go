@@ -67,8 +67,9 @@ introduces safety rules beyond the direct EOA model.
 
 ### Signer vs Funder Separation
 
-The EOA remains the signing key. The deposit wallet is the funder (the address that
-holds pUSD and is the CLOB `maker`/`signer`). These must never be confused:
+The EOA remains the signing key. The deposit wallet is the funder (the address
+that holds pUSD and is the CLOB `maker`; the order `signer` is the owner EOA in
+the current V2 payload). These must never be confused:
 
 - **EOA pUSD does NOT fund deposit-wallet orders.** CLOB reads the deposit wallet's balance.
 - **Approvals must come from the deposit wallet** via relayer WALLET batch, not from the EOA.
@@ -76,9 +77,10 @@ holds pUSD and is the CLOB `maker`/`signer`). These must never be confused:
 
 ### Builder Credential Isolation
 
-Builder credentials (`BUILDER_API_KEY/SECRET/PASSPHRASE`) authenticate with the
-relayer for WALLET-CREATE and WALLET batch operations. These are a separate auth
-system and must never be:
+V2 relayer keys (`RELAYER_API_KEY` / `RELAYER_API_KEY_ADDRESS`) and legacy
+builder HMAC credentials (`BUILDER_API_KEY/SECRET/PASSPHRASE`) authenticate
+with the relayer for WALLET-CREATE and WALLET batch operations. These are a
+separate auth system and must never be:
 
 - Reused as CLOB L2 credentials
 - Stored alongside CLOB API keys in the same config section
@@ -86,7 +88,7 @@ system and must never be:
 
 ### Relayer Auth vs Trading Auth
 
-- **Relayer auth**: Builder HMAC credentials → used for wallet lifecycle operations
+- **Relayer auth**: V2 relayer key or builder HMAC credentials → used for wallet lifecycle operations
 - **Trading auth**: CLOB L1/L2 credentials → used for order placement and balance queries
 - These systems are independent. A failed relayer call must not be retried as a CLOB call.
 

@@ -82,6 +82,7 @@ type Client struct { /* unexported fields */ }
 
 type Config struct {
     BaseURL string
+    BuilderCode string
 }
 
 func NewClient(cfg Config) *Client
@@ -117,6 +118,7 @@ func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor strin
 
 ```go
 func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (APIKey, error)
+func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (APIKey, error)
 func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (APIKey, error)
 func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (APIKey, error)
 func (c *Client) ListBuilderFeeKeys(ctx context.Context, privateKey string) ([]BuilderFeeKeyRecord, error)
@@ -384,6 +386,7 @@ type Config struct {
     GammaBaseURL string
     CLOBBaseURL  string
     DataBaseURL  string
+    BuilderCode  string
 }
 ```
 
@@ -460,10 +463,11 @@ func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor strin
 func (c *Client) HealthCheck(ctx context.Context) (HealthResponse, error)
 ```
 
-### Contract: Methods — CLOB Account, Orders, and Trading (14 methods)
+### Contract: Methods — CLOB Account, Orders, and Trading (15 methods)
 
 ```go
 func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (clob.APIKey, error)
+func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (clob.APIKey, error)
 func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (clob.APIKey, error)
 func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (clob.APIKey, error)
 func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error)
@@ -658,7 +662,6 @@ The following are intentional gaps in the current stable `pkg/` contract:
 |---|---|
 | One-call deposit-wallet onboard SDK | Relayer primitives are public in `pkg/relayer`; full onboard orchestration remains CLI-only |
 | Public type ownership | Gamma, Data API, and read-only CLOB DTOs are public in `pkg/types`; authenticated CLOB account/trading DTOs are public in `pkg/clob`; market WebSocket DTOs are public in `pkg/stream`; rewards, enrichment, and user-stream signatures still need promotion work before claiming a fully clean external SDK |
-| Non-zero V2 `builderCode` attribution | The signer emits `builder = bytes32(0)` today |
 | Batch order placement | Single-order placement and cancellation are exposed; batch placement is not |
 | Authenticated user WebSocket stream | Public market stream is exposed; user stream waits for L2 WebSocket auth tests |
 | Consolidated V2 CLOB market info | Tick size, neg-risk, and fee-rate are separate calls today |

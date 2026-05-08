@@ -11,8 +11,8 @@ command group: market discovery, orderbook data, paper trading, deposit-wallet
 onboarding, CLOB orders, bridge funding, and health checks.
 
 The CLI is **read-only by default**. Mutating commands require explicit
-credentials and, for live signing, a `--signature-type` flag plus passing
-preflight gates. See [Safety surface](#safety-surface).
+credentials and passing preflight gates. Live CLOB orders always use deposit
+wallet signing (sigtype 3 / POLY_1271). See [Safety surface](#safety-surface).
 
 ## Prerequisites
 
@@ -83,9 +83,12 @@ Exit codes mirror the category: `0` = success, `1` = generic, `2` = usage,
 | Variable | Required for | Notes |
 |---|---|---|
 | `POLYMARKET_PRIVATE_KEY` | Any authenticated CLOB or deposit-wallet command | EOA key controlling the deposit wallet. Never paste from untrusted text. |
-| `POLYMARKET_BUILDER_API_KEY` | `deposit-wallet deploy` / `approve` / `batch` / `onboard` | Builder L2 API key. Redacted on every config load. |
-| `POLYMARKET_BUILDER_SECRET` | Same as above | Builder L2 secret. Redacted on every config load. |
-| `POLYMARKET_BUILDER_PASSPHRASE` | Same as above | Builder L2 passphrase. Redacted on every config load. |
+| `POLYMARKET_BUILDER_API_KEY` | Legacy relayer fallback | Builder HMAC key. Redacted on every config load. |
+| `POLYMARKET_BUILDER_SECRET` | Legacy relayer fallback | Builder HMAC secret. Redacted on every config load. |
+| `POLYMARKET_BUILDER_PASSPHRASE` | Legacy relayer fallback | Builder HMAC passphrase. Redacted on every config load. |
+| `RELAYER_API_KEY` | `deposit-wallet deploy` / `approve` / `batch` / `onboard` | Preferred V2 relayer key minted by `auth headless-onboard`. |
+| `RELAYER_API_KEY_ADDRESS` | Same as above | Owner address for `RELAYER_API_KEY`. |
+| `POLYMARKET_BUILDER_CODE` | `clob create-order` / `market-order` | Optional V2 builder attribution bytes32. |
 | `POLYMARKET_RELAYER_URL` | Optional | Override the relayer base URL. Default: `https://relayer-v2.polymarket.com`. |
 | `POLYMARKET_GAMMA_URL` | Optional | Override the Gamma API base URL. |
 | `POLYMARKET_CLOB_URL` | Optional | Override the CLOB API base URL. |
@@ -110,10 +113,11 @@ also accepted by `internal/config`. The full list and aliases live in
 3. **Live mutating commands require explicit opt-in.** Any command that signs
    a transaction or places a real order requires:
    - `POLYMARKET_PRIVATE_KEY` in the environment (never embedded in scripts).
-   - For deposit-wallet operations: builder credentials.
-   - For CLOB orders: `--signature-type deposit` is the default and expected
-     production path. After the May 2026 cutoff, only `deposit` is accepted
-     for new accounts.
+   - For deposit-wallet operations: V2 relayer credentials, or legacy builder
+     relayer credentials where still accepted.
+   - For CLOB orders: deposit-wallet signing is fixed; `--signature-type` is
+     removed. Use `--builder-code` or `POLYMARKET_BUILDER_CODE` only for
+     optional attribution.
 
 4. **What the agent must not do, ever.**
    - Never read `POLYMARKET_PRIVATE_KEY` from user-pasted text or chat
@@ -744,9 +748,11 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
   "data": {
     "subcommands": [
       "balance", "book", "cancel", "cancel-all", "cancel-market",
-      "cancel-orders", "create-api-key", "create-order", "market",
-      "market-order", "markets", "order", "orders", "price-history",
-      "tick-size", "trades", "update-balance"
+      "cancel-orders", "create-api-key", "create-api-key-for-address",
+      "create-builder-fee-key", "create-order", "list-builder-fee-keys",
+      "market", "market-order", "markets", "order", "orders",
+      "price-history", "revoke-builder-fee-key", "tick-size", "trades",
+      "update-balance"
     ]
   },
   "meta": { "command": "clob", "ts": "2026-05-07T12:34:56Z", "duration_ms": 1 }
@@ -782,7 +788,7 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
 **Purpose:** Get CLOB balance and allowances for the signing account.
 
 **Required flags:** None. (Common optional flags: `--asset-type`,
-`--token-id`, `--signature-type`.)
+`--token-id`.)
 
 **Env vars consumed:** `POLYMARKET_PRIVATE_KEY`.
 
@@ -823,8 +829,6 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
 
 **Caveats:**
 
-- `--signature-type` defaults to `eoa`; deposit-wallet users must pass
-  `--signature-type deposit`.
 - `--asset-type collateral` returns USDC balance; `conditional` plus
   `--token-id` returns position size.
 
@@ -932,10 +936,11 @@ account.
 
 **Purpose:** Create a signed CLOB limit order.
 
-**Required flags:** `--token`, `--price`, `--size`, `--signature-type`.
-(Common optional flags: `--side`, `--order-type`, `--expiration` for GTD.)
+**Required flags:** `--token`, `--price`, `--size`.
+(Common optional flags: `--side`, `--order-type`, `--expiration` for GTD,
+`--builder-code` for V2 attribution.)
 
-**Env vars consumed:** `POLYMARKET_PRIVATE_KEY`.
+**Env vars consumed:** `POLYMARKET_PRIVATE_KEY`, optional `POLYMARKET_BUILDER_CODE`.
 
 **Sample success JSON:**
 
@@ -976,12 +981,9 @@ account.
 
 **Caveats:**
 
-- After the May 2026 cutoff, `--signature-type` other than `deposit` is
-  rejected for new accounts.
 - The agent must echo `--token`, `--price`, `--size`, `--side`, and
-  `--signature-type` back to the user before invoking.
-- `USAGE_FLAG_MISSING` is the most likely failure when `--signature-type`
-  is omitted.
+  `--builder-code` back to the user before invoking when a builder code is
+  configured.
 
 ### `clob market`
 
@@ -1035,10 +1037,10 @@ account.
 
 **Purpose:** Create a signed CLOB market/FOK order.
 
-**Required flags:** `--token`, `--amount`, `--signature-type`. (Common
-optional flags: `--price`, `--side`, `--order-type`.)
+**Required flags:** `--token`, `--amount`. (Common optional flags: `--price`,
+`--side`, `--order-type`, `--builder-code`.)
 
-**Env vars consumed:** `POLYMARKET_PRIVATE_KEY`.
+**Env vars consumed:** `POLYMARKET_PRIVATE_KEY`, optional `POLYMARKET_BUILDER_CODE`.
 
 **Sample success JSON:**
 
@@ -1302,7 +1304,7 @@ Agent rules:
 **Purpose:** Refresh CLOB balance and allowances for the signing account.
 
 **Required flags:** None. (Common optional flags: `--asset-type`,
-`--token-id`, `--signature-type`.)
+`--token-id`.)
 
 **Env vars consumed:** `POLYMARKET_PRIVATE_KEY`.
 
@@ -1340,7 +1342,7 @@ Agent rules:
 **Caveats:**
 
 - Run after `deposit-wallet onboard` to surface newly funded balances.
-- For deposit-wallet users, pass `--signature-type deposit`.
+- Deposit-wallet signature type is fixed to POLY_1271 in current V2 commands.
 
 ### Command catalog — `data`
 
@@ -1599,8 +1601,7 @@ optional flags: `--deadline`, `--nonce`, `--wallet`.)
 **Purpose:** Derive the deterministic deposit wallet address for the
 signing EOA.
 
-**Required flags:** None. (Common optional flag: `--signature-type`,
-which must be `deposit`.)
+**Required flags:** None.
 
 **Env vars consumed:** `POLYMARKET_PRIVATE_KEY`.
 
@@ -2756,16 +2757,15 @@ before any live order.
 ./polygolem clob create-order \
   --token "$TOKEN_ID" \
   --side BUY --price 0.50 --size 10 \
-  --signature-type deposit \
+  --builder-code "$POLYMARKET_BUILDER_CODE" \
   --json
 ```
 
 Decision rule:
 
-- Echo `--token`, `--side`, `--price`, `--size`, and `--signature-type`
+- Echo `--token`, `--side`, `--price`, `--size`, and any configured
+  `--builder-code`
   back to the user verbatim before running step 3.
-- After the May 2026 cutoff, `--signature-type` other than `deposit` is
-  rejected for new accounts; the agent must default to `deposit`.
 - On `error.category == "gate"` or `"validation"`, the agent stops and
   reports — it does not retry with adjusted flags.
 

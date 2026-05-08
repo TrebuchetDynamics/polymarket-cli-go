@@ -9,7 +9,9 @@ import { Aside } from "@astrojs/starlight/components";
 
 ```
 polygolem
-├── builder                 Builder credential helpers
+├── builder                 CLOB L2 and legacy builder credential helpers
+│   ├── auto                Create or derive CLOB L2 credentials
+│   └── onboard             Capture legacy builder-relayer HMAC credentials
 ├── discover                Gamma market discovery
 │   ├── search              Search markets and events
 │   ├── markets             List Gamma markets
@@ -33,6 +35,10 @@ polygolem
 │   ├── markets             List CLOB markets
 │   ├── price-history       Token price history
 │   ├── create-api-key      Create or derive L2 credentials
+│   ├── create-api-key-for-address
+│   ├── create-builder-fee-key
+│   ├── list-builder-fee-keys
+│   ├── revoke-builder-fee-key
 │   ├── balance             Balance and allowances
 │   ├── update-balance      Refresh CLOB balance cache
 │   ├── orders              List authenticated orders
@@ -62,6 +68,7 @@ polygolem
 ├── paper                   Local simulation
 ├── events
 ├── auth
+│   └── headless-onboard    SIWE login + V2 relayer API key mint
 ├── live
 ├── health
 ├── preflight
@@ -88,6 +95,19 @@ polygolem discover comments --entity-id 123 --entity-type market
 
 Discovery commands are read-only and require no credentials.
 
+## Credentials
+
+```bash
+POLYMARKET_PRIVATE_KEY="0x..." polygolem builder auto
+POLYMARKET_PRIVATE_KEY="0x..." polygolem auth headless-onboard
+POLYMARKET_PRIVATE_KEY="0x..." polygolem clob create-builder-fee-key
+```
+
+`builder auto` creates CLOB L2 credentials. `auth headless-onboard` mints the
+V2 relayer key used by deposit-wallet deploy and approval batches. Builder fee
+keys are CLOB-side attribution keys; use the returned key as
+`POLYMARKET_BUILDER_CODE` or pass it to `--builder-code`.
+
 ## CLOB
 
 ```bash
@@ -96,6 +116,9 @@ polygolem clob market <condition-id>
 polygolem clob orders
 polygolem clob order <order-id>
 polygolem clob trades
+polygolem clob create-api-key-for-address --owner <deposit-wallet>
+polygolem clob create-builder-fee-key
+polygolem clob list-builder-fee-keys
 polygolem clob cancel <order-id>
 polygolem clob cancel-orders <order-id-1,order-id-2>
 polygolem clob cancel-market --market <condition-id>
@@ -105,14 +128,18 @@ polygolem clob cancel-all
 Authenticated CLOB account commands require `POLYMARKET_PRIVATE_KEY` so
 polygolem can derive L2 credentials. Cancel commands mutate upstream order
 state but reduce existing exposure; order placement still requires deposit
-wallet signing.
+wallet signing. V2 builder attribution is a bytes32 order field: pass
+`--builder-code` explicitly or set `POLYMARKET_BUILDER_CODE` (alias:
+`POLYMARKET_CLOB_BUILDER_CODE`).
 
 ```bash
 polygolem clob create-order \
-  --token <token-id> --side buy --price 0.5 --size 10
+  --token <token-id> --side buy --price 0.5 --size 10 \
+  --builder-code "$POLYMARKET_BUILDER_CODE"
 
 polygolem clob market-order \
-  --token <token-id> --side buy --amount 5
+  --token <token-id> --side buy --amount 5 \
+  --builder-code "$POLYMARKET_BUILDER_CODE"
 ```
 
 ## Data API

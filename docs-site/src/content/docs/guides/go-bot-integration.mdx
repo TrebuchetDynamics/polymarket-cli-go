@@ -120,8 +120,6 @@ all, err := pagination.CollectAll(ctx, func(ctx context.Context, cursor string) 
   and `pkg/universal` exposes CLOB order placement and cancellation, but the
   full `deploy -> approve -> fund -> sync -> preflight` operator flow remains
   a CLI workflow.
-- Configured V2 `builderCode` order attribution. Polygolem currently signs
-  orders with `builder = bytes32(0)`.
 - Live execution gates. Those are CLI-layer concerns; embedding them would
   bypass the operator confirmation surface.
 - Mutable global state. Every package returns its own client instance.

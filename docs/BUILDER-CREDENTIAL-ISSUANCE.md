@@ -1,12 +1,13 @@
 # Builder Credential Issuance — SUPERSEDED
 
 > **Status:** SUPERSEDED by [BUILDER-AUTO.md](./BUILDER-AUTO.md)
-> **Why:** This document incorrectly concluded that builder credentials require a manual browser step. The empirical proof in BUILDER-AUTO.md shows that `POST https://clob.polymarket.com/auth/api-key` with ClobAuth EIP-712 signature creates builder credentials programmatically.
+> **Why:** This document conflated CLOB L2 credentials, CLOB builder fee keys,
+> and relayer credentials. The authoritative V2 split is in BUILDER-AUTO.md.
 >
 > **Key corrections:**
-> 1. The same HMAC triple works for BOTH CLOB L2 and relayer v2 — there are not separate "builder" and "CLOB" credential types
-> 2. The `POST /auth/api-key` endpoint lazy-creates the builder profile, builder code, and HMAC creds
-> 3. `polygolem builder auto` fully automates this — no browser required
+> 1. `POST /auth/api-key` creates or derives CLOB L2 credentials.
+> 2. `POST /auth/builder-api-key` creates CLOB builder fee keys for V2 order attribution.
+> 3. `polygolem auth headless-onboard` mints V2 relayer keys through SIWE.
 >
 > **See BUILDER-AUTO.md for the authoritative flow.**
 

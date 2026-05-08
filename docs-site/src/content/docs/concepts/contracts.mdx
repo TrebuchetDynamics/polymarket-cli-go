@@ -151,9 +151,9 @@ The relayer at `relayer-v2.polymarket.com` provides gas-sponsored transaction su
 | Endpoint | Method | Auth | Purpose |
 |----------|--------|------|---------|
 | `/submit` | POST | Builder HMAC or Relayer API Key | WALLET-CREATE, WALLET batch |
-| `/nonce` | GET | Builder HMAC | Current WALLET nonce |
-| `/transaction` | GET | Builder HMAC | Poll transaction status |
-| `/deployed` | GET | Builder HMAC | Check if wallet deployed |
+| `/nonce` | GET | Builder HMAC or Relayer API Key | Current WALLET nonce |
+| `/transaction` | GET | Builder HMAC or Relayer API Key | Poll transaction status |
+| `/deployed` | GET | Builder HMAC or Relayer API Key | Check if wallet deployed |
 | `/relay-payload` | GET | None | Get relayer address + nonce |
 | `/relayer/api/keys` | GET | Gamma auth or API key | List relayer API keys |
 

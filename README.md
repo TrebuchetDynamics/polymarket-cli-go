@@ -15,29 +15,40 @@ full CLI for the deposit wallet lifecycle.
 deposit wallet for new API users. Polygolem is built exclusively for type 3
 (POLY_1271) — the only mode that works on current production.
 
-## One Env Var. Everything Else Auto-Generated.
+## Headless V2 Onboarding
 
-**`POLYMARKET_PRIVATE_KEY` is the only environment variable.**
-Builder credentials, CLOB L2 keys — polygolem generates and persists them all.
-No browser, no polymarket.com, no copy-paste.
+`POLYMARKET_PRIVATE_KEY` is the root input. Polygolem can mint CLOB L2
+credentials, mint V2 relayer credentials via SIWE, derive the deposit wallet,
+deploy/approve/fund it, and attach a V2 builder code to orders.
 
 ```bash
 export POLYMARKET_PRIVATE_KEY="0x..."
 
-# 1. Builder credentials — auto-generated, stored independently
+# 1. CLOB L2 credentials for reads and same-address order auth.
 polygolem builder auto
 
-# 2. Full deposit wallet onboarding (builder creds auto-loaded)
+# 2. V2 relayer credentials for deposit-wallet deploy/approve.
+polygolem auth headless-onboard
+
+# 3. Optional builder fee key for V2 order attribution.
+polygolem clob create-builder-fee-key
+export POLYMARKET_BUILDER_CODE="0x..."
+
+# 4. Full deposit wallet onboarding.
 polygolem deposit-wallet onboard --fund-amount 0.71 --json
 
-# 3. Sync and trade
+# 5. Sync and trade.
 polygolem clob update-balance --asset-type collateral
-polygolem clob create-order --token ID --side buy --price 0.5 --size 10
+polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --builder-code "$POLYMARKET_BUILDER_CODE"
 ```
 
 **Total cost: ~$0.01 POL for one funding transfer. Everything else is sponsored.**
 
-under the hood, `builder auto` signs a local EIP-712 ClobAuth message and posts it to the CLOB API — this lazy-creates a builder profile, issues `BUILDER_API_KEY` + `BUILDER_SECRET` + `BUILDER_PASSPHRASE`, and assigns a `bytes32` builder code. the creds are persisted to an env file that downstream commands (`deposit-wallet`, `clob`) pick up automatically.
+Under the hood, `builder auto` signs a local EIP-712 ClobAuth message and posts
+it to the CLOB API. `auth headless-onboard` signs SIWE, mints
+`RELAYER_API_KEY` + `RELAYER_API_KEY_ADDRESS`, and persists them to a local env
+file. CLOB builder fee keys are separate from relayer credentials; use their
+`key` value as `POLYMARKET_BUILDER_CODE`.
 
 ## Install
 
@@ -67,7 +78,9 @@ polygolem version
 ### Builder + Deposit Wallet
 
 ```bash
-polygolem builder auto                                    # programmatic, no browser
+polygolem builder auto                                    # CLOB L2 credentials
+polygolem auth headless-onboard                          # V2 relayer API key
+polygolem clob create-builder-fee-key                    # V2 order attribution
 polygolem deposit-wallet derive                          # predict CREATE2 address (local)
 polygolem deposit-wallet deploy --wait                   # WALLET-CREATE via relayer
 polygolem deposit-wallet status                          # deployed? approved? funded?
@@ -81,14 +94,18 @@ polygolem deposit-wallet onboard --fund-amount 0.71      # deploy + approve + fu
 ```bash
 polygolem clob balance --asset-type collateral
 polygolem clob update-balance --asset-type collateral
-polygolem clob create-order --token ID --side buy --price 0.5 --size 10
+polygolem clob create-api-key
+polygolem clob create-api-key-for-address --owner 0xDepositWallet
+polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --builder-code "$POLYMARKET_BUILDER_CODE"
 polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --order-type GTD --expiration 1778125000
-polygolem clob market-order --token ID --side buy --amount 5
+polygolem clob market-order --token ID --side buy --amount 5 --builder-code "$POLYMARKET_BUILDER_CODE"
 polygolem clob orders                                      # list open orders
 polygolem clob trades                                      # trade history
 polygolem clob cancel <order-id>                           # cancel single order
 polygolem clob cancel-all                                  # cancel all orders
-polygolem clob create-api-key
+polygolem clob create-builder-fee-key
+polygolem clob list-builder-fee-keys
+polygolem clob revoke-builder-fee-key --key "$POLYMARKET_BUILDER_CODE"
 ```
 
 ### Bridge
@@ -127,7 +144,7 @@ polygolem paper reset
 
 | Package | Purpose |
 |---------|---------|
-| `internal/clob` | CLOB v2 client — 37 methods, EIP-712, POLY_1271, ERC-7739 |
+| `internal/clob` | CLOB v2 client — market data, auth, EIP-712, POLY_1271, ERC-7739 |
 | `internal/gamma` | Gamma API client — 26 methods |
 | `internal/dataapi` | Data API — positions, volume, leaderboards |
 | `internal/relayer` | Builder relayer — WALLET-CREATE, WALLET batch, nonce |
@@ -143,8 +160,12 @@ polygolem paper reset
 | Variable | Required |
 |----------|----------|
 | `POLYMARKET_PRIVATE_KEY` | All authenticated operations |
+| `RELAYER_API_KEY` / `RELAYER_API_KEY_ADDRESS` | Deposit-wallet deploy and approval batches |
+| `POLYMARKET_BUILDER_CODE` | Optional V2 order attribution |
 
-That's it. Builder credentials are auto-generated by `polygolem builder auto` and stored independently — you never touch them. CLOB L2 keys are derived on first use. The deposit wallet address is computed locally from your key.
+CLOB L2 keys are created or derived on first use. V2 relayer keys are minted by
+`polygolem auth headless-onboard`. The deposit wallet address is computed
+locally from your key.
 
 ## Status
 
