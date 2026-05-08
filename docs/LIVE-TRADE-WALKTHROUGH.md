@@ -43,6 +43,36 @@ the deposit wallet via the order's `signatureType=3` field. This was empirically
 verified by the 2026-05-08 Playwright capture and is documented in
 `docs/POLY_1271-SIGNING.md`.
 
+### How an order is authorised vs settled
+
+When you place an order, the *signing* and the *settling* are two distinct
+events with two distinct payers:
+
+1. **Off-chain signing (you).** The EOA produces a 65-byte ECDSA signature
+   over the order hash. The signature is wrapped in the ERC-7739 envelope so
+   the on-chain Exchange can validate it via the deposit wallet's
+   `isValidSignature(orderHash, sig)`. The deposit wallet contract unwraps
+   the envelope, recovers the EOA, and accepts the signature because the EOA
+   is its authorised owner (set when the wallet was deployed).
+2. **On-chain settlement (Polymarket).** Once the matching engine pairs your
+   order with a counterparty, the **matching-engine operator** submits a
+   `fillOrders` tx that executes the pUSD ↔ CTF transfers. **You pay zero
+   gas for this tx** even though it consumes hundreds of thousands of gas.
+
+### Two Polymarket-run services — don't confuse them
+
+Two different Polymarket-operated services pay gas on your behalf at
+different points in the lifecycle. They are **not** the same infrastructure:
+
+| Service | Endpoint / address | When it acts | What it pays for |
+|---|---|---|---|
+| **V2 Relayer** | `relayer-v2.polymarket.com/submit` | One-time onboarding | `WALLET-CREATE` (deposit wallet deployment) and the 6-call ERC-20 approval batch. |
+| **Matching-engine operator** | Settler EOAs (e.g. `0x0484…de55`, `0x9b5b…e9ab`) on Polygon | Every matched order | `fillOrders` settlement txes that move pUSD and mint/burn CTF tokens. |
+
+Throughout this doc, "**relayer**" means the V2 Relayer (onboarding sponsorship)
+and "**operator**" means the matching-engine settler (trade settlement). Both
+are Polymarket-run; both pay gas instead of you; they are separate systems.
+
 ---
 
 ## 2. One-Time Setup (Per EOA)
@@ -281,7 +311,7 @@ best bid, no slippage past the top of book).
 | gasUsed | 368 829 |
 | effective gas price | 329.449 gwei |
 | gas cost | **0.121510 POL** (paid by operator `0x9b5b…e9ab`) |
-| `from` | Polymarket settler (`0x9b5bd059a2adb5736eb0ee2da06a485e19a6e9ab`) |
+| `from` | Polymarket operator (`0x9b5bd059a2adb5736eb0ee2da06a485e19a6e9ab`) |
 | logs | 18 (Transfer events for CTF burns + pUSD credit) |
 
 After this tx, deposit wallet holds:
