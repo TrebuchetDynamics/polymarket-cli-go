@@ -113,13 +113,13 @@ polygolem orderbook last-trade --token-id 71321045679252212594626385532706912750
 
 ## Using the Go SDK
 
-If you want orderbook reads from a Go program, prefer the `pkg/bookreader`
+If you want orderbook reads from a Go program, prefer the `pkg/orderbook`
 package over shelling out to the CLI:
 
 ```go
-import "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+import "github.com/TrebuchetDynamics/polygolem/pkg/orderbook"
 
-reader := bookreader.NewReader("")
+reader := orderbook.NewReader("")
 book, err := reader.OrderBook(ctx, tokenID)
 // book.Bids[0].Price, book.Asks[0].Size, ...
 ```

@@ -312,7 +312,7 @@ Acceptance criteria:
 ### R2. Public CLOB Market Data ✅
 
 > **Status:** Fulfilled. Implemented in `internal/clob` and re-exposed via
-> `pkg/bookreader`; surfaced through `polygolem clob book|market|tick-size|
+> `pkg/orderbook`; surfaced through `polygolem clob book|market|tick-size|
 > price-history` and the `polygolem orderbook` group. Bid/ask normalization
 > (high-to-low / low-to-high) ships behind `BookReader`.
 
@@ -669,7 +669,7 @@ Acceptance criteria:
 
 ### R13. Go-Bot Consumer Boundary ⚠️
 
-> **Status:** Partial. Polygolem-side primitives exist (`pkg/bookreader`,
+> **Status:** Partial. Polygolem-side primitives exist (`pkg/orderbook`,
 > `pkg/marketresolver`, `pkg/bridge`, `internal/clob`, `internal/dataapi`,
 > `internal/stream`, `internal/execution`) and CLI JSON output is
 > regenerated in `docs/COMMANDS.md`. Go-bot-side adoption (full removal of

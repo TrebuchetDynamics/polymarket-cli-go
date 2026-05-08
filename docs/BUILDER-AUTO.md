@@ -214,8 +214,9 @@ So the canonical onboarding **today** is:
 | --- | --- | --- |
 | Mint CLOB L2 creds (read access + signing identity) | `polygolem builder auto` | ✅ headless |
 | Authenticate relayer reads (`/nonce`, `/deployed`) | same creds | ✅ headless |
-| Mint **Builder API Keys** (relayer-write creds) | `polymarket.com/settings?tab=builder` → "Create" | ❌ browser only |
-| Deploy deposit wallet (`WALLET-CREATE` via `/submit`) | `polygolem deposit-wallet deploy` | ✅ headless after Builder Keys exist |
+| Mint CLOB Builder Fee Key (`/auth/builder-api-key`) | `polygolem clob create-builder-fee-key` | ✅ headless |
+| Mint **Relayer API Key** (`/relayer/api/auth`) | `polymarket.com/settings?tab=builder` → "Create" | ❌ browser only — see § sub-investigation |
+| Deploy deposit wallet (`WALLET-CREATE` via `/submit`) | `polygolem deposit-wallet deploy` | ✅ headless after Relayer API Key exists |
 | Approve V2 spenders (6× ERC-20/ERC-1155 approvals) | `polygolem deposit-wallet approve` | ✅ headless |
 | Mint a deposit-wallet-owned CLOB API key | (TBD — see below) | not yet wired |
 | Place orders (sigtype 3) | `polygolem clob create-order` | ✅ headless after the key swap |
@@ -223,7 +224,9 @@ So the canonical onboarding **today** is:
 Earlier revisions of this doc claimed the first `/auth/api-key` POST
 lazy-created the full builder profile end-to-end. That was over-stated
 based on a single observation against an EOA that already had a
-manually-created profile and Builder Keys. The corrected behaviour
+manually-created profile and Relayer API Keys. They also conflated the
+CLOB Builder Fee Key (headless) with the Relayer API Key (browser-gated)
+under one "Builder API Keys" label. The corrected behaviour and split
 above is what production enforces today.
 
 ## Validation
@@ -237,11 +240,12 @@ above is what production enforces today.
 | Concern | Public path |
 | --- | --- |
 | `CreateOrDeriveAPIKey` / `DeriveAPIKey` (Step 1) | `pkg/universal.Client` |
+| `CreateBuilderFeeKey` / `ListBuilderFeeKeys` / `RevokeBuilderFeeKey` (Step 2) | `internal/clob.Client` (promote to `pkg/universal` once stable) |
 | `BalanceAllowance` / `UpdateBalanceAllowance` | `pkg/universal.Client` |
-| `CreateLimitOrder` / `CreateMarketOrder` (Step 5) | `pkg/universal.Client` |
-| Relayer client (Steps 2 & 4) | `pkg/relayer.New` |
-| `BuildApprovalCalls` (Step 4 calldata) | `pkg/relayer.BuildApprovalCalls` |
-| `SignWalletBatch` (Step 4 signing) | `pkg/relayer.SignWalletBatch` |
+| `CreateLimitOrder` / `CreateMarketOrder` (Step 7) | `pkg/universal.Client` |
+| Relayer client (Steps 4 & 6) | `pkg/relayer.New` |
+| `BuildApprovalCalls` (Step 6 calldata) | `pkg/relayer.BuildApprovalCalls` |
+| `SignWalletBatch` (Step 6 signing) | `pkg/relayer.SignWalletBatch` |
 
 ### Internal sources
 
@@ -266,7 +270,8 @@ above is what production enforces today.
 |------|------|---------|
 | Generate EOA key | Free | N/A |
 | CLOB L2 creds (`builder auto`) | Free, headless | N/A |
-| **Mint Builder API Keys** (one browser click on `polymarket.com/settings?tab=builder`) | Free, manual | User |
+| CLOB Builder Fee Key (`clob create-builder-fee-key`) | Free, headless | N/A |
+| **Mint Relayer API Key** (one browser click on `polymarket.com/settings?tab=builder`) | Free, manual | User |
 | Wallet deploy | Free (gas sponsored) | Polymarket relayer |
 | 6 contract approvals | Free (gas sponsored) | Polymarket relayer |
 | Place orders | Free (gas sponsored) | Polymarket relayer |

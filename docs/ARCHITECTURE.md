@@ -12,7 +12,7 @@ Stable interfaces for downstream Go consumers (e.g., `go-bot`).
 
 | Package | Purpose |
 |---|---|---|
-| `pkg/bookreader` | Read-only CLOB order-book reader. |
+| `pkg/orderbook` | Read-only CLOB order-book reader. |
 | `pkg/bridge` | Bridge API client — supported assets, deposit addresses, quotes. |
 | `pkg/data` | Read-only Data API analytics client returning `pkg/types` DTOs. |
 | `pkg/gamma` | Read-only Gamma API surface for embedded use (26 methods). |

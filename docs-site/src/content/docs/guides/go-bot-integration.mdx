@@ -25,7 +25,7 @@ Then import only the packages you need:
 
 ```go
 import (
-    "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+    "github.com/TrebuchetDynamics/polygolem/pkg/orderbook"
     "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
     "github.com/TrebuchetDynamics/polygolem/pkg/bridge"
     "github.com/TrebuchetDynamics/polygolem/pkg/gamma"
@@ -45,12 +45,12 @@ import (
     "context"
     "fmt"
 
-    "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+    "github.com/TrebuchetDynamics/polygolem/pkg/orderbook"
 )
 
 func main() {
     ctx := context.Background()
-    reader := bookreader.NewReader("") // empty string = production CLOB
+    reader := orderbook.NewReader("") // empty string = production CLOB
 
     book, err := reader.OrderBook(ctx, "713210456792522125...")
     if err != nil {

@@ -8,7 +8,7 @@
 //
 // When not to use this package:
 //   - For full Gamma metadata access — use pkg/gamma directly.
-//   - For order book pricing — use pkg/bookreader.
+//   - For order book pricing — use pkg/orderbook.
 //
 // Stability: Resolver, NewResolver, the four Resolve methods,
 // ValidateToken, MarketStatus and its constants, ResolveResult, and
@@ -378,12 +378,12 @@ func (r *Resolver) ResolveTokenIDs(ctx context.Context, asset, timeframe string)
 
 // ValidateToken checks if a token ID is still valid by basic format checks.
 // Returns StatusStaleToken if the CLOB returns an error for the token (a
-// fuller validation requires CLOB access in the bookreader layer); for
+// fuller validation requires CLOB access in the orderbook layer); for
 // now it returns StatusUnresolved on empty/non-numeric token IDs and
 // StatusAvailable otherwise.
 func (r *Resolver) ValidateToken(ctx context.Context, tokenID string) MarketStatus {
 	// A simple approach: check that the token is non-empty.
-	// Full validation requires CLOB access which is in the bookreader layer.
+	// Full validation requires CLOB access which is in the orderbook layer.
 	if tokenID == "" {
 		return StatusUnresolved
 	}

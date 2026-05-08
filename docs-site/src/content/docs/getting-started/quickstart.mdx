@@ -49,9 +49,9 @@ polygolem clob create-order \
 ## 3. Use as a Go SDK
 
 ```go
-import "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+import "github.com/TrebuchetDynamics/polygolem/pkg/orderbook"
 
-reader := bookreader.NewReader("")
+reader := orderbook.NewReader("")
 book, err := reader.OrderBook(ctx, "token-id-here")
 // book.Bids[0].Price = 0.51
 // book.Asks[0].Price = 0.53

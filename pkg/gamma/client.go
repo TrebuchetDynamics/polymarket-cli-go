@@ -7,7 +7,7 @@
 // read-only contexts.
 //
 // When not to use this package:
-//   - For order book reads — use pkg/bookreader.
+//   - For order book reads — use pkg/orderbook.
 //   - For order placement or cancellation — Gamma does not host the
 //     mutating CLOB surface.
 //
