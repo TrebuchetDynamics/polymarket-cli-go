@@ -655,7 +655,7 @@ These helpers only build calldata and deterministic IDs. They do not submit
 transactions, bypass deposit-wallet gates, or perform split/merge/redeem
 execution.
 
-## `pkg/relayer` — Builder Relayer Primitives
+## `pkg/relayer` — Builder Relayer and Deposit Wallet Onboard
 
 ```go
 import "github.com/TrebuchetDynamics/polygolem/pkg/relayer"
@@ -672,16 +672,51 @@ type RelayerTransactionState = internalrelayer.RelayerTransactionState
 type DepositWalletCall = internalrelayer.DepositWalletCall
 type NonceResponse = internalrelayer.NonceResponse
 type DeployedResponse = internalrelayer.DeployedResponse
+type V2APIKey = internalrelayer.V2APIKey
+
+type OnboardOptions struct {
+    SkipDeploy bool
+    SkipApprove bool
+    DeployPollMaxAttempts int
+    DeployPollInterval time.Duration
+    ApprovalDeadlineSeconds int64
+}
+
+type OnboardDeployResult struct {
+    TransactionID string
+    State string
+    Skipped bool
+    AlreadyDeployed bool
+}
+
+type OnboardApprovalResult struct {
+    TransactionID string
+    State string
+    Nonce string
+    Deadline string
+    CallCount int
+    Skipped bool
+}
+
+type OnboardResult struct {
+    Owner string
+    DepositWallet string
+    Deploy *OnboardDeployResult
+    Approve *OnboardApprovalResult
+    NextSteps []string
+}
 ```
 
 ### Contract: Constructors and Helpers
 
 ```go
 func New(baseURL string, bc BuilderConfig, chainID int64) (*Client, error)
+func NewV2(baseURL string, key V2APIKey, chainID int64) (*Client, error)
 func NewSigner(privateKeyHex string, chainID int64) (*PrivateKeySigner, error)
 func BuildApprovalCalls() []DepositWalletCall
 func BuildDeadline(secondsFromNow int64) string
 func SignWalletBatch(signer *PrivateKeySigner, walletAddress, nonce, deadline string, calls []DepositWalletCall) (string, error)
+func OnboardDepositWallet(ctx context.Context, client *Client, privateKey string, opts OnboardOptions) (*OnboardResult, error)
 ```
 
 ### Contract: Client Methods
@@ -695,9 +730,10 @@ func (c *Client) PollTransaction(ctx context.Context, txID string, maxAttempts i
 func (c *Client) IsDeployed(ctx context.Context, ownerAddress string) (bool, error)
 ```
 
-`pkg/relayer` is a primitive surface. The full safe onboard sequence remains a
-CLI workflow because it combines relayer auth, wallet status, pUSD funding,
-allowance checks, and operator gates.
+`OnboardDepositWallet` derives the deposit-wallet address, deploys it through
+the relayer when needed, polls the deploy transaction, and submits the standard
+six-call pUSD + CTF approval batch. It does not transfer pUSD or bypass live
+execution gates; callers must fund and preflight explicitly before live trading.
 
 ## `pkg/pagination` — Cursor & Offset Helpers
 
@@ -719,7 +755,6 @@ The following are intentional gaps in the current stable `pkg/` contract:
 
 | Gap | Current Status |
 |---|---|
-| One-call deposit-wallet onboard SDK | Relayer primitives are public in `pkg/relayer`; full onboard orchestration remains CLI-only |
 | Public type ownership | Gamma, Data API, and read-only CLOB DTOs are public in `pkg/types`; authenticated CLOB account/trading DTOs are public in `pkg/clob`; market WebSocket DTOs are public in `pkg/stream`; rewards, enrichment, and user-stream signatures still need promotion work before claiming a fully clean external SDK |
 | Authenticated user WebSocket stream | Public market stream is exposed; user stream waits for L2 WebSocket auth tests |
 | Consolidated V2 CLOB market info | Tick size, neg-risk, and fee-rate are separate calls today |

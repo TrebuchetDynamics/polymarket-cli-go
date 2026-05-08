@@ -116,10 +116,9 @@ all, err := pagination.CollectAll(ctx, func(ctx context.Context, cursor string) 
 
 ## What the SDK does *not* expose
 
-- One-call live onboarding. `pkg/relayer` exposes wallet lifecycle primitives,
-  and `pkg/universal` exposes CLOB order placement and cancellation, but the
-  full `deploy -> approve -> fund -> sync -> preflight` operator flow remains
-  a CLI workflow.
+- Hidden live onboarding. `pkg/relayer.OnboardDepositWallet` exposes the
+  relayer-sponsored `deploy -> approve` sequence, but funding, CLOB balance
+  sync, and preflight remain explicit operator steps.
 - Live execution gates. Those are CLI-layer concerns; embedding them would
   bypass the operator confirmation surface.
 - Mutable global state. Every package returns its own client instance.

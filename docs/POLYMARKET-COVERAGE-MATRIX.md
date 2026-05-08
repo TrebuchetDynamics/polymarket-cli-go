@@ -18,7 +18,7 @@ they have local tests.
 | Bridge | Supported assets, deposit address creation, deposit status, quotes | `pkg/bridge` | `bridge assets`, `bridge deposit` | `README.md`, `docs/COMMANDS.md`, Starlight bridge guide | Package examples, CLI command registration |
 | WebSocket market stream | Public market channel subscription, book/price/last-trade dispatch, reconnect, dedup helpers | `internal/stream`, `pkg/stream`, `pkg/universal` stream constructor | `stream market` | `README.md`, `docs/COMMANDS.md`, Starlight Stream/CLI pages | Local WebSocket SDK test, public SDK boundary test, CLI command registration |
 | WebSocket user stream | Authenticated user order/trade stream | Gap | Gap | Documented as planned | Gap: requires L2 WebSocket auth tests |
-| Polygon deposit wallet | Derive, deploy, status, nonce, batch, approve, fund, onboard | `internal/auth`, `internal/relayer`, `internal/rpc` | `deposit-wallet *` | `README.md`, `docs/SAFETY.md`, deposit-wallet docs | Existing auth/deposit-wallet tests |
+| Polygon deposit wallet | Derive, deploy, status, nonce, batch, approve, fund, onboard | `pkg/relayer`, `internal/auth`, `internal/relayer`, `internal/rpc` | `deposit-wallet *` | `README.md`, `docs/SAFETY.md`, deposit-wallet docs | Relayer onboard `httptest`, public SDK boundary test, existing auth/deposit-wallet tests |
 | Polygon wallet actions outside deposit wallet | EOA/proxy/Safe trading modes | Not supported for live trading | Blocked for new production accounts | Documented as unsupported | N/A |
 
 ## Current Gaps
