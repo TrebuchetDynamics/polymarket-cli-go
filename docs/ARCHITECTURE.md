@@ -11,12 +11,13 @@ internal packages and a small public SDK in `pkg/`.
 Stable interfaces for downstream Go consumers (e.g., `go-bot`).
 
 | Package | Purpose |
-|---|---|
+|---|---|---|
 | `pkg/bookreader` | Read-only CLOB order-book reader. |
 | `pkg/bridge` | Bridge API client — supported assets, deposit addresses, quotes. |
-| `pkg/gamma` | Read-only Gamma API surface for embedded use. |
+| `pkg/gamma` | Read-only Gamma API surface for embedded use (26 methods). |
 | `pkg/marketresolver` | Resolve market identifiers (ID, slug, token-id) to a canonical view. |
 | `pkg/pagination` | Cursor and offset pagination with concurrent batching. |
+| `pkg/universal` | Single client wrapping Gamma + CLOB + Data API + Discovery + Stream (70+ methods). |
 
 ### Internal packages (`internal/`)
 
@@ -61,7 +62,7 @@ internal/{auth, transport, polytypes}                   ← cross-cutting primit
         |
 internal/{wallet, orders, execution, risk, paper, marketdiscovery}
         |
-pkg/{bookreader, bridge, gamma, marketresolver, pagination}   ← public re-exposed surface
+pkg/{bookreader, bridge, gamma, marketresolver, pagination, universal}   ← public re-exposed surface
 ```
 
 Command handlers parse flags, call package APIs, and render output via

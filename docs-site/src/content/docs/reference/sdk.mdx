@@ -3,12 +3,19 @@ title: Go SDK Contracts
 description: "The stable public Go SDK surface — exact packages, types, and method signatures exposed by polygolem."
 ---
 
-Public packages for consumption by `go-bot` and other Go projects. These are
-the stable API contracts: what callers can depend on across minor versions.
+Public packages for consumption by `go-bot` and other Go projects. This page
+records the current exported contract: packages, methods, and the exact types
+in their signatures.
 
 The `internal/` packages are implementation detail. They are documented in
 [Internal Packages](/reference/internal-packages), but they do not carry the
 same semver promise as the `pkg/` packages below.
+
+Some current `pkg/` method signatures still expose implementation types from
+`internal/polytypes`, `internal/clob`, `internal/dataapi`, or `internal/stream`.
+That is an SDK hygiene gap, not an upstream Polymarket requirement. The method
+surface is documented here so it is visible until those types are promoted or
+re-exported under public package paths.
 
 ## `pkg/bookreader` — Read-Only Order Book
 
@@ -49,6 +56,52 @@ type Level struct {
 
 ```go
 func NewReader(clobBaseURL string) Reader
+```
+
+## `pkg/gamma` — Read-Only Market Metadata
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/gamma"
+```
+
+### Contract: Constructors
+
+```go
+type Client struct { /* unexported fields */ }
+
+func NewClient(baseURL string) *Client
+func DefaultConfig(baseURL string) transport.Config
+```
+
+### Contract: Methods
+
+```go
+func (c *Client) HealthCheck(ctx context.Context) (*polytypes.HealthResponse, error)
+func (c *Client) ActiveMarkets(ctx context.Context) ([]polytypes.Market, error)
+func (c *Client) Markets(ctx context.Context, params *polytypes.GetMarketsParams) ([]polytypes.Market, error)
+func (c *Client) MarketByID(ctx context.Context, id string) (*polytypes.Market, error)
+func (c *Client) MarketBySlug(ctx context.Context, slug string) (*polytypes.Market, error)
+func (c *Client) Events(ctx context.Context, params *polytypes.GetEventsParams) ([]polytypes.Event, error)
+func (c *Client) EventByID(ctx context.Context, id string) (*polytypes.Event, error)
+func (c *Client) EventBySlug(ctx context.Context, slug string) (*polytypes.Event, error)
+func (c *Client) Series(ctx context.Context, params *polytypes.GetSeriesParams) ([]polytypes.Series, error)
+func (c *Client) SeriesByID(ctx context.Context, id string) (*polytypes.Series, error)
+func (c *Client) Search(ctx context.Context, params *polytypes.SearchParams) (*polytypes.SearchResponse, error)
+func (c *Client) Tags(ctx context.Context, params *polytypes.GetTagsParams) ([]polytypes.Tag, error)
+func (c *Client) TagByID(ctx context.Context, id string) (*polytypes.Tag, error)
+func (c *Client) TagBySlug(ctx context.Context, slug string) (*polytypes.Tag, error)
+func (c *Client) RelatedTagsByID(ctx context.Context, tagID string) ([]polytypes.TagRelationship, error)
+func (c *Client) RelatedTagsBySlug(ctx context.Context, slug string) ([]polytypes.TagRelationship, error)
+func (c *Client) Teams(ctx context.Context, params *polytypes.GetTeamsParams) ([]polytypes.Team, error)
+func (c *Client) SportsMetadata(ctx context.Context) ([]polytypes.SportMetadata, error)
+func (c *Client) Comments(ctx context.Context, params *polytypes.CommentQuery) ([]polytypes.Comment, error)
+func (c *Client) CommentByID(ctx context.Context, id string) (*polytypes.Comment, error)
+func (c *Client) CommentsByUser(ctx context.Context, userAddress string, limit int) ([]polytypes.Comment, error)
+func (c *Client) PublicProfile(ctx context.Context, walletAddress string) (*polytypes.Profile, error)
+func (c *Client) SportsMarketTypes(ctx context.Context) ([]polytypes.SportsMarketType, error)
+func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*polytypes.MarketByTokenResponse, error)
+func (c *Client) EventsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Event, string, error)
+func (c *Client) MarketsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Market, string, error)
 ```
 
 ## `pkg/universal` — All Market Data, One Client
@@ -277,6 +330,50 @@ func (c *Client) GetDepositStatus(ctx context.Context, depositAddress string) (*
 func (c *Client) GetQuote(ctx context.Context, req QuoteRequest) (*QuoteResponse, error)
 ```
 
+## `pkg/relayer` — Builder Relayer Primitives
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/relayer"
+```
+
+### Contract: Re-exported Types
+
+```go
+type Client = internalrelayer.Client
+type BuilderConfig = auth.BuilderConfig
+type PrivateKeySigner = auth.PrivateKeySigner
+type RelayerTransaction = internalrelayer.RelayerTransaction
+type RelayerTransactionState = internalrelayer.RelayerTransactionState
+type DepositWalletCall = internalrelayer.DepositWalletCall
+type NonceResponse = internalrelayer.NonceResponse
+type DeployedResponse = internalrelayer.DeployedResponse
+```
+
+### Contract: Constructors and Helpers
+
+```go
+func New(baseURL string, bc BuilderConfig, chainID int64) (*Client, error)
+func NewSigner(privateKeyHex string, chainID int64) (*PrivateKeySigner, error)
+func BuildApprovalCalls() []DepositWalletCall
+func BuildDeadline(secondsFromNow int64) string
+func SignWalletBatch(signer *PrivateKeySigner, walletAddress, nonce, deadline string, calls []DepositWalletCall) (string, error)
+```
+
+### Contract: Client Methods
+
+```go
+func (c *Client) SubmitWalletCreate(ctx context.Context, ownerAddress string) (*RelayerTransaction, error)
+func (c *Client) SubmitWalletBatch(ctx context.Context, ownerAddress, walletAddress, nonce, signature, deadline string, calls []DepositWalletCall) (*RelayerTransaction, error)
+func (c *Client) GetNonce(ctx context.Context, ownerAddress string) (string, error)
+func (c *Client) GetTransaction(ctx context.Context, txID string) (*RelayerTransaction, error)
+func (c *Client) PollTransaction(ctx context.Context, txID string, maxAttempts int, interval time.Duration) (*RelayerTransaction, error)
+func (c *Client) IsDeployed(ctx context.Context, ownerAddress string) (bool, error)
+```
+
+`pkg/relayer` is a primitive surface. The full safe onboard sequence remains a
+CLI workflow because it combines relayer auth, wallet status, pUSD funding,
+allowance checks, and operator gates.
+
 ## `pkg/pagination` — Cursor & Offset Helpers
 
 ```go
@@ -297,7 +394,8 @@ The following are intentional gaps in the current stable `pkg/` contract:
 
 | Gap | Current Status |
 |---|---|
-| Deposit-wallet deploy / approve / batch SDK | Implemented under `internal/relayer`, `internal/wallet`, and CLI commands, but not promoted to a public `pkg/` package |
+| One-call deposit-wallet onboard SDK | Relayer primitives are public in `pkg/relayer`; full onboard orchestration remains CLI-only |
+| Public type ownership | Several signatures still reference `internal/*` implementation types; promote or re-export them before claiming a clean external SDK |
 | Non-zero V2 `builderCode` attribution | The signer emits `builder = bytes32(0)` today |
 | Batch order placement | Single-order placement and cancellation are exposed; batch placement is not |
 | Authenticated user WebSocket stream | Public market stream is exposed; user stream waits for L2 WebSocket auth tests |

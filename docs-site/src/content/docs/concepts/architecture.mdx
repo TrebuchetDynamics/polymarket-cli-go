@@ -1,37 +1,97 @@
 ---
 title: Architecture
-description: The polygolem package layout — public SDK under pkg/, implementation under internal/, CLI as a thin Cobra shell.
+description: Polygolem package layout — public SDK (pkg/), implementation (internal/), CLI as thin Cobra shell.
 ---
 
-import { Aside } from "@astrojs/starlight/components";
+Polygolem is a Go protocol and automation stack for Polymarket CLOB V2 with a thin
+Cobra-based CLI on top.
 
-Polygolem is a Go protocol and automation stack for Polymarket with a thin
-Cobra-based CLI on top. The codebase is split into three layers:
+## Three Layers
 
-- **`cmd/polygolem`** — the binary entry point. Just wires Cobra and exits.
-- **`internal/` (21 packages)** — implementation: HTTP clients, signers,
-  config, paper executor, modes, output, errors. Not part of the public API.
-- **`pkg/` (5 packages)** — the stable public Go SDK: `bookreader`, `bridge`,
-  `gamma`, `marketresolver`, `pagination`. Semver-stable.
+| Layer | Packages | Role |
+|-------|----------|------|
+| **`cmd/polygolem`** | 1 | Binary entry point. Wires Cobra and exits. |
+| **`pkg/`** | 6 | Stable public Go SDK. Semver-stable contracts. |
+| **`internal/`** | 21 | Implementation. Not part of public API. |
 
-Dependencies flow **inward only**: `cmd → internal → pkg`. Public SDK packages
-must not import internal packages, and internal packages must not depend on
-the CLI layer.
+Dependencies flow **inward only**: `cmd → internal → pkg`.
 
-The mode boundary (read-only / paper / live) is enforced in `internal/modes`
-and consumed by every command before any side-effecting code path. Live
-commands additionally route through `internal/execution` after the four-gate
-preflight check.
+## Public SDK (`pkg/`)
 
-<Aside type="note">
-**Source of truth:** the canonical architecture document is
-[`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md).
-It contains the full per-package table and dependency graph; this page is a
-high-level summary.
-</Aside>
+| Package | Purpose |
+|---------|---------|
+| `pkg/universal` | Single client for Gamma + CLOB + Data API + Discovery + Stream |
+| `pkg/gamma` | Full Gamma API surface — 26 methods (markets, events, tags, comments, profiles) |
+| `pkg/bookreader` | Read-only CLOB order-book reader |
+| `pkg/marketresolver` | Market + token ID resolution |
+| `pkg/bridge` | Bridge API — supported assets, deposit addresses, quotes |
+| `pkg/pagination` | Cursor and offset pagination with concurrent batching |
 
-## Related
+## Internal Packages (`internal/`)
 
-- [`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md) — canonical package map
-- [Go SDK Reference](/reference/sdk) — every public type and method
-- [Safety Model](/concepts/safety) — how the mode boundary is enforced
+### Protocol Clients
+
+| Package | Purpose |
+|---------|---------|
+| `internal/gamma` | Gamma HTTP client — 26 methods |
+| `internal/clob` | CLOB V2 client — 37 methods, EIP-712, POLY_1271, ERC-7739 |
+| `internal/dataapi` | Data API — positions, volume, leaderboards |
+| `internal/relayer` | Builder relayer — WALLET-CREATE, WALLET batch, nonce, polling |
+| `internal/stream` | WebSocket market client with reconnect + dedup |
+| `internal/rpc` | Direct on-chain transfers (pUSD EOA → wallet) |
+
+### Cross-Cutting
+
+| Package | Purpose |
+|---------|---------|
+| `internal/auth` | L0/L1/L2 auth, EIP-712, CREATE2 derivation, builder attribution, signers |
+| `internal/polytypes` | V2 protocol types — Market, Event, OrderBook, order payloads |
+| `internal/transport` | HTTP retry, rate limiter, circuit breaker, redaction |
+| `internal/config` | Config loading, defaults, env binding, validation, redaction |
+
+### Application
+
+| Package | Purpose |
+|---------|---------|
+| `internal/cli` | Cobra command construction |
+| `internal/wallet` | Deposit wallet — derive, deploy, status, batch signing |
+| `internal/orders` | OrderIntent, fluent builder, validation |
+| `internal/execution` | Paper executor + live executor surface |
+| `internal/marketdiscovery` | Gamma + CLOB enrichment service |
+| `internal/modes` | Read-only / paper / live mode gates |
+| `internal/risk` | Per-trade caps, daily loss limits, circuit breaker |
+| `internal/paper` | Local paper positions and persisted state |
+| `internal/preflight` | Readiness checks |
+| `internal/output` | Table + JSON rendering |
+| `internal/errors` | Structured error types |
+
+## Dependency Direction
+
+```
+cmd/polygolem
+        |
+internal/cli
+        |
+internal/{config, modes, preflight, output, errors}
+        |
+internal/{gamma, clob, dataapi, stream, relayer, rpc}   ← protocol clients
+        |
+internal/{auth, transport, polytypes}                   ← cross-cutting
+        |
+internal/{wallet, orders, execution, risk, paper, marketdiscovery}
+        |
+pkg/{universal, gamma, bookreader, marketresolver, bridge, pagination}
+```
+
+## Mode System
+
+- **Read-only** (default): public market data. No credentials needed.
+- **Paper**: local simulation. Never reaches authenticated endpoints.
+- **Live**: gated. Requires preflight + all four safety gates.
+
+## See Also
+
+- [Go SDK Contracts](/reference/sdk) — every public type and method signature
+- [Internal Packages](/reference/internal-packages) — full internal API surface
+- [Safety Model](/concepts/safety) — mode boundary enforcement
+- [`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md) — canonical document

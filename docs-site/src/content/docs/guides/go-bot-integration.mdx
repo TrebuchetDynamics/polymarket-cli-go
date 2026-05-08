@@ -10,8 +10,9 @@ internal/ tree is **not** part of the stability promise and may change between
 minor releases — only depend on `pkg/*`.
 
 <Aside type="note">
-Stability promise: anything under `pkg/` follows semver. Breaking API changes
-require a major version bump. The internal/ tree is implementation detail.
+Stability note: the exported methods under `pkg/` are the intended public
+surface, but some method signatures still expose implementation types from
+`internal/*`. Treat those type paths as a documented SDK cleanup gap.
 </Aside>
 
 ## Install
@@ -29,6 +30,8 @@ import (
     "github.com/TrebuchetDynamics/polygolem/pkg/bridge"
     "github.com/TrebuchetDynamics/polygolem/pkg/gamma"
     "github.com/TrebuchetDynamics/polygolem/pkg/pagination"
+    "github.com/TrebuchetDynamics/polygolem/pkg/relayer"
+    "github.com/TrebuchetDynamics/polygolem/pkg/universal"
 )
 ```
 
@@ -80,14 +83,10 @@ case "unresolved":
 ## Search Gamma
 
 ```go
-import "github.com/TrebuchetDynamics/polygolem/pkg/gamma"
+import "github.com/TrebuchetDynamics/polygolem/pkg/universal"
 
-client := gamma.NewClient("")
-markets, err := client.Markets(ctx, gamma.MarketsParams{
-    Active: true,
-    Closed: false,
-    Limit:  20,
-})
+client := universal.NewClient(universal.Config{})
+markets, err := client.ActiveMarkets(ctx)
 ```
 
 ## Pagination helper
@@ -109,9 +108,12 @@ all, err := pagination.CollectAll(ctx, func(ctx context.Context, cursor string) 
 
 ## What the SDK does *not* expose
 
-- Authenticated CLOB order placement. Order signing lives in `internal/clob`
-  and `internal/auth`. If you need to sign and submit orders from a Go program,
-  shell out to `polygolem clob create-order` rather than re-implementing it.
+- One-call live onboarding. `pkg/relayer` exposes wallet lifecycle primitives,
+  and `pkg/universal` exposes CLOB order placement and cancellation, but the
+  full `deploy -> approve -> fund -> sync -> preflight` operator flow remains
+  a CLI workflow.
+- Configured V2 `builderCode` order attribution. Polygolem currently signs
+  orders with `builder = bytes32(0)`.
 - Live execution gates. Those are CLI-layer concerns; embedding them would
   bypass the operator confirmation surface.
 - Mutable global state. Every package returns its own client instance.

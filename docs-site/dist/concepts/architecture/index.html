@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-bguv2lll"> <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Architecture | Polygolem</title><link rel="canonical" href="https://trebuchetdynamics.github.io/concepts/architecture/"/><link rel="sitemap" href="/sitemap-index.xml"/><link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v5.18.1"/><meta name="generator" content="Starlight v0.32.6"/><meta property="og:title" content="Architecture"/><meta property="og:type" content="article"/><meta property="og:url" content="https://trebuchetdynamics.github.io/concepts/architecture/"/><meta property="og:locale" content="en"/><meta property="og:description" content="The polygolem package layout — public SDK under pkg/, implementation under internal/, CLI as a thin Cobra shell."/><meta property="og:site_name" content="Polygolem"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="The polygolem package layout — public SDK under pkg/, implementation under internal/, CLI as a thin Cobra shell."/><script>
+<!DOCTYPE html><html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-bguv2lll"> <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Architecture | Polygolem</title><link rel="canonical" href="https://trebuchetdynamics.github.io/concepts/architecture/"/><link rel="sitemap" href="/sitemap-index.xml"/><link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v5.18.1"/><meta name="generator" content="Starlight v0.32.6"/><meta property="og:title" content="Architecture"/><meta property="og:type" content="article"/><meta property="og:url" content="https://trebuchetdynamics.github.io/concepts/architecture/"/><meta property="og:locale" content="en"/><meta property="og:description" content="Polygolem package layout — public SDK (pkg/), implementation (internal/), CLI as thin Cobra shell."/><meta property="og:site_name" content="Polygolem"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="Polygolem package layout — public SDK (pkg/), implementation (internal/), CLI as thin Cobra shell."/><script>
 	window.StarlightThemeProvider = (() => {
 		const storedTheme =
 			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
@@ -77,29 +77,201 @@ svg:where(.astro-c6vsoqas){color:var(--sl-icon-color);font-size:var(--sl-icon-si
 		})();
 	</script> </sl-sidebar-state-persist>  <div class="md:sl-hidden"> <div class="mobile-preferences sl-flex astro-wu23bvmt"> <div class="sl-flex social-icons astro-wu23bvmt"> <a href="https://github.com/TrebuchetDynamics/polygolem" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg> </a> </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-4yphtoen"> <span class="sr-only astro-4yphtoen">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg>  <select value="auto" autocomplete="off" class="astro-4yphtoen"> <option value="dark" class="astro-4yphtoen">Dark</option><option value="light" class="astro-4yphtoen">Light</option><option value="auto" selected class="astro-4yphtoen">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </label>  </starlight-theme-select>  <script>
 	StarlightThemeProvider.updatePickers();
-</script>   </div>  </div> </div> </div> </nav> <div class="main-frame astro-vrdttmbt">  <script type="module">const a=document.getElementById("starlight__sidebar"),n=a?.querySelector("sl-sidebar-state-persist"),o="sl-sidebar-state",i=()=>{let t=[];const e=n?.dataset.hash||"";try{const s=sessionStorage.getItem(o),r=JSON.parse(s||"{}");Array.isArray(r.open)&&r.hash===e&&(t=r.open)}catch{}return{hash:e,open:t,scroll:a?.scrollTop||0}},c=t=>{try{sessionStorage.setItem(o,JSON.stringify(t))}catch{}},d=()=>c(i()),l=(t,e)=>{const s=i();s.open[e]=t,c(s)};n?.addEventListener("click",t=>{if(!(t.target instanceof Element))return;const e=t.target.closest("summary")?.closest("details");if(!e)return;const s=e.querySelector("sl-sidebar-restore"),r=parseInt(s?.dataset.index||"");isNaN(r)||l(!e.open,r)});addEventListener("visibilitychange",()=>{document.visibilityState==="hidden"&&d()});addEventListener("pageHide",d);</script> <div class="lg:sl-flex astro-67yu43on"> <aside class="right-sidebar-container print:hidden astro-67yu43on"> <div class="right-sidebar astro-67yu43on"> <script type="module" src="/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C181hMzK.js"></script><script type="module" src="/_astro/TableOfContents.astro_astro_type_script_index_0_lang.CKWWgpjV.js"></script><div class="lg:sl-hidden astro-pb3aqygn"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-doynk5tl"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-doynk5tl"><details id="starlight__mobile-toc" class="astro-doynk5tl"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-doynk5tl"><div class="toggle sl-flex astro-doynk5tl">On this page<svg aria-hidden="true" class="caret astro-doynk5tl astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </div><span class="display-current astro-doynk5tl"></span></summary><div class="dropdown astro-doynk5tl"><ul class="isMobile astro-g2bywc46" style="--depth: 0;"> <li class="astro-g2bywc46" style="--depth: 0;"> <a href="#_top" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#related" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Related</span> </a>  </li> </ul> </div></details></nav></mobile-starlight-toc></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-pb3aqygn"><div class="sl-container astro-pb3aqygn"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">On this page</h2><ul class="astro-g2bywc46" style="--depth: 0;"> <li class="astro-g2bywc46" style="--depth: 0;"> <a href="#_top" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#related" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Related</span> </a>  </li> </ul> </nav></starlight-toc></div></div> </div> </aside> <div class="main-pane astro-67yu43on">  <main data-pagefind-body class="astro-bguv2lll" lang="en" dir="ltr">    <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <h1 id="_top" class="astro-j6tvhyss">Architecture</h1>  </div> </div>  <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <div class="sl-markdown-content"> <p>Polygolem is a Go protocol and automation stack for Polymarket with a thin
-Cobra-based CLI on top. The codebase is split into three layers:</p>
+</script>   </div>  </div> </div> </div> </nav> <div class="main-frame astro-vrdttmbt">  <script type="module">const a=document.getElementById("starlight__sidebar"),n=a?.querySelector("sl-sidebar-state-persist"),o="sl-sidebar-state",i=()=>{let t=[];const e=n?.dataset.hash||"";try{const s=sessionStorage.getItem(o),r=JSON.parse(s||"{}");Array.isArray(r.open)&&r.hash===e&&(t=r.open)}catch{}return{hash:e,open:t,scroll:a?.scrollTop||0}},c=t=>{try{sessionStorage.setItem(o,JSON.stringify(t))}catch{}},d=()=>c(i()),l=(t,e)=>{const s=i();s.open[e]=t,c(s)};n?.addEventListener("click",t=>{if(!(t.target instanceof Element))return;const e=t.target.closest("summary")?.closest("details");if(!e)return;const s=e.querySelector("sl-sidebar-restore"),r=parseInt(s?.dataset.index||"");isNaN(r)||l(!e.open,r)});addEventListener("visibilitychange",()=>{document.visibilityState==="hidden"&&d()});addEventListener("pageHide",d);</script> <div class="lg:sl-flex astro-67yu43on"> <aside class="right-sidebar-container print:hidden astro-67yu43on"> <div class="right-sidebar astro-67yu43on"> <script type="module" src="/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C181hMzK.js"></script><script type="module" src="/_astro/TableOfContents.astro_astro_type_script_index_0_lang.CKWWgpjV.js"></script><div class="lg:sl-hidden astro-pb3aqygn"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-doynk5tl"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-doynk5tl"><details id="starlight__mobile-toc" class="astro-doynk5tl"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-doynk5tl"><div class="toggle sl-flex astro-doynk5tl">On this page<svg aria-hidden="true" class="caret astro-doynk5tl astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </div><span class="display-current astro-doynk5tl"></span></summary><div class="dropdown astro-doynk5tl"><ul class="isMobile astro-g2bywc46" style="--depth: 0;"> <li class="astro-g2bywc46" style="--depth: 0;"> <a href="#_top" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#three-layers" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Three Layers</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#public-sdk-pkg" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Public SDK (pkg/)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#internal-packages-internal" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Internal Packages (internal/)</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#protocol-clients" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Protocol Clients</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#cross-cutting" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Cross-Cutting</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#application" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Application</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#dependency-direction" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Dependency Direction</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#mode-system" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Mode System</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#see-also" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">See Also</span> </a>  </li> </ul> </div></details></nav></mobile-starlight-toc></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-pb3aqygn"><div class="sl-container astro-pb3aqygn"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">On this page</h2><ul class="astro-g2bywc46" style="--depth: 0;"> <li class="astro-g2bywc46" style="--depth: 0;"> <a href="#_top" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#three-layers" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Three Layers</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#public-sdk-pkg" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Public SDK (pkg/)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#internal-packages-internal" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Internal Packages (internal/)</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#protocol-clients" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Protocol Clients</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#cross-cutting" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Cross-Cutting</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#application" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Application</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#dependency-direction" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Dependency Direction</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#mode-system" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Mode System</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#see-also" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">See Also</span> </a>  </li> </ul> </nav></starlight-toc></div></div> </div> </aside> <div class="main-pane astro-67yu43on">  <main data-pagefind-body class="astro-bguv2lll" lang="en" dir="ltr">    <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <h1 id="_top" class="astro-j6tvhyss">Architecture</h1>  </div> </div>  <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <div class="sl-markdown-content"> <p>Polygolem is a Go protocol and automation stack for Polymarket CLOB V2 with a thin
+Cobra-based CLI on top.</p>
+<h2 id="three-layers">Three Layers</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Layer</th><th>Packages</th><th>Role</th></tr></thead><tbody><tr><td><strong><code dir="auto">cmd/polygolem</code></strong></td><td>1</td><td>Binary entry point. Wires Cobra and exits.</td></tr><tr><td><strong><code dir="auto">pkg/</code></strong></td><td>6</td><td>Stable public Go SDK. Semver-stable contracts.</td></tr><tr><td><strong><code dir="auto">internal/</code></strong></td><td>21</td><td>Implementation. Not part of public API.</td></tr></tbody></table>
+<p>Dependencies flow <strong>inward only</strong>: <code dir="auto">cmd → internal → pkg</code>.</p>
+<h2 id="public-sdk-pkg">Public SDK (<code dir="auto">pkg/</code>)</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Package</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">pkg/universal</code></td><td>Single client for Gamma + CLOB + Data API + Discovery + Stream</td></tr><tr><td><code dir="auto">pkg/gamma</code></td><td>Full Gamma API surface — 26 methods (markets, events, tags, comments, profiles)</td></tr><tr><td><code dir="auto">pkg/bookreader</code></td><td>Read-only CLOB order-book reader</td></tr><tr><td><code dir="auto">pkg/marketresolver</code></td><td>Market + token ID resolution</td></tr><tr><td><code dir="auto">pkg/bridge</code></td><td>Bridge API — supported assets, deposit addresses, quotes</td></tr><tr><td><code dir="auto">pkg/pagination</code></td><td>Cursor and offset pagination with concurrent batching</td></tr></tbody></table>
+<h2 id="internal-packages-internal">Internal Packages (<code dir="auto">internal/</code>)</h2>
+<h3 id="protocol-clients">Protocol Clients</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Package</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">internal/gamma</code></td><td>Gamma HTTP client — 26 methods</td></tr><tr><td><code dir="auto">internal/clob</code></td><td>CLOB V2 client — 37 methods, EIP-712, POLY_1271, ERC-7739</td></tr><tr><td><code dir="auto">internal/dataapi</code></td><td>Data API — positions, volume, leaderboards</td></tr><tr><td><code dir="auto">internal/relayer</code></td><td>Builder relayer — WALLET-CREATE, WALLET batch, nonce, polling</td></tr><tr><td><code dir="auto">internal/stream</code></td><td>WebSocket market client with reconnect + dedup</td></tr><tr><td><code dir="auto">internal/rpc</code></td><td>Direct on-chain transfers (pUSD EOA → wallet)</td></tr></tbody></table>
+<h3 id="cross-cutting">Cross-Cutting</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Package</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">internal/auth</code></td><td>L0/L1/L2 auth, EIP-712, CREATE2 derivation, builder attribution, signers</td></tr><tr><td><code dir="auto">internal/polytypes</code></td><td>V2 protocol types — Market, Event, OrderBook, order payloads</td></tr><tr><td><code dir="auto">internal/transport</code></td><td>HTTP retry, rate limiter, circuit breaker, redaction</td></tr><tr><td><code dir="auto">internal/config</code></td><td>Config loading, defaults, env binding, validation, redaction</td></tr></tbody></table>
+<h3 id="application">Application</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Package</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">internal/cli</code></td><td>Cobra command construction</td></tr><tr><td><code dir="auto">internal/wallet</code></td><td>Deposit wallet — derive, deploy, status, batch signing</td></tr><tr><td><code dir="auto">internal/orders</code></td><td>OrderIntent, fluent builder, validation</td></tr><tr><td><code dir="auto">internal/execution</code></td><td>Paper executor + live executor surface</td></tr><tr><td><code dir="auto">internal/marketdiscovery</code></td><td>Gamma + CLOB enrichment service</td></tr><tr><td><code dir="auto">internal/modes</code></td><td>Read-only / paper / live mode gates</td></tr><tr><td><code dir="auto">internal/risk</code></td><td>Per-trade caps, daily loss limits, circuit breaker</td></tr><tr><td><code dir="auto">internal/paper</code></td><td>Local paper positions and persisted state</td></tr><tr><td><code dir="auto">internal/preflight</code></td><td>Readiness checks</td></tr><tr><td><code dir="auto">internal/output</code></td><td>Table + JSON rendering</td></tr><tr><td><code dir="auto">internal/errors</code></td><td>Structured error types</td></tr></tbody></table>
+<h2 id="dependency-direction">Dependency Direction</h2>
+<div class="expressive-code"><link rel="stylesheet" href="/_astro/ec.tm3va.css"><script type="module" src="/_astro/ec.8zarh.js"></script><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">cmd/polygolem</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">        </span></span><span style="--0:#d6deeb;--1:#403f53">|</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">internal/cli</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">        </span></span><span style="--0:#d6deeb;--1:#403f53">|</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">internal/{config, modes, preflight, output, errors}</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">        </span></span><span style="--0:#d6deeb;--1:#403f53">|</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">internal/{gamma, clob, dataapi, stream, relayer, rpc}   ← protocol clients</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">        </span></span><span style="--0:#d6deeb;--1:#403f53">|</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">internal/{auth, transport, polytypes}                   ← cross-cutting</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">        </span></span><span style="--0:#d6deeb;--1:#403f53">|</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">internal/{wallet, orders, execution, risk, paper, marketdiscovery}</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">        </span></span><span style="--0:#d6deeb;--1:#403f53">|</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">pkg/{universal, gamma, bookreader, marketresolver, bridge, pagination}</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="cmd/polygolem        |internal/cli        |internal/{config, modes, preflight, output, errors}        |internal/{gamma, clob, dataapi, stream, relayer, rpc}   ← protocol clients        |internal/{auth, transport, polytypes}                   ← cross-cutting        |internal/{wallet, orders, execution, risk, paper, marketdiscovery}        |pkg/{universal, gamma, bookreader, marketresolver, bridge, pagination}"><div></div></button></div></figure></div>
+<h2 id="mode-system">Mode System</h2>
 <ul>
-<li><strong><code dir="auto">cmd/polygolem</code></strong> — the binary entry point. Just wires Cobra and exits.</li>
-<li><strong><code dir="auto">internal/</code> (21 packages)</strong> — implementation: HTTP clients, signers,
-config, paper executor, modes, output, errors. Not part of the public API.</li>
-<li><strong><code dir="auto">pkg/</code> (5 packages)</strong> — the stable public Go SDK: <code dir="auto">bookreader</code>, <code dir="auto">bridge</code>,
-<code dir="auto">gamma</code>, <code dir="auto">marketresolver</code>, <code dir="auto">pagination</code>. Semver-stable.</li>
+<li><strong>Read-only</strong> (default): public market data. No credentials needed.</li>
+<li><strong>Paper</strong>: local simulation. Never reaches authenticated endpoints.</li>
+<li><strong>Live</strong>: gated. Requires preflight + all four safety gates.</li>
 </ul>
-<p>Dependencies flow <strong>inward only</strong>: <code dir="auto">cmd → internal → pkg</code>. Public SDK packages
-must not import internal packages, and internal packages must not depend on
-the CLI layer.</p>
-<p>The mode boundary (read-only / paper / live) is enforced in <code dir="auto">internal/modes</code>
-and consumed by every command before any side-effecting code path. Live
-commands additionally route through <code dir="auto">internal/execution</code> after the four-gate
-preflight check.</p>
-<aside aria-label="Note" class="starlight-aside starlight-aside--note"> <p class="starlight-aside__title" aria-hidden="true"> <svg aria-hidden="true" class="starlight-aside__icon astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 11a1 1 0 0 0-1 1v4a1 1 0 0 0 2 0v-4a1 1 0 0 0-1-1Zm.38-3.92a1 1 0 0 0-.76 0 1 1 0 0 0-.33.21 1.15 1.15 0 0 0-.21.33 1 1 0 0 0 .21 1.09c.097.088.209.16.33.21A1 1 0 0 0 13 8a1.05 1.05 0 0 0-.29-.71 1 1 0 0 0-.33-.21ZM12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16.001A8 8 0 0 1 12 20Z"/></svg> Note </p> <div class="starlight-aside__content"> <p><strong>Source of truth:</strong> the canonical architecture document is
-<a href="https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md"><code dir="auto">docs/ARCHITECTURE.md</code></a>.
-It contains the full per-package table and dependency graph; this page is a
-high-level summary.</p> </div> </aside>
-<h2 id="related">Related</h2>
+<h2 id="see-also">See Also</h2>
 <ul>
-<li><a href="https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md"><code dir="auto">docs/ARCHITECTURE.md</code></a> — canonical package map</li>
-<li><a href="/reference/sdk">Go SDK Reference</a> — every public type and method</li>
-<li><a href="/concepts/safety">Safety Model</a> — how the mode boundary is enforced</li>
+<li><a href="/reference/sdk">Go SDK Contracts</a> — every public type and method signature</li>
+<li><a href="/reference/internal-packages">Internal Packages</a> — full internal API surface</li>
+<li><a href="/concepts/safety">Safety Model</a> — mode boundary enforcement</li>
+<li><a href="https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md"><code dir="auto">docs/ARCHITECTURE.md</code></a> — canonical document</li>
 </ul> </div> <footer class="sl-flex astro-3yyafb3n"> <div class="meta sl-flex astro-3yyafb3n">   </div> <div class="pagination-links print:hidden astro-u2l5gyhi" dir="ltr"> <a href="/concepts/safety" rel="prev" class="astro-u2l5gyhi"> <svg aria-hidden="true" class="astro-u2l5gyhi astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg>  <span class="astro-u2l5gyhi"> Previous <br class="astro-u2l5gyhi"> <span class="link-title astro-u2l5gyhi">Safety Model</span> </span> </a> <a href="/reference/cli" rel="next" class="astro-u2l5gyhi"> <svg aria-hidden="true" class="astro-u2l5gyhi astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>  <span class="astro-u2l5gyhi"> Next <br class="astro-u2l5gyhi"> <span class="link-title astro-u2l5gyhi">CLI Commands</span> </span> </a> </div>   </footer>  </div> </div>   </main> </div> </div>  </div> </div>  </body></html>
