@@ -5,17 +5,30 @@ description: Polygolem's WebSocket support for real-time CLOB market data — co
 
 import { Aside } from "@astrojs/starlight/components";
 
-Polymarket exposes a WebSocket at
-`wss://ws-subscriptions-clob.polymarket.com/ws/`. It has two channels:
+Polymarket exposes WebSocket channels under the CLOB subscription service. This
+page covers the public market endpoint:
+`wss://ws-subscriptions-clob.polymarket.com/ws/market`.
 
 - **Market channel** — public, no auth. Streams order book updates, price
   changes, and trade events.
 - **User channel** — authenticated. Streams personal order events.
 
-Polygolem implements the **market channel** today through `internal/stream`'s
-`MarketClient`. The client handles connection lifecycle, automatic reconnection
-with backoff, message normalization, and dedup of duplicate events that the
-upstream sometimes delivers across reconnects.
+Polygolem implements the **market channel** through the public `pkg/stream`
+`MarketClient`, backed internally by `internal/stream`. The client handles
+connection lifecycle, automatic reconnection with backoff, message
+normalization, and dedup of duplicate events that the upstream sometimes
+delivers across reconnects.
+
+```go
+import sdkstream "github.com/TrebuchetDynamics/polygolem/pkg/stream"
+
+client := sdkstream.NewMarketClient(sdkstream.DefaultConfig(""))
+client.OnPriceChange = func(msg sdkstream.PriceChangeMessage) {
+    _ = msg.PriceChanges
+}
+_ = client.Connect(ctx)
+_ = client.SubscribeAssets(ctx, []string{"7132104567..."})
+```
 
 ## What's implemented
 
@@ -57,11 +70,11 @@ When the upstream connection drops, the client:
 ## Related
 
 - [Orderbook Data](/guides/orderbook-data) — REST equivalents for one-shot reads
-- [`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md) — `internal/stream` package boundary
+- [`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md) — `pkg/stream` package boundary
 - [Polymarket API Overview](/concepts/polymarket-api) — every API in one place
 
 <Aside type="note">
-**Source of truth:** the canonical package-level description of `internal/stream`
+**Source of truth:** the canonical package-level description of `pkg/stream`
 lives in
 [`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md).
 </Aside>

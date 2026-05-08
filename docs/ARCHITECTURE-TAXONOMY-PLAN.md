@@ -100,7 +100,8 @@ Verification:
 
 Create `pkg/types` or another clearly named public DTO package, then re-export
 or migrate stable structs out of `internal/polytypes`, `internal/dataapi`,
-`internal/clob`, and `internal/stream` where public packages expose them.
+`internal/clob`, and remaining internal stream/user-stream surfaces where
+public packages expose them.
 
 Progress:
 
@@ -108,6 +109,9 @@ Progress:
   read-only public Data API client, and `pkg/universal` now returns
   `pkg/types` for Data API positions, trades, activity, holders, portfolio
   value, markets traded, open interest, leaderboard, and live volume.
+- 2026-05-08: Public market WebSocket streams were promoted through
+  `pkg/stream`; `pkg/universal` now returns public stream clients and DTOs for
+  book, price-change, last-trade, and dedup helpers.
 - 2026-05-08: Gamma DTOs were promoted next. `pkg/gamma` and the Gamma methods
   on `pkg/universal` now return `pkg/types` for markets, events, tags, series,
   comments, profiles, search, sports metadata, and keyset pagination. The

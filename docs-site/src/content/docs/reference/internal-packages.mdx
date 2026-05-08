@@ -131,14 +131,15 @@ client := dataapi.NewClient("https://data-api.polymarket.com", nil)
 
 ### `internal/stream`
 
-WebSocket market stream client with reconnect and dedup.
+WebSocket market stream implementation with reconnect and dedup. Embedded SDK
+consumers should use the public `pkg/stream` wrapper instead.
 
 ```go
-import "github.com/TrebuchetDynamics/polygolem/internal/stream"
-client := stream.NewMarketClient(stream.DefaultConfig("wss://ws-subscriptions-clob.polymarket.com/ws/"))
-client.OnBook = func(msg stream.BookMessage) { ... }
-client.OnPriceChange = func(msg stream.PriceChangeMessage) { ... }
-client.OnLastTrade = func(msg stream.LastTradeMessage) { ... }
+import internalstream "github.com/TrebuchetDynamics/polygolem/internal/stream"
+client := internalstream.NewMarketClient(internalstream.DefaultConfig("wss://ws-subscriptions-clob.polymarket.com/ws/market"))
+client.OnBook = func(msg internalstream.BookMessage) { ... }
+client.OnPriceChange = func(msg internalstream.PriceChangeMessage) { ... }
+client.OnLastTrade = func(msg internalstream.LastTradeMessage) { ... }
 client.Connect(ctx)
 ```
 

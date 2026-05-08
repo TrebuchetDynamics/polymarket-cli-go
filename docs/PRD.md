@@ -521,10 +521,11 @@ Acceptance criteria:
 
 ### R8. WebSocket And Streaming ⚠️
 
-> **Status:** Partial. `internal/stream` ships a public `MarketClient`
-> with reconnect, ping/pong, dedup, and `SubscribeAssets`, exposed via
-> `polygolem stream market`. The authenticated user stream and RTDS-channel
-> isolation described here are not yet implemented.
+> **Status:** Partial. `pkg/stream` ships a public `MarketClient`
+> with reconnect, ping/pong, dedup, and `SubscribeAssets`, backed by
+> `internal/stream` and exposed via `polygolem stream market`. The
+> authenticated user stream and RTDS-channel isolation described here are not
+> yet implemented.
 
 The SDK must provide resilient typed streaming clients.
 
@@ -644,7 +645,7 @@ Acceptance criteria:
 ### R12. Public SDK Boundary ⚠️
 
 > **Status:** Partial / drifted. The "keep everything in `internal/`"
-> stance shifted: `pkg/{bookreader,bridge,clob,data,gamma,marketresolver,orderbook,pagination,relayer,types,universal}`
+> stance shifted: `pkg/{bookreader,bridge,clob,data,gamma,marketresolver,orderbook,pagination,relayer,stream,types,universal}`
 > are now exposed as a small stable surface. `pkg/bookreader` is deprecated in
 > favor of `pkg/orderbook`. The remaining requirements
 > (thin Cobra handlers, application services above protocol clients) hold;
@@ -674,9 +675,9 @@ Acceptance criteria:
 ### R13. Go-Bot Consumer Boundary ⚠️
 
 > **Status:** Partial. Polygolem-side primitives exist (`pkg/clob`,
-> `pkg/orderbook`,
+> `pkg/orderbook`, `pkg/stream`,
 > `pkg/marketresolver`, `pkg/bridge`, `internal/clob`, `internal/dataapi`,
-> `internal/stream`, `internal/execution`) and CLI JSON output is
+> `internal/execution`) and CLI JSON output is
 > regenerated in `docs/COMMANDS.md`. Go-bot-side adoption (full removal of
 > direct `internal/polymarket` clients, repository guard) is tracked
 > outside this repo and is not verifiable here.
@@ -898,7 +899,7 @@ Recommended `go-bot` integration modules:
 
 ### Phase D - Streams
 
-- Add public market WebSocket streams first.
+- Add public market WebSocket streams first. Done in `pkg/stream`.
 - Add authenticated user streams only after L2 auth readiness is tested.
 
 ### Phase E - Gated Live Execution

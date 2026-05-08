@@ -11,7 +11,7 @@ Cobra-based CLI on top.
 | Layer | Packages | Role |
 |-------|----------|------|
 | **`cmd/polygolem`** | 1 | Binary entry point. Wires Cobra and exits. |
-| **`pkg/`** | 11 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; enrichment/stream type paths still need cleanup. |
+| **`pkg/`** | 12 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; market WebSocket events use public `pkg/stream` DTOs; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; enrichment and authenticated type paths still need cleanup. |
 | **`internal/`** | 21 | Implementation. Not part of public API. |
 
 The CLI and public SDK both depend on the internal protocol implementation.
@@ -31,6 +31,7 @@ The `internal/` packages do not depend on `cmd/`.
 | `pkg/marketresolver` | Market + token ID resolution |
 | `pkg/bridge` | Bridge API — supported assets, deposit addresses, quotes |
 | `pkg/relayer` | Builder relayer primitives — wallet create, wallet batch, nonce, polling |
+| `pkg/stream` | Public CLOB WebSocket market stream client |
 | `pkg/pagination` | Cursor and offset pagination with concurrent batching |
 
 ## Internal Packages (`internal/`)
@@ -43,7 +44,7 @@ The `internal/` packages do not depend on `cmd/`.
 | `internal/clob` | CLOB V2 client — 37 methods, EIP-712, POLY_1271, ERC-7739 |
 | `internal/dataapi` | Data API — positions, volume, leaderboards |
 | `internal/relayer` | Builder relayer — WALLET-CREATE, WALLET batch, nonce, polling |
-| `internal/stream` | WebSocket market client with reconnect + dedup |
+| `internal/stream` | WebSocket market stream implementation behind `pkg/stream` |
 | `internal/rpc` | Direct on-chain transfers (pUSD EOA → wallet) |
 
 ### Cross-Cutting
@@ -87,7 +88,7 @@ internal/{auth, transport, polytypes}                   ← cross-cutting
 internal/{wallet, orders, execution, risk, paper, marketdiscovery}
         ^
         |
-pkg/{universal, gamma, data, types, clob, orderbook, bookreader, marketresolver, bridge, relayer, pagination}
+pkg/{universal, gamma, data, types, clob, stream, orderbook, bookreader, marketresolver, bridge, relayer, pagination}
 ```
 
 ## Mode System

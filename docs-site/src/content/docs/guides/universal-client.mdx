@@ -11,6 +11,7 @@ surface.
 
 ```go
 import (
+    sdkstream "github.com/TrebuchetDynamics/polygolem/pkg/stream"
     "github.com/TrebuchetDynamics/polygolem/pkg/types"
     "github.com/TrebuchetDynamics/polygolem/pkg/universal"
 )
@@ -132,11 +133,11 @@ Polygolem's supported live path is deposit wallet (`signatureType = 3`).
 ## Streams
 
 ```go
-stream := client.StreamClient()
-stream.OnBook = func(msg stream.BookMessage) { /* handle orderbook update */ }
-stream.OnPriceChange = func(msg stream.PriceChangeMessage) { /* handle price change */ }
-stream.OnLastTrade = func(msg stream.LastTradeMessage) { /* handle trade */ }
-stream.Connect(ctx)
+marketStream := client.StreamClient()
+marketStream.OnBook = func(msg sdkstream.BookMessage) { /* handle orderbook update */ }
+marketStream.OnPriceChange = func(msg sdkstream.PriceChangeMessage) { /* handle price change */ }
+marketStream.OnLastTrade = func(msg sdkstream.LastTradeMessage) { /* handle trade */ }
+marketStream.Connect(ctx)
 ```
 
 ## Configuration
