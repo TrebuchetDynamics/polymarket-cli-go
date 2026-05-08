@@ -53,8 +53,9 @@ func newBuilderCommand(jsonOut bool) *cobra.Command {
 		Use:   "builder",
 		Short: "Manage builder credentials",
 		Long: `Builder credentials authenticate the deposit-wallet onboarding flow
-and provide order attribution. They are obtained from
-` + builderURLPath + ` and persisted locally for use by polygolem and go-bot.`,
+and provide order attribution. They can be minted headlessly with an EOA
+ClobAuth signature or captured manually from
+` + builderURLPath + `, then persisted locally for use by polygolem and go-bot.`,
 	}
 	cmd.AddCommand(newBuilderOnboardCommand(jsonOut))
 	cmd.AddCommand(newBuilderAutoCommand(jsonOut))
@@ -62,10 +63,7 @@ and provide order attribution. They are obtained from
 }
 
 // newBuilderAutoCommand creates HMAC creds with the EOA's own ClobAuth
-// signature — no browser, no paste. Requires an existing builder profile
-// at polymarket.com/settings?tab=builder (the bytes32 builder code is
-// minted by the web UI; this command only mints the API-key triple that
-// authenticates relayer calls). The CLOB /auth/api-key endpoint is
+// signature — no browser, no paste. The CLOB /auth/api-key endpoint is
 // idempotent under the same EOA: re-running this command derives the
 // existing key when one was already issued.
 func newBuilderAutoCommand(jsonOut bool) *cobra.Command {
@@ -80,9 +78,9 @@ func newBuilderAutoCommand(jsonOut bool) *cobra.Command {
 POLYMARKET_PRIVATE_KEY, posts it to /auth/api-key, and persists the
 returned {apiKey, secret, passphrase} to a 0600 env file.
 
-Pre-requisite: a builder profile must already exist for the EOA at
-` + builderURLPath + `. Profile creation itself is a web-form step
-with no transaction; this command only handles the API-key minting.`,
+The endpoint is idempotent per EOA and may lazy-create the account-side builder
+state needed for relayer auth. Use builder onboard only when you want the manual
+browser capture flow.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			privateKey := strings.TrimSpace(os.Getenv("POLYMARKET_PRIVATE_KEY"))

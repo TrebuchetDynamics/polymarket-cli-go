@@ -96,13 +96,25 @@ POLYMARKET_PRIVATE_KEY="0x$(cat fresh_key.txt)" \
 
 ## 2. Prerequisites
 
-### 2.1 One-Time Manual Step (Builder Credentials)
+### 2.1 Builder Credentials
+
+Preferred headless flow:
+
+```bash
+POLYMARKET_PRIVATE_KEY="0x..." polygolem builder auto
+```
+
+This signs the canonical ClobAuth EIP-712 message locally, calls
+`/auth/api-key`, validates the returned HMAC credentials against the relayer,
+and writes them to a local env file with `0600` permissions. No browser or
+wallet UI is required for the automated path.
+
+Manual fallback:
 
 1. Open `polymarket.com/settings?tab=builder` in a browser
 2. Sign in with your Ethereum wallet (MetaMask, Rabby, etc.)
-3. Create a builder profile (free, no KYC)
-4. Click **"+ Create New"** to generate Relayer API keys
-5. Copy these three values:
+3. Click **"+ Create New"** to generate Relayer API keys
+4. Copy these three values:
 
 | Variable | Source |
 |----------|--------|
@@ -110,7 +122,8 @@ POLYMARKET_PRIVATE_KEY="0x$(cat fresh_key.txt)" \
 | `POLYMARKET_BUILDER_SECRET` | Base64 secret shown in the UI |
 | `POLYMARKET_BUILDER_PASSPHRASE` | Hex passphrase shown in the UI |
 
-**Store these securely.** They are shown once in the UI. If lost, revoke and create new ones.
+**Store these securely.** If lost, re-run `polygolem builder auto` or revoke
+and create new ones manually.
 
 ### 2.2 Required for All Operations
 
@@ -416,10 +429,10 @@ Short-form alternatives (`BUILDER_API_KEY`, `BUILDER_SECRET`, `BUILDER_PASS_PHRA
 **Symptom:** Relayer returns 401 Unauthorized.
 
 **Recovery:**
-1. Go to `polymarket.com/settings?tab=builder`
-2. Revoke old keys and create new ones
-3. Update environment variables
-4. Existing wallet is unaffected (credentials are auth, not custody)
+1. Re-run `polygolem builder auto --force` for the same EOA, or go to
+   `polymarket.com/settings?tab=builder` and create a new key manually.
+2. Update environment variables.
+3. Existing wallet is unaffected (credentials are auth, not custody).
 
 ---
 
@@ -433,4 +446,4 @@ Short-form alternatives (`BUILDER_API_KEY`, `BUILDER_SECRET`, `BUILDER_PASS_PHRA
 
 ---
 
-*This document defines the complete deposit wallet deployment pipeline as implemented in polygolem. Every step is live-tested against Polymarket production. The only manual step is copying builder credentials from the Polymarket web UI — everything else is automated.*
+*This document defines the complete deposit wallet deployment pipeline as implemented in polygolem. Every step is live-tested against Polymarket production. Builder credential issuance is automated by `polygolem builder auto`; the browser flow remains only as a manual fallback.*
