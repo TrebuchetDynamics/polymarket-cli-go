@@ -3,6 +3,95 @@
 Account: EOA `0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C`
 Audit: 2026-05-07
 
+## CORRECTION 2026-05-08 — Web-UI EOA signup uses sigtype-1 proxy, not deposit wallet
+
+The earlier framing (deposit wallet is the only supported mode) is
+incorrect for new EOA accounts. A Playwright capture of the actual
+polymarket.com signup flow (`scripts/playwright-capture/eoa-signup.mjs`,
+EOA `0x3075Af8096c3e5147af22Da45FE7c8496E70a306`, run 2026-05-08T18:11Z)
+showed Polymarket's frontend creates a **sigtype-1 proxy wallet** for
+new users — `0x31bd9F0E315586352eb9B6141cEC154C9a71549D` — and binds the
+account, builder profile, and relayer API key to that proxy.
+
+**The 400 `"maker address not allowed, please use the deposit wallet
+flow"` rejection seen in the 2026-05-07 verification was for an
+unregistered EOA — Polymarket's backend had no profile for it. After
+running the equivalent of the web-UI signup (SIWE login →
+`POST /gamma-api/profiles`), the proxy is registered and sigtype-1
+orders from that proxy are accepted.** The `deposit-wallet-migration`
+doc still applies, but as a *parallel* path for users who explicitly
+need a deposit wallet (custody/recovery features), not a *mandatory*
+one.
+
+### Captured V2 EOA signup flow (decoded from HAR)
+
+```
+1. GET  /gamma-api.polymarket.com/nonce                     → nonce
+2. eth_requestAccounts via injected EIP-1193 provider       → [EOA]
+3. personal_sign over standard SIWE message
+   (statement: "Welcome to Polymarket! Sign to connect.")
+4. GET  /gamma-api.polymarket.com/login
+        Authorization: Bearer base64(SIWE-JSON ::: signature)
+5. POST /gamma-api.polymarket.com/profiles
+        body: {displayUsernamePublic, name, pseudonym,
+               proxyWallet: <derived>,
+               users: [{address: <EOA>, provider: "metamask",
+                        proxyWallet: <derived>, ...}], ...}
+   → 201 {profile, proxyWallet, users[]}
+6. (optional, builder fees) POST /gamma-api.polymarket.com/builder-profiles
+        body: {name, address: <proxyWallet>}
+   → 201 {id, builderCode: {code: 0x<bytes32>, makerFeeRateBps,
+                            takerFeeRateBps, enabled}, ...}
+7. POST /relayer-v2.polymarket.com/relayer/api/auth
+        body: {}
+   → 200 {apiKey: <UUID>, address: <EOA>}
+```
+
+The bearer at step 4 is `base64(<SIWE-JSON>:::<sig>)` — a JSON SIWE
+message + literal `:::` separator + raw 65-byte ECDSA signature, then
+URL-safe base64. Same SIWE message as step 3 (pinned by `nonce`).
+
+`POST /profiles` is what registers the proxy with the backend. The
+proxy address is computed by Polymarket's server from the EOA — it's
+the V1 CREATE2 proxy address polygolem already derives via
+`MakerAddressForSignatureType(eoa, 137, 1)`.
+
+### Implications for polygolem
+
+- The `BuildL1HeadersForDepositWallet` / ERC-7739 wrap path is the
+  *deposit wallet variant*, not the path new accounts take. Keep it
+  for accounts that want deposit wallets, but stop treating it as the
+  only path.
+- Headless onboarding for a fresh EOA is feasible in pure HTTP — no
+  browser needed at runtime. The capture script (Playwright +
+  injected EIP-1193 provider) was the investigation tool; production
+  polygolem can replicate steps 1-7 above with `net/http` + our
+  existing SIWE signer.
+- The "Relayer API Key" returned at step 7 is the only API key in V2;
+  there is no separate CLOB API key. Trading-tab settings are pure
+  UX (FAK/FOK, max button, auto-redeem) — no key creation there.
+- Builder profile creation (step 6) is purely a `POST` with the proxy
+  address — no signing required beyond the SIWE session cookie.
+  Polymarket assigns the bytes32 `builderCode` server-side.
+
+### Reference EOA + proxy used in the capture
+
+```
+EOA:           0x3075Af8096c3e5147af22Da45FE7c8496E70a306
+proxyWallet:   0x31bd9F0E315586352eb9B6141cEC154C9a71549D
+profile id:    8040942
+pseudonym:     Limping-Soul
+builderCode:   0x47743457d6825e8b6bd996845190ab63bcad2cd74ae096c627bbc2b259173f8b
+relayer key:   019e08ca-b8fb-710f-9f5a-94f7227838f2
+```
+
+(The EOA private key is in `scripts/playwright-capture/.eoa-key.json` —
+gitignored, throwaway test EOA only.)
+
+---
+
+## Original framing (kept for context — see correction above)
+
 **Polygolem's only supported mode is deposit wallet (type 3 / POLY_1271).**
 EOA, proxy, and Safe were tested against CLOB V2 — all rejected with
 `"maker address not allowed, please use the deposit wallet flow"`.
