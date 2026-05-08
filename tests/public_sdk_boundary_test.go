@@ -30,6 +30,7 @@ import (
 	"context"
 	"testing"
 
+	sdkclob "github.com/TrebuchetDynamics/polygolem/pkg/clob"
 	"github.com/TrebuchetDynamics/polygolem/pkg/data"
 	"github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
 	"github.com/TrebuchetDynamics/polygolem/pkg/gamma"
@@ -39,6 +40,13 @@ import (
 )
 
 func TestPublicSDKSignatures(t *testing.T) {
+	var clobClient *sdkclob.Client = sdkclob.NewClient(sdkclob.Config{})
+	var clobMarkets func(*sdkclob.Client, context.Context, string) (*types.CLOBPaginatedMarkets, error) = (*sdkclob.Client).Markets
+	var clobMarket func(*sdkclob.Client, context.Context, string) (*types.CLOBMarket, error) = (*sdkclob.Client).Market
+	var clobOrderBook func(*sdkclob.Client, context.Context, string) (*types.CLOBOrderBook, error) = (*sdkclob.Client).OrderBook
+	var clobOrderBooks func(*sdkclob.Client, context.Context, []types.CLOBBookParams) ([]types.CLOBOrderBook, error) = (*sdkclob.Client).OrderBooks
+	var clobTickSize func(*sdkclob.Client, context.Context, string) (*types.CLOBTickSize, error) = (*sdkclob.Client).TickSize
+	var clobPriceHistory func(*sdkclob.Client, context.Context, *types.CLOBPriceHistoryParams) (*types.CLOBPriceHistory, error) = (*sdkclob.Client).PricesHistory
 	var orderbookReader orderbook.Reader = orderbook.NewReader("")
 	var orderbookSnapshot orderbook.OrderBook
 	var orderbookLevel orderbook.Level
@@ -53,10 +61,18 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var universalMarkets func(*universal.Client, context.Context, *types.GetMarketsParams) ([]types.Market, error) = (*universal.Client).Markets
 	var universalSearch func(*universal.Client, context.Context, *types.SearchParams) (*types.SearchResponse, error) = (*universal.Client).Search
 	var universalComments func(*universal.Client, context.Context, *types.CommentQuery) ([]types.Comment, error) = (*universal.Client).Comments
+	var universalCLOBMarkets func(*universal.Client, context.Context, string) (*types.CLOBPaginatedMarkets, error) = (*universal.Client).CLOBMarkets
+	var universalCLOBMarket func(*universal.Client, context.Context, string) (*types.CLOBMarket, error) = (*universal.Client).CLOBMarket
+	var universalOrderBook func(*universal.Client, context.Context, string) (*types.CLOBOrderBook, error) = (*universal.Client).OrderBook
+	var universalOrderBooks func(*universal.Client, context.Context, []types.CLOBBookParams) ([]types.CLOBOrderBook, error) = (*universal.Client).OrderBooks
+	var universalTickSize func(*universal.Client, context.Context, string) (*types.CLOBTickSize, error) = (*universal.Client).TickSize
+	var universalPriceHistory func(*universal.Client, context.Context, *types.CLOBPriceHistoryParams) (*types.CLOBPriceHistory, error) = (*universal.Client).PricesHistory
 
+	_, _, _, _, _, _, _ = clobClient, clobMarkets, clobMarket, clobOrderBook, clobOrderBooks, clobTickSize, clobPriceHistory
 	_, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, legacyReader
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
 	_, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments
+	_, _, _, _, _, _ = universalCLOBMarkets, universalCLOBMarket, universalOrderBook, universalOrderBooks, universalTickSize, universalPriceHistory
 }
 `)
 
