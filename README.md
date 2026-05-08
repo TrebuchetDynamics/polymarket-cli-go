@@ -31,8 +31,8 @@ polygolem builder auto
 polygolem deposit-wallet onboard --fund-amount 0.71 --json
 
 # 3. Sync and trade
-polygolem clob update-balance --asset-type collateral --signature-type deposit
-polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --signature-type deposit
+polygolem clob update-balance --asset-type collateral
+polygolem clob create-order --token ID --side buy --price 0.5 --size 10
 ```
 
 **Total cost: ~$0.01 POL for one funding transfer. Everything else is sponsored.**
@@ -79,11 +79,11 @@ polygolem deposit-wallet onboard --fund-amount 0.71      # deploy + approve + fu
 ### CLOB Trading
 
 ```bash
-polygolem clob balance --asset-type collateral --signature-type deposit
-polygolem clob update-balance --asset-type collateral --signature-type deposit
-polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --signature-type deposit
-polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --order-type GTD --expiration 1778125000 --signature-type deposit
-polygolem clob market-order --token ID --side buy --amount 5 --signature-type deposit
+polygolem clob balance --asset-type collateral
+polygolem clob update-balance --asset-type collateral
+polygolem clob create-order --token ID --side buy --price 0.5 --size 10
+polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --order-type GTD --expiration 1778125000
+polygolem clob market-order --token ID --side buy --amount 5
 polygolem clob orders                                      # list open orders
 polygolem clob trades                                      # trade history
 polygolem clob cancel <order-id>                           # cancel single order
@@ -111,7 +111,7 @@ polygolem paper reset
 | Package | What It Does |
 |---------|-------------|
 | `pkg/universal` | Single client for Gamma + CLOB + Data API + Discovery + Stream (70+ methods) |
-| `pkg/gamma` | Read-only Gamma API — 26 methods (markets, events, search, tags, comments, profiles) |
+| `pkg/gamma` | Read-only Gamma API — 26 methods returning public `pkg/types` DTOs |
 | `pkg/data` | Read-only Data API analytics client using public DTOs |
 | `pkg/types` | Shared public DTOs for SDK packages |
 | `pkg/bookreader` | Read-only CLOB order book reader |

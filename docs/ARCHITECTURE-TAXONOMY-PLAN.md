@@ -64,7 +64,7 @@ Internal packages should keep implementation detail names:
 | `internal/auth` | L0/L1/L2 auth, EIP-712, POLY_1271, credential derivation |
 | `internal/wallet` | Deposit-wallet derivation, status, batch signing |
 | `internal/workflows/*` | CLI-level orchestration such as onboarding and market discovery |
-| `internal/polytypes` | Temporary home for shared protocol types until promoted to `pkg/types` |
+| `internal/polytypes` | Internal CLOB/enrichment protocol types plus aliases for public Gamma DTOs |
 
 ## Work Plan
 
@@ -107,6 +107,10 @@ Progress:
   read-only public Data API client, and `pkg/universal` now returns
   `pkg/types` for Data API positions, trades, activity, holders, portfolio
   value, markets traded, open interest, leaderboard, and live volume.
+- 2026-05-08: Gamma DTOs were promoted next. `pkg/gamma` and the Gamma methods
+  on `pkg/universal` now return `pkg/types` for markets, events, tags, series,
+  comments, profiles, search, sports metadata, and keyset pagination. The
+  internal `polytypes` package aliases those DTOs for existing internal callers.
 
 Verification:
 

@@ -1,36 +1,36 @@
 ---
 title: Protocol Types (polytypes)
-description: The Polymarket V2 data types — Market, Event, OrderBook, EnrichedMarket, PriceHistory, and all query parameter structs.
+description: Internal protocol types and aliases — Gamma DTO aliases, CLOB market data, enrichment, price history, and order records.
 ---
 
-The `internal/polytypes` package defines the protocol-level types shared across
-polygolem clients. These types are part of the current method signatures in
-`pkg/gamma` and `pkg/universal`; promoting or re-exporting them under a public
-package path is a known SDK cleanup gap.
+The `internal/polytypes` package defines protocol-level types shared across
+polygolem clients. Gamma market-discovery DTOs now live publicly in `pkg/types`
+and are aliased here for internal callers. Public SDK users should import
+`pkg/types` for Gamma and Data API contracts. CLOB, enrichment, rewards, and
+stream contracts still use internal protocol types until their public SDK slice
+is promoted.
 
 ## Markets
 
 ```go
 type Market struct {
-    ID              string          `json:"id"`
-    ConditionID     string          `json:"conditionID"`
-    Question        string          `json:"question"`
-    Slug            string          `json:"slug"`
-    Outcomes        []string        `json:"outcomes"`
-    OutcomePrices   StringOrArray   `json:"outcomePrices"`
-    ClobTokenIDs    string          `json:"clobTokenIds"`       // JSON array of strings
-    Active          bool            `json:"active"`
-    Closed          bool            `json:"closed"`
-    AcceptingOrders bool            `json:"acceptingOrders"`
-    EnableOrderBook bool            `json:"enableOrderBook"`
-    OrderPriceMinTickSize float64   `json:"orderPriceMinTickSize"`
-    Events          []Event         `json:"events,omitempty"`
-    // Price changes
-    OneDayPriceChange   float64     `json:"oneDayPriceChange"`
-    OneHourPriceChange  float64     `json:"oneHourPriceChange"`
-    LastTradePrice      float64     `json:"lastTradePrice"`
-    // V2 metadata
-    ClearBookOnStart    bool        `json:"clearBookOnStart"`
+    ID                    string        `json:"id"`
+    ConditionID           string        `json:"conditionId"`
+    Question              string        `json:"question"`
+    Slug                  string        `json:"slug"`
+    Outcomes              StringOrArray `json:"outcomes"`
+    OutcomePrices         StringOrArray `json:"outcomePrices"`
+    ClobTokenIDs          string        `json:"clobTokenIds"` // JSON array string
+    Active                bool          `json:"active"`
+    Closed                bool          `json:"closed"`
+    AcceptingOrders       bool          `json:"acceptingOrders"`
+    EnableOrderBook       bool          `json:"enableOrderBook"`
+    OrderPriceMinTickSize float64       `json:"orderPriceMinTickSize"`
+    OrderMinSize          float64       `json:"orderMinSize"`
+    Events                []Event       `json:"events,omitempty"`
+    LastTradePrice        float64       `json:"lastTradePrice"`
+    BestBid               float64       `json:"bestBid"`
+    BestAsk               float64       `json:"bestAsk"`
 }
 ```
 
@@ -204,31 +204,49 @@ type EnrichedMarket struct {
 
 ```go
 type GetMarketsParams struct {
-    Active       *bool   `json:"active,omitempty"`
-    Closed       *bool   `json:"closed,omitempty"`
-    Limit        int     `json:"limit,omitempty"`
-    Offset       int     `json:"offset,omitempty"`
-    Tag          string  `json:"tag,omitempty"`
-    RelatedTags  bool    `json:"related_tags,omitempty"`
+    Limit        int      `json:"limit,omitempty"`
+    Offset       int      `json:"offset,omitempty"`
+    Order        string   `json:"order,omitempty"`
+    Ascending    *bool    `json:"ascending,omitempty"`
+    Slug         []string `json:"slug,omitempty"`
+    ConditionIDs []string `json:"condition_ids,omitempty"`
+    TagID        *int     `json:"tag_id,omitempty"`
+    RelatedTags  *bool    `json:"related_tags,omitempty"`
+    Closed       *bool    `json:"closed,omitempty"`
+    Active       *bool    `json:"active,omitempty"`
 }
 
 type GetEventsParams struct {
-    Limit          int      `json:"limit,omitempty"`
-    Active         *bool    `json:"active,omitempty"`
-    Closed         *bool    `json:"closed,omitempty"`
-    EventsTag      []string `json:"events_tag,omitempty"`
-    EventsStatus   string   `json:"events_status,omitempty"`
+    Limit       int      `json:"limit,omitempty"`
+    Offset      int      `json:"offset,omitempty"`
+    Order       string   `json:"order,omitempty"`
+    Ascending   *bool    `json:"ascending,omitempty"`
+    Slug        []string `json:"slug,omitempty"`
+    TagID       *int     `json:"tag_id,omitempty"`
+    RelatedTags *bool    `json:"related_tags,omitempty"`
+    Featured    *bool    `json:"featured,omitempty"`
+    Closed      *bool    `json:"closed,omitempty"`
+    Recurrence  string   `json:"recurrence,omitempty"`
 }
 
 type SearchParams struct {
-    Q            string `json:"q"`
-    LimitPerType *int   `json:"limit_per_type,omitempty"`
-    EventsStatus string `json:"events_status,omitempty"`
+    Q              string   `json:"q"`
+    LimitPerType   *int     `json:"limit_per_type,omitempty"`
+    Page           *int     `json:"page,omitempty"`
+    EventsTag      []string `json:"events_tag,omitempty"`
+    EventsStatus   string   `json:"events_status,omitempty"`
+    Ascending      *bool    `json:"ascending,omitempty"`
+    Sort           string   `json:"sort,omitempty"`
+    SearchProfiles *bool    `json:"search_profiles,omitempty"`
 }
 
 type KeysetParams struct {
-    Limit  int    `json:"limit"`
-    Cursor string `json:"cursor,omitempty"`
+    Limit     int    `json:"limit,omitempty"`
+    KeysetID  string `json:"keyset_id,omitempty"`
+    Ascending *bool  `json:"ascending,omitempty"`
+    Active    *bool  `json:"active,omitempty"`
+    Closed    *bool  `json:"closed,omitempty"`
+    Order     string `json:"order,omitempty"`
 }
 ```
 

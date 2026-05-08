@@ -34,7 +34,7 @@ later.)
 | Prior COMMANDS.md documented `markets search` / `markets get` / `markets active` but no `markets` group exists in the binary | docs/COMMANDS.md (pre-Task 5) | Binary exposes market discovery via `discover search`, `discover market`, and `discover enrich` instead. Doc-side stale; no code change needed. |
 | Prior COMMANDS.md documented `prices get` but no `prices` command exists in the binary | docs/COMMANDS.md (pre-Task 5) | Closest equivalent is `clob price-history` and `orderbook price`. Doc-side stale; no code change needed. |
 | tests/docs_safety_test.go pinned old ARCHITECTURE/COMMANDS phrases and old REFERENCE-RUST-CLI path | tests/docs_safety_test.go:17,60,77-83 | Pins updated to track current canonical wording; COMMANDS.md got back its Automation section (set -euo pipefail, jq examples). Closed in Track 1 fixup. |
-| pkg/gamma re-exports only 11 of internal/gamma.Client's methods | pkg/gamma/client.go vs internal/gamma/client.go | Surfaced during Track 2; SDK consumers cannot reach EventBySlug, profile lookups, etc. through the public package. |
+| pkg/gamma re-export coverage | pkg/gamma/client.go vs internal/gamma/client.go | Resolved after Track 2: `pkg/gamma` exposes the 26 read-only Gamma methods and returns public `pkg/types` DTOs. |
 
 ## Track 3 — JSON envelope drift
 

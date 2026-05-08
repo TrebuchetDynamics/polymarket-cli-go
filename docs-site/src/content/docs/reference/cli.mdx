@@ -69,8 +69,8 @@ polygolem
 ```
 
 <Aside type="caution">
-Trading commands default to `--signature-type deposit`. Deposit wallet
-(type 3 / POLY_1271) is the supported live trading mode.
+Trading commands always use deposit-wallet signing (type 3 / POLY_1271).
+The old `--signature-type` flag has been removed.
 </Aside>
 
 ## Discovery
@@ -109,12 +109,10 @@ wallet signing.
 
 ```bash
 polygolem clob create-order \
-  --token <token-id> --side buy --price 0.5 --size 10 \
-  --signature-type deposit
+  --token <token-id> --side buy --price 0.5 --size 10
 
 polygolem clob market-order \
-  --token <token-id> --side buy --amount 5 \
-  --signature-type deposit
+  --token <token-id> --side buy --amount 5
 ```
 
 ## Data API

@@ -10,7 +10,10 @@ surface.
 ## Quick Start
 
 ```go
-import "github.com/TrebuchetDynamics/polygolem/pkg/universal"
+import (
+    "github.com/TrebuchetDynamics/polygolem/pkg/types"
+    "github.com/TrebuchetDynamics/polygolem/pkg/universal"
+)
 
 client := universal.NewClient(universal.Config{})
 ```
@@ -23,7 +26,7 @@ methods are safe for concurrent use.
 
 ```go
 // Search by keyword
-results, _ := client.Search(ctx, &polytypes.SearchParams{Q: "btc 5m"})
+results, _ := client.Search(ctx, &types.SearchParams{Q: "btc 5m"})
 
 // Get active markets
 markets, _ := client.ActiveMarkets(ctx)
@@ -33,7 +36,7 @@ market, _ := client.MarketByID(ctx, "0xbd31dc8a...")
 market, _ := client.MarketBySlug(ctx, "will-btc-be-above")
 
 // Keyset pagination
-events, cursor, _ := client.EventsKeyset(ctx, &polytypes.KeysetParams{Limit: 50})
+events, cursor, _ := client.EventsKeyset(ctx, &types.KeysetParams{Limit: 50})
 ```
 
 ## Order Books & Pricing
@@ -79,7 +82,7 @@ em, _ := client.EnrichMarket(ctx, someMarket)
 ## Tags & Categories
 
 ```go
-tags, _ := client.Tags(ctx, &polytypes.GetTagsParams{})
+tags, _ := client.Tags(ctx, &types.GetTagsParams{})
 tag, _ := client.TagByID(ctx, "tag-id")
 tag, _ := client.TagBySlug(ctx, "crypto")
 related, _ := client.RelatedTagsByID(ctx, "tag-id")
@@ -88,7 +91,7 @@ related, _ := client.RelatedTagsByID(ctx, "tag-id")
 ## Comments & Profiles
 
 ```go
-comments, _ := client.Comments(ctx, &polytypes.CommentQuery{})
+comments, _ := client.Comments(ctx, &types.CommentQuery{})
 comment, _ := client.CommentByID(ctx, "comment-id")
 userComments, _ := client.CommentsByUser(ctx, "0x...", 10)
 profile, _ := client.PublicProfile(ctx, "0x...")

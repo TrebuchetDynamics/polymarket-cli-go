@@ -117,9 +117,11 @@ relayer. Order attribution uses the on-order `builder` bytes32 field (V2).
 proves stable enough to expose. Do not move code into `pkg/` without an
 SDK-level commitment to keep its API stable across minor versions.
 
-Data API DTOs are the first promoted public DTO family: `pkg/data` and
-`pkg/universal` return `pkg/types` for positions, trades, holders,
-leaderboards, open interest, and live volume.
+Gamma and Data API DTOs are promoted public DTO families. `pkg/gamma`,
+`pkg/data`, and the corresponding `pkg/universal` methods return `pkg/types`
+for markets, events, tags, series, comments, profiles, positions, trades,
+holders, leaderboards, open interest, and live volume. CLOB trading, enrichment,
+and stream types still need dedicated public-contract slices.
 
 ## Safety boundaries
 

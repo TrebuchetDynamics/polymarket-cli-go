@@ -55,8 +55,8 @@ Authenticated commands:
 
 ```bash
 polygolem clob create-api-key
-polygolem clob balance        --asset-type collateral --signature-type deposit
-polygolem clob update-balance --asset-type collateral --signature-type deposit
+polygolem clob balance        --asset-type collateral
+polygolem clob update-balance --asset-type collateral
 
 polygolem clob orders
 polygolem clob order          <order-id>
@@ -69,10 +69,10 @@ polygolem clob cancel-market  --asset <token-id>
 polygolem clob cancel-all
 
 polygolem clob create-order \
-  --token <token-id> --side buy --price 0.5 --size 10 --signature-type deposit
+  --token <token-id> --side buy --price 0.5 --size 10
 
 polygolem clob market-order \
-  --token <token-id> --side buy --amount 5 --signature-type deposit
+  --token <token-id> --side buy --amount 5
 ```
 
 `cancel-market` requires at least one filter in polygolem. Use `cancel-all` for

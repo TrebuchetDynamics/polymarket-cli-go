@@ -32,10 +32,10 @@ POLYMARKET_BUILDER_PASSPHRASE="..." \
   polygolem deposit-wallet onboard --fund-amount 14 --json
 
 # Sync CLOB balance
-polygolem clob update-balance --asset-type collateral --signature-type deposit
+polygolem clob update-balance --asset-type collateral
 
 # Check your balance
-polygolem clob balance --asset-type collateral --signature-type deposit
+polygolem clob balance --asset-type collateral
 
 # Place an order
 polygolem clob create-order \
@@ -43,7 +43,6 @@ polygolem clob create-order \
   --side buy \
   --price 0.51 \
   --size 10 \
-  --signature-type deposit \
   --output json
 ```
 

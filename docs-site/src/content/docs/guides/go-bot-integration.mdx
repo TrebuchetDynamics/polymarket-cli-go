@@ -10,9 +10,9 @@ internal/ tree is **not** part of the stability promise and may change between
 minor releases — only depend on `pkg/*`.
 
 <Aside type="note">
-Stability note: the exported methods under `pkg/` are the intended public
-surface, but some method signatures still expose implementation types from
-`internal/*`. Treat those type paths as a documented SDK cleanup gap.
+Stability note: Gamma and Data API DTOs are public in `pkg/types`. Some CLOB,
+enrichment, and stream signatures still expose implementation types from
+`internal/*`; treat those paths as a documented SDK cleanup gap.
 </Aside>
 
 ## Install
@@ -31,6 +31,7 @@ import (
     "github.com/TrebuchetDynamics/polygolem/pkg/gamma"
     "github.com/TrebuchetDynamics/polygolem/pkg/pagination"
     "github.com/TrebuchetDynamics/polygolem/pkg/relayer"
+    "github.com/TrebuchetDynamics/polygolem/pkg/types"
     "github.com/TrebuchetDynamics/polygolem/pkg/universal"
 )
 ```
@@ -83,10 +84,13 @@ case "unresolved":
 ## Search Gamma
 
 ```go
-import "github.com/TrebuchetDynamics/polygolem/pkg/universal"
+import (
+    "github.com/TrebuchetDynamics/polygolem/pkg/types"
+    "github.com/TrebuchetDynamics/polygolem/pkg/universal"
+)
 
 client := universal.NewClient(universal.Config{})
-markets, err := client.ActiveMarkets(ctx)
+markets, err := client.Markets(ctx, &types.GetMarketsParams{Limit: 10})
 ```
 
 ## Pagination helper

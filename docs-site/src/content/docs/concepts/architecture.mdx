@@ -11,7 +11,7 @@ Cobra-based CLI on top.
 | Layer | Packages | Role |
 |-------|----------|------|
 | **`cmd/polygolem`** | 1 | Binary entry point. Wires Cobra and exits. |
-| **`pkg/`** | 9 | Public Go SDK contracts. Data API DTOs use public `pkg/types`; other type paths still need cleanup. |
+| **`pkg/`** | 9 | Public Go SDK contracts. Gamma and Data API DTOs use public `pkg/types`; CLOB/enrichment/stream type paths still need cleanup. |
 | **`internal/`** | 21 | Implementation. Not part of public API. |
 
 The CLI and public SDK both depend on the internal protocol implementation.
@@ -49,7 +49,7 @@ The `internal/` packages do not depend on `cmd/`.
 | Package | Purpose |
 |---------|---------|
 | `internal/auth` | L0/L1/L2 auth, EIP-712, CREATE2 derivation, builder attribution, signers |
-| `internal/polytypes` | V2 protocol types — Market, Event, OrderBook, order payloads |
+| `internal/polytypes` | V2 protocol types and aliases — Gamma DTO aliases, CLOB data, enrichment, order payloads |
 | `internal/transport` | HTTP retry, rate limiter, circuit breaker, redaction |
 | `internal/config` | Config loading, defaults, env binding, validation, redaction |
 

@@ -24,10 +24,10 @@ POLYMARKET_BUILDER_PASSPHRASE="..." \
 
 # Step 4: Sync balance and trade
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
-  polygolem clob update-balance --asset-type collateral --signature-type deposit
+  polygolem clob update-balance --asset-type collateral
 
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
-  polygolem clob create-order --token <id> --side buy --price 0.5 --size 10 --signature-type deposit
+  polygolem clob create-order --token <id> --side buy --price 0.5 --size 10
 ```
 
 ## How It Works

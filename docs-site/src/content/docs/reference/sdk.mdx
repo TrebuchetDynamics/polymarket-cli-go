@@ -12,9 +12,10 @@ The `internal/` packages are implementation detail. They are documented in
 same semver promise as the `pkg/` packages below.
 
 Some current `pkg/` method signatures still expose implementation types from
-`internal/polytypes`, `internal/clob`, or `internal/stream`. That is an SDK
-hygiene gap, not an upstream Polymarket requirement. Data API DTOs have been
-promoted first: `pkg/data` and the Data API methods on `pkg/universal` return
+`internal/polytypes`, `internal/clob`, `internal/stream`, or
+`internal/transport`. That is an SDK hygiene gap, not an upstream Polymarket
+requirement. Gamma and Data API DTOs have been promoted: `pkg/gamma`,
+`pkg/data`, and the corresponding methods on `pkg/universal` return
 `pkg/types`.
 
 ## `pkg/bookreader` — Read-Only Order Book
@@ -76,32 +77,32 @@ func DefaultConfig(baseURL string) transport.Config
 ### Contract: Methods
 
 ```go
-func (c *Client) HealthCheck(ctx context.Context) (*polytypes.HealthResponse, error)
-func (c *Client) ActiveMarkets(ctx context.Context) ([]polytypes.Market, error)
-func (c *Client) Markets(ctx context.Context, params *polytypes.GetMarketsParams) ([]polytypes.Market, error)
-func (c *Client) MarketByID(ctx context.Context, id string) (*polytypes.Market, error)
-func (c *Client) MarketBySlug(ctx context.Context, slug string) (*polytypes.Market, error)
-func (c *Client) Events(ctx context.Context, params *polytypes.GetEventsParams) ([]polytypes.Event, error)
-func (c *Client) EventByID(ctx context.Context, id string) (*polytypes.Event, error)
-func (c *Client) EventBySlug(ctx context.Context, slug string) (*polytypes.Event, error)
-func (c *Client) Series(ctx context.Context, params *polytypes.GetSeriesParams) ([]polytypes.Series, error)
-func (c *Client) SeriesByID(ctx context.Context, id string) (*polytypes.Series, error)
-func (c *Client) Search(ctx context.Context, params *polytypes.SearchParams) (*polytypes.SearchResponse, error)
-func (c *Client) Tags(ctx context.Context, params *polytypes.GetTagsParams) ([]polytypes.Tag, error)
-func (c *Client) TagByID(ctx context.Context, id string) (*polytypes.Tag, error)
-func (c *Client) TagBySlug(ctx context.Context, slug string) (*polytypes.Tag, error)
-func (c *Client) RelatedTagsByID(ctx context.Context, tagID string) ([]polytypes.TagRelationship, error)
-func (c *Client) RelatedTagsBySlug(ctx context.Context, slug string) ([]polytypes.TagRelationship, error)
-func (c *Client) Teams(ctx context.Context, params *polytypes.GetTeamsParams) ([]polytypes.Team, error)
-func (c *Client) SportsMetadata(ctx context.Context) ([]polytypes.SportMetadata, error)
-func (c *Client) Comments(ctx context.Context, params *polytypes.CommentQuery) ([]polytypes.Comment, error)
-func (c *Client) CommentByID(ctx context.Context, id string) (*polytypes.Comment, error)
-func (c *Client) CommentsByUser(ctx context.Context, userAddress string, limit int) ([]polytypes.Comment, error)
-func (c *Client) PublicProfile(ctx context.Context, walletAddress string) (*polytypes.Profile, error)
-func (c *Client) SportsMarketTypes(ctx context.Context) ([]polytypes.SportsMarketType, error)
-func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*polytypes.MarketByTokenResponse, error)
-func (c *Client) EventsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Event, string, error)
-func (c *Client) MarketsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Market, string, error)
+func (c *Client) HealthCheck(ctx context.Context) (*types.HealthResponse, error)
+func (c *Client) ActiveMarkets(ctx context.Context) ([]types.Market, error)
+func (c *Client) Markets(ctx context.Context, params *types.GetMarketsParams) ([]types.Market, error)
+func (c *Client) MarketByID(ctx context.Context, id string) (*types.Market, error)
+func (c *Client) MarketBySlug(ctx context.Context, slug string) (*types.Market, error)
+func (c *Client) Events(ctx context.Context, params *types.GetEventsParams) ([]types.Event, error)
+func (c *Client) EventByID(ctx context.Context, id string) (*types.Event, error)
+func (c *Client) EventBySlug(ctx context.Context, slug string) (*types.Event, error)
+func (c *Client) Series(ctx context.Context, params *types.GetSeriesParams) ([]types.Series, error)
+func (c *Client) SeriesByID(ctx context.Context, id string) (*types.Series, error)
+func (c *Client) Search(ctx context.Context, params *types.SearchParams) (*types.SearchResponse, error)
+func (c *Client) Tags(ctx context.Context, params *types.GetTagsParams) ([]types.Tag, error)
+func (c *Client) TagByID(ctx context.Context, id string) (*types.Tag, error)
+func (c *Client) TagBySlug(ctx context.Context, slug string) (*types.Tag, error)
+func (c *Client) RelatedTagsByID(ctx context.Context, tagID string) ([]types.TagRelationship, error)
+func (c *Client) RelatedTagsBySlug(ctx context.Context, slug string) ([]types.TagRelationship, error)
+func (c *Client) Teams(ctx context.Context, params *types.GetTeamsParams) ([]types.Team, error)
+func (c *Client) SportsMetadata(ctx context.Context) ([]types.SportMetadata, error)
+func (c *Client) Comments(ctx context.Context, params *types.CommentQuery) ([]types.Comment, error)
+func (c *Client) CommentByID(ctx context.Context, id string) (*types.Comment, error)
+func (c *Client) CommentsByUser(ctx context.Context, userAddress string, limit int) ([]types.Comment, error)
+func (c *Client) PublicProfile(ctx context.Context, walletAddress string) (*types.Profile, error)
+func (c *Client) SportsMarketTypes(ctx context.Context) ([]types.SportsMarketType, error)
+func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*types.MarketByTokenResponse, error)
+func (c *Client) EventsKeyset(ctx context.Context, params *types.KeysetParams) ([]types.Event, string, error)
+func (c *Client) MarketsKeyset(ctx context.Context, params *types.KeysetParams) ([]types.Market, string, error)
 ```
 
 ## `pkg/types` — Public DTOs
@@ -128,6 +129,38 @@ type LiveVolumeResponse struct
 
 These types are intentionally public so SDK consumers do not need to import or
 name `internal/dataapi`.
+
+### Contract: Gamma DTOs
+
+```go
+type HealthResponse struct
+type Market struct
+type Event struct
+type Category struct
+type Tag struct
+type Series struct
+type Collection struct
+type EventCreator struct
+type Team struct
+type SportMetadata struct
+type TagRelationship struct
+type SearchTag struct
+type Profile struct
+type SearchResponse struct
+type GetMarketsParams struct
+type GetEventsParams struct
+type GetSeriesParams struct
+type GetTagsParams struct
+type SearchParams struct
+type GetTeamsParams struct
+type Comment struct
+type CommentQuery struct
+type KeysetParams struct
+type MarketByTokenResponse struct
+```
+
+These types are intentionally public so SDK consumers do not need to import or
+name `internal/polytypes` for Gamma market discovery.
 
 ## `pkg/data` — Read-Only Data API Analytics
 
@@ -198,38 +231,38 @@ func DefaultConfig() Config
 ### Contract: Methods — Gamma (12 methods)
 
 ```go
-func (c *Client) ActiveMarkets(ctx context.Context) ([]polytypes.Market, error)
-func (c *Client) Markets(ctx context.Context, params *polytypes.GetMarketsParams) ([]polytypes.Market, error)
-func (c *Client) MarketByID(ctx context.Context, id string) (*polytypes.Market, error)
-func (c *Client) MarketBySlug(ctx context.Context, slug string) (*polytypes.Market, error)
-func (c *Client) Events(ctx context.Context, params *polytypes.GetEventsParams) ([]polytypes.Event, error)
-func (c *Client) EventByID(ctx context.Context, id string) (*polytypes.Event, error)
-func (c *Client) EventBySlug(ctx context.Context, slug string) (*polytypes.Event, error)
-func (c *Client) Search(ctx context.Context, params *polytypes.SearchParams) (*polytypes.SearchResponse, error)
-func (c *Client) Series(ctx context.Context, params *polytypes.GetSeriesParams) ([]polytypes.Series, error)
-func (c *Client) Tags(ctx context.Context, params *polytypes.GetTagsParams) ([]polytypes.Tag, error)
-func (c *Client) SportsMetadata(ctx context.Context) ([]polytypes.SportMetadata, error)
-func (c *Client) Comments(ctx context.Context, params *polytypes.CommentQuery) ([]polytypes.Comment, error)
+func (c *Client) ActiveMarkets(ctx context.Context) ([]types.Market, error)
+func (c *Client) Markets(ctx context.Context, params *types.GetMarketsParams) ([]types.Market, error)
+func (c *Client) MarketByID(ctx context.Context, id string) (*types.Market, error)
+func (c *Client) MarketBySlug(ctx context.Context, slug string) (*types.Market, error)
+func (c *Client) Events(ctx context.Context, params *types.GetEventsParams) ([]types.Event, error)
+func (c *Client) EventByID(ctx context.Context, id string) (*types.Event, error)
+func (c *Client) EventBySlug(ctx context.Context, slug string) (*types.Event, error)
+func (c *Client) Search(ctx context.Context, params *types.SearchParams) (*types.SearchResponse, error)
+func (c *Client) Series(ctx context.Context, params *types.GetSeriesParams) ([]types.Series, error)
+func (c *Client) Tags(ctx context.Context, params *types.GetTagsParams) ([]types.Tag, error)
+func (c *Client) SportsMetadata(ctx context.Context) ([]types.SportMetadata, error)
+func (c *Client) Comments(ctx context.Context, params *types.CommentQuery) ([]types.Comment, error)
 ```
 
 ### Contract: Methods — Extended Gamma (15 methods)
 
 ```go
-func (c *Client) GammaMarketBySlug(ctx context.Context, slug string) (*polytypes.Market, error)
-func (c *Client) GammaEventBySlug(ctx context.Context, slug string) (*polytypes.Event, error)
-func (c *Client) SeriesByID(ctx context.Context, id string) (*polytypes.Series, error)
-func (c *Client) TagByID(ctx context.Context, id string) (*polytypes.Tag, error)
-func (c *Client) TagBySlug(ctx context.Context, slug string) (*polytypes.Tag, error)
-func (c *Client) RelatedTagsByID(ctx context.Context, tagID string) ([]polytypes.TagRelationship, error)
-func (c *Client) RelatedTagsBySlug(ctx context.Context, slug string) ([]polytypes.TagRelationship, error)
-func (c *Client) Teams(ctx context.Context, params *polytypes.GetTeamsParams) ([]polytypes.Team, error)
-func (c *Client) CommentByID(ctx context.Context, id string) (*polytypes.Comment, error)
-func (c *Client) CommentsByUser(ctx context.Context, userAddress string, limit int) ([]polytypes.Comment, error)
-func (c *Client) PublicProfile(ctx context.Context, walletAddress string) (*polytypes.Profile, error)
-func (c *Client) SportsMarketTypes(ctx context.Context) ([]polytypes.SportsMarketType, error)
-func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*polytypes.MarketByTokenResponse, error)
-func (c *Client) EventsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Event, string, error)
-func (c *Client) MarketsKeyset(ctx context.Context, params *polytypes.KeysetParams) ([]polytypes.Market, string, error)
+func (c *Client) GammaMarketBySlug(ctx context.Context, slug string) (*types.Market, error)
+func (c *Client) GammaEventBySlug(ctx context.Context, slug string) (*types.Event, error)
+func (c *Client) SeriesByID(ctx context.Context, id string) (*types.Series, error)
+func (c *Client) TagByID(ctx context.Context, id string) (*types.Tag, error)
+func (c *Client) TagBySlug(ctx context.Context, slug string) (*types.Tag, error)
+func (c *Client) RelatedTagsByID(ctx context.Context, tagID string) ([]types.TagRelationship, error)
+func (c *Client) RelatedTagsBySlug(ctx context.Context, slug string) ([]types.TagRelationship, error)
+func (c *Client) Teams(ctx context.Context, params *types.GetTeamsParams) ([]types.Team, error)
+func (c *Client) CommentByID(ctx context.Context, id string) (*types.Comment, error)
+func (c *Client) CommentsByUser(ctx context.Context, userAddress string, limit int) ([]types.Comment, error)
+func (c *Client) PublicProfile(ctx context.Context, walletAddress string) (*types.Profile, error)
+func (c *Client) SportsMarketTypes(ctx context.Context) ([]types.SportsMarketType, error)
+func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*types.MarketByTokenResponse, error)
+func (c *Client) EventsKeyset(ctx context.Context, params *types.KeysetParams) ([]types.Event, string, error)
+func (c *Client) MarketsKeyset(ctx context.Context, params *types.KeysetParams) ([]types.Market, string, error)
 ```
 
 ### Contract: Methods — CLOB Order Books (12 methods)
@@ -332,7 +365,7 @@ func DefaultTransportConfig(baseURL string) transport.Config
 ```go
 func (c *Client) EnrichedMarkets(ctx context.Context, limit int) ([]polytypes.EnrichedMarket, error)
 func (c *Client) SearchAndEnrich(ctx context.Context, query string, limit int) ([]polytypes.EnrichedMarket, error)
-func (c *Client) EnrichMarket(ctx context.Context, market polytypes.Market) (*polytypes.EnrichedMarket, error)
+func (c *Client) EnrichMarket(ctx context.Context, market types.Market) (*polytypes.EnrichedMarket, error)
 func (c *Client) StreamClient() *stream.MarketClient
 func (c *Client) StreamClientWithConfig(cfg stream.Config) *stream.MarketClient
 ```
@@ -457,7 +490,7 @@ The following are intentional gaps in the current stable `pkg/` contract:
 | Gap | Current Status |
 |---|---|
 | One-call deposit-wallet onboard SDK | Relayer primitives are public in `pkg/relayer`; full onboard orchestration remains CLI-only |
-| Public type ownership | Data API DTOs are public in `pkg/types`; Gamma, CLOB, and stream signatures still need promotion work before claiming a fully clean external SDK |
+| Public type ownership | Gamma and Data API DTOs are public in `pkg/types`; CLOB, enrichment, and stream signatures still need promotion work before claiming a fully clean external SDK |
 | Non-zero V2 `builderCode` attribution | The signer emits `builder = bytes32(0)` today |
 | Batch order placement | Single-order placement and cancellation are exposed; batch placement is not |
 | Authenticated user WebSocket stream | Public market stream is exposed; user stream waits for L2 WebSocket auth tests |

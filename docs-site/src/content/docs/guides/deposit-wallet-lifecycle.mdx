@@ -59,8 +59,8 @@ This is a single WALLET batch signed via EIP-712 and submitted to the relayer.
 ### Phase 5: Trade (CLOB)
 
 With the wallet deployed, funded, and approved, orders are placed with
-`--signature-type deposit`. The EOA signs the order, but the CLOB sees the
-deposit wallet as both `maker` and `signer` in the V2 order payload.
+deposit-wallet signing automatically. The EOA signs the order, but the CLOB
+sees the deposit wallet as both `maker` and `signer` in the V2 order payload.
 
 ## Recovery Modes
 
@@ -126,7 +126,7 @@ Then sync the CLOB balance:
 
 ```bash
 POLYMARKET_PRIVATE_KEY="0x..." \
-  polygolem clob update-balance --asset-type collateral --signature-type deposit
+  polygolem clob update-balance --asset-type collateral
 ```
 
 ## Automated Startup (go-bot live)
@@ -140,7 +140,7 @@ go-bot live startup:
   3. check deposit wallet pUSD balance → fund if needed
   4. check collateral allowances → approve if needed
   5. update CLOB balance cache
-  6. enter live trading loop with --signature-type deposit
+  6. enter live trading loop with deposit-wallet signing
 ```
 
 With persistence, a restart after a crash recovers cleanly:
@@ -157,12 +157,11 @@ crash → restart → derive (same address) → IsDeployed=true → skip deploy
 polygolem deposit-wallet status
 
 # What's the deposit wallet balance?
-polygolem clob balance --asset-type collateral --signature-type deposit
+polygolem clob balance --asset-type collateral
 
-# What's the EOA's onchain balance?
-polygolem clob balance --asset-type collateral --signature-type eoa
+# Check EOA onchain funds with wallet/RPC tooling; CLOB balance reads use
+# the deposit wallet cache.
 ```
 
 > pUSD held by the EOA and pUSD held by the deposit wallet are **separate
-> balances**. Only the deposit wallet balance counts for trading with
-> signature type `deposit` (POLY_1271).
+> balances**. Only the deposit wallet balance counts for POLY_1271 trading.
