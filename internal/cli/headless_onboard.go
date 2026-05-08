@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
+	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
 	"github.com/TrebuchetDynamics/polygolem/internal/relayer"
 	"github.com/spf13/cobra"
 )
@@ -30,22 +31,27 @@ const (
 func newAuthHeadlessOnboardCommand(jsonOut bool) *cobra.Command {
 	w := newWire(jsonOut)
 	var envFile, gammaURL, relayerURL string
-	var force bool
+	var force, skipProfile bool
+	var signatureType int
 
 	cmd := &cobra.Command{
 		Use:   "headless-onboard",
-		Short: "Run SIWE login + mint V2 Relayer API Key (no browser)",
-		Long: `Headless replacement for the polymarket.com/settings → "Create"
-button under Builder Keys. Steps:
+		Short: "Run SIWE login + register profile + mint V2 Relayer API Key (no browser)",
+		Long: `Headless replacement for the polymarket.com signup flow. Steps:
 
   1. Sign a Polymarket SIWE message with the EOA from POLYMARKET_PRIVATE_KEY.
   2. Trade the signature for a polymarket session cookie at
      gamma-api.polymarket.com/login.
-  3. Mint a V2 Relayer API Key at relayer-v2.polymarket.com/relayer/api/auth.
-  4. Persist {RELAYER_API_KEY, RELAYER_API_KEY_ADDRESS} to a 0600 env file.
+  3. Register the EOA + maker (proxy or deposit wallet, per --signature-type)
+     with gamma-api.polymarket.com/profiles. Skip with --skip-profile if the
+     profile already exists.
+  4. Mint a V2 Relayer API Key at relayer-v2.polymarket.com/relayer/api/auth.
+  5. Persist {RELAYER_API_KEY, RELAYER_API_KEY_ADDRESS} to a 0600 env file.
 
-After this completes, polygolem deposit-wallet deploy / approve work
-without any browser interaction. See docs/BUILDER-AUTO.md.`,
+The /profiles step is what registers the maker address with Polymarket's
+backend so subsequent CLOB orders are accepted (without it, fresh EOAs
+get HTTP 400 "maker address not allowed"). See BLOCKERS.md "CORRECTION
+2026-05-08" for the captured signup flow this command replicates.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			privateKey := strings.TrimSpace(os.Getenv("POLYMARKET_PRIVATE_KEY"))
@@ -78,7 +84,7 @@ without any browser interaction. See docs/BUILDER-AUTO.md.`,
 			stderr := cmd.ErrOrStderr()
 			fmt.Fprintf(stderr, "Running SIWE login at %s ...\n", gURL)
 
-			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(cmd.Context(), 60*time.Second)
 			defer cancel()
 
 			session, err := auth.NewSIWESession(signer, gURL)
@@ -90,6 +96,36 @@ without any browser interaction. See docs/BUILDER-AUTO.md.`,
 			}
 			cookies := session.CookiesFor(gURL + "/")
 			fmt.Fprintf(stderr, "✓ SIWE login OK (%d cookies captured)\n", len(cookies))
+
+			maker, err := auth.MakerAddressForSignatureType(signer.Address(), 137, signatureType)
+			if err != nil {
+				return fmt.Errorf("derive maker (sigtype %d): %w", signatureType, err)
+			}
+			fmt.Fprintf(stderr, "  maker (sigtype %d): %s\n", signatureType, maker)
+
+			profileID := ""
+			if !skipProfile {
+				fmt.Fprintf(stderr, "Registering profile at %s/profiles ...\n", gURL)
+				body := gamma.NewCreateProfileRequest(
+					signer.Address(),
+					maker,
+					"metamask",
+					time.Now().UnixMilli(),
+				)
+				profile, perr := gamma.CreateProfile(ctx, session.HTTPClient(), gURL, body)
+				if perr != nil {
+					if strings.Contains(perr.Error(), "HTTP 409") {
+						fmt.Fprintf(stderr, "  profile already exists (409) — continuing\n")
+					} else {
+						return fmt.Errorf("create profile: %w", perr)
+					}
+				} else {
+					profileID = profile.ID
+					fmt.Fprintf(stderr, "✓ Profile registered (id=%s, proxyWallet=%s)\n", profile.ID, profile.ProxyWallet)
+				}
+			} else {
+				fmt.Fprintf(stderr, "  --skip-profile set — not calling /profiles\n")
+			}
 
 			fmt.Fprintf(stderr, "Minting V2 Relayer API Key at %s ...\n", rURL)
 			v2Key, err := relayer.MintV2APIKey(ctx, session.HTTPClient(), rURL)
@@ -113,6 +149,9 @@ without any browser interaction. See docs/BUILDER-AUTO.md.`,
 				"gammaURL":       gURL,
 				"relayerURL":     rURL,
 				"signerAddress":  signer.Address(),
+				"makerAddress":   maker,
+				"signatureType":  fmt.Sprintf("%d", signatureType),
+				"profileID":      profileID,
 			})
 		},
 	}
@@ -121,6 +160,8 @@ without any browser interaction. See docs/BUILDER-AUTO.md.`,
 	cmd.Flags().StringVar(&gammaURL, "gamma-url", "", "Gamma API base URL (default: https://gamma-api.polymarket.com)")
 	cmd.Flags().StringVar(&relayerURL, "relayer-url", "", "Relayer base URL (default: https://relayer-v2.polymarket.com)")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing env file")
+	cmd.Flags().BoolVar(&skipProfile, "skip-profile", false, "skip the /profiles registration step (use if profile already exists)")
+	cmd.Flags().IntVar(&signatureType, "signature-type", 3, "maker derivation: 0=EOA, 1=proxy, 3=deposit wallet (default 3)")
 	return cmd
 }
 

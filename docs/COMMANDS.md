@@ -42,7 +42,7 @@ polygolem --json version | jq .
 polygolem - Safe Polymarket SDK and CLI for Go
   auth - Inspect authentication readiness
     export-key - Display private key for wallet import (use with care)
-    headless-onboard - Run SIWE login + mint V2 Relayer API Key (no browser)
+    headless-onboard - Run SIWE login + register profile + mint V2 Relayer API Key (no browser)
     status - Check authentication readiness and API key status
   bridge - Polymarket Bridge API
     assets - List supported bridge assets
@@ -181,7 +181,7 @@ polygolem auth [flags]
 | Command | Description |
 |---|---|
 | `polygolem auth export-key` | Display private key for wallet import (use with care) |
-| `polygolem auth headless-onboard` | Run SIWE login + mint V2 Relayer API Key (no browser) |
+| `polygolem auth headless-onboard` | Run SIWE login + register profile + mint V2 Relayer API Key (no browser) |
 | `polygolem auth status` | Check authentication readiness and API key status |
 
 **Flags:**
@@ -227,19 +227,23 @@ polygolem auth export-key [flags]
 
 ### polygolem auth headless-onboard
 
-Run SIWE login + mint V2 Relayer API Key (no browser)
+Run SIWE login + register profile + mint V2 Relayer API Key (no browser)
 
-Headless replacement for the polymarket.com/settings → "Create"
-button under Builder Keys. Steps:
+Headless replacement for the polymarket.com signup flow. Steps:
 
   1. Sign a Polymarket SIWE message with the EOA from POLYMARKET_PRIVATE_KEY.
   2. Trade the signature for a polymarket session cookie at
      gamma-api.polymarket.com/login.
-  3. Mint a V2 Relayer API Key at relayer-v2.polymarket.com/relayer/api/auth.
-  4. Persist {RELAYER_API_KEY, RELAYER_API_KEY_ADDRESS} to a 0600 env file.
+  3. Register the EOA + maker (proxy or deposit wallet, per --signature-type)
+     with gamma-api.polymarket.com/profiles. Skip with --skip-profile if the
+     profile already exists.
+  4. Mint a V2 Relayer API Key at relayer-v2.polymarket.com/relayer/api/auth.
+  5. Persist {RELAYER_API_KEY, RELAYER_API_KEY_ADDRESS} to a 0600 env file.
 
-After this completes, polygolem deposit-wallet deploy / approve work
-without any browser interaction. See docs/BUILDER-AUTO.md.
+The /profiles step is what registers the maker address with Polymarket's
+backend so subsequent CLOB orders are accepted (without it, fresh EOAs
+get HTTP 400 "maker address not allowed"). See BLOCKERS.md "CORRECTION
+2026-05-08" for the captured signup flow this command replicates.
 
 **Usage:**
 
@@ -257,6 +261,8 @@ polygolem auth headless-onboard [flags]
 | `-h, --help` | `bool` | `false` | help for headless-onboard |
 | `--json` | `bool` | `false` | emit JSON output |
 | `--relayer-url` | `string` | `""` | Relayer base URL (default: https://relayer-v2.polymarket.com) |
+| `--signature-type` | `int` | `3` | maker derivation: 0=EOA, 1=proxy, 3=deposit wallet (default 3) |
+| `--skip-profile` | `bool` | `false` | skip the /profiles registration step (use if profile already exists) |
 
 ### polygolem auth status
 
