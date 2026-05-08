@@ -28,10 +28,16 @@ upstream sometimes delivers across reconnects.
 
 ## CLI surface
 
-WebSocket subscriptions are surfaced through `polygolem stream` (or equivalent
-via the events command tree — see `polygolem events --help`). The CLI emits
-one JSON object per message on stdout, suitable for piping into `jq` or a
-downstream consumer.
+WebSocket subscriptions are surfaced through `polygolem stream market`.
+The CLI emits one JSON object per message on stdout, suitable for piping into
+`jq` or a downstream consumer.
+
+```bash
+polygolem stream market --asset-ids <token-id-1>,<token-id-2> --max-messages 10
+```
+
+`--max-messages 0` streams until the process is interrupted. `--url` can point
+to a local WebSocket test server.
 
 <Aside type="note">
 For latency-sensitive use cases, prefer the Go SDK directly over the CLI: the

@@ -1,0 +1,39 @@
+---
+title: Data API
+description: Polygolem's read-only wrapper for Polymarket account analytics, holder data, leaderboard rows, open interest, and live volume.
+---
+
+The Data API (`https://data-api.polymarket.com`) is read-only from
+polygolem's point of view. It does not require API keys for the current CLI
+surface.
+
+## CLI
+
+```bash
+polygolem data positions --user 0x...
+polygolem data closed-positions --user 0x...
+polygolem data trades --user 0x... --limit 20
+polygolem data activity --user 0x... --limit 20
+polygolem data holders --token-id <token-id> --limit 20
+polygolem data value --user 0x...
+polygolem data markets-traded --user 0x...
+polygolem data open-interest --token-id <token-id>
+polygolem data leaderboard --limit 20
+polygolem data live-volume --limit 20
+```
+
+## SDK
+
+`internal/dataapi` exposes typed methods for the CLI and the public
+`pkg/universal` client exposes matching read methods for downstream Go code:
+
+```go
+positions, err := client.CurrentPositions(ctx, user)
+leaders, err := client.TraderLeaderboard(ctx, 20)
+volume, err := client.LiveVolume(ctx, 20)
+```
+
+## Related
+
+- [CLI Commands](/reference/cli)
+- [Polymarket API Overview](/concepts/polymarket-api)

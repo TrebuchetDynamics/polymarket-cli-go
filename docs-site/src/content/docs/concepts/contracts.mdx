@@ -1,0 +1,188 @@
+---
+title: Smart Contracts
+description: All Polymarket smart contract addresses, ABI, factory permission model, and CREATE2 derivation used by polygolem.
+---
+
+Polygolem interacts with Polymarket's on-chain infrastructure on Polygon (chain ID 137). This page documents every contract address, the factory permission model, and CREATE2 address derivation.
+
+## Contract Registry
+
+### Core Trading Contracts
+
+| Contract | Address | Role |
+|----------|---------|------|
+| **CTF Exchange V2** | `0xE111180000d2663C0091e4f400237545B87B996B` | Order matching and settlement |
+| **Neg Risk CTF Exchange** | `0xe2222d279d744050d28e00520010520000310F59` | Neg-risk market matching |
+| **Neg Risk Adapter** | `0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296` | Neg-risk adapter |
+
+### Collateral
+
+| Contract | Address | Role |
+|----------|---------|------|
+| **pUSD (proxy)** | `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB` | ERC-20 collateral token |
+| **pUSD (impl)** | `0x6bBCef9f7ef3B6C592c99e0f206a0DE94Ad0925f` | Collateral implementation |
+| **CTF** | `0x4D97DCd97eC945f40cF65F87097ACe5EA0476045` | Conditional Tokens (ERC-1155) |
+
+### Wallet Factories
+
+| Contract | Address | Role |
+|----------|---------|------|
+| **DepositWalletFactory** | `0x00000000000Fb5C9ADea0298D729A0CB3823Cc07` | CREATE2 deploys deposit wallets (POLY_1271) |
+| **Proxy Factory** | `0xaB45c5A4B0c941a2F231C04C3f49182e1A254052` | Older POLY_PROXY wallets (type 1) |
+| **Gnosis Safe Factory** | `0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b` | Gnosis Safe wallets (type 2) |
+
+### Which Wallet Wins
+
+**New API users (post-May 2026):** Deposit wallet (type 3 / POLY_1271) only. EOA orders blocked by CLOB V2.
+
+**Grandfathered users:** Proxy (type 1) or Safe (type 2) still work.
+
+## DepositWalletFactory
+
+Address: `0x00000000000Fb5C9ADea0298D729A0CB3823Cc07`
+
+The factory deploys per-user deposit wallets via CREATE2. Each wallet is an ERC-1967 proxy that implements ERC-1271 signature validation.
+
+### Factory Properties
+
+| Property | Value |
+|----------|-------|
+| Compiler | v0.8.34, 1M optimizer runs |
+| CREATE2 salt | `keccak256(abi.encodePacked(EOA_address))` |
+| Pattern | ERC-1967 upgradeable proxy |
+
+### Public ABI
+
+```
+deploy(address[] _owners, bytes32[] _ids)          — ROLE-GATED (relayer only)
+proxy(Batch[] _batches, bytes[] _signatures)       — UNGATED (signature-validated)
+predictWalletAddress(address _impl, bytes32 _id)   — UNGATED (view function)
+implementation()                                    — UNGATED (view)
+authorizedImplementation(address)                   — admin-gated
+addAdmin / removeAdmin / addOperator / removeOperator
+grantRoles / revokeRoles / hasAllRoles / hasAnyRole
+```
+
+### Permission Model
+
+| Function | Gated By | Who Can Call |
+|----------|----------|-------------|
+| `deploy()` | Operator role | Polymarket relayer EOA only |
+| `proxy()` | Signature validation | Anyone with a valid EOA signature |
+| `predictWalletAddress()` | Ungated | Anyone |
+| `implementation()` | Ungated | Anyone |
+
+**Key insight:** `deploy()` is role-gated to the relayer. `proxy()` is permissionless — anyone can submit signed batches on behalf of a deployed wallet.
+
+### ABI Errors
+
+```
+OnlyAdmin, OnlyOperator, OnlyRoles
+Unauthorized, UnauthorizedCallContext
+```
+
+Presence of `OnlyAdmin` and `OnlyOperator` confirms role-gated functions. The operator is Polymarket's relayer EOA.
+
+## CREATE2 Address Derivation
+
+The deposit wallet address is deterministically computed from the EOA address:
+
+```
+address = keccak256(0xff + factory_address + salt + keccak256(clone_init_code))[12:]
+
+where:
+  factory_address = 0x00000000000Fb5C9ADea0298D729A0CB3823Cc07
+  salt            = keccak256(abi.encodePacked(EOA_address))
+  clone_init_code = ERC-1967 minimal proxy bytecode
+```
+
+**The factory address is embedded in the derivation.** You cannot deploy from a different address and get the same result. This is why the relayer must handle deployment — only the factory at `0x000...b5C9` can produce wallets at CLOB-recognized addresses.
+
+### Polygolem Implementation
+
+```go
+// internal/wallet/derive.go
+
+func deriveCreate2(factory string, salt []byte, initCodeHash string) string {
+    hash := sha3.NewLegacyKeccak256()
+    hash.Write([]byte{0xff})
+    hash.Write(hexToBytes(strip0x(factory)))
+    hash.Write(salt)
+    hash.Write(hexToBytes(strip0x(initCodeHash)))
+    return "0x" + toHex(hash.Sum(nil)[12:])
+}
+```
+
+This is pure local computation — no on-chain call needed. The relayer is only required for deployment.
+
+## Deposit Wallet Interface
+
+The deployed wallet is an ERC-1967 proxy implementing ERC-1271:
+
+```solidity
+interface IDepositWallet {
+    // Any protocol can validate EOA signatures through this wallet
+    function isValidSignature(bytes32 hash, bytes calldata signature)
+        external view returns (bytes4 magicValue);  // 0x1626ba7e
+
+    // ERC-1155 token receiver
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
+        external returns (bytes4);
+
+    // The EOA that owns this wallet
+    function owner() external view returns (address);
+}
+```
+
+The wallet has no private key. The EOA signs messages; the wallet validates via `isValidSignature()`. This is the ERC-1271 pattern — the CLOB Exchange calls `isValidSignature()` on the deposit wallet to verify POLY_1271 typed orders.
+
+## Relayer v2
+
+The relayer at `relayer-v2.polymarket.com` provides gas-sponsored transaction submission.
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/submit` | POST | Builder HMAC or Relayer API Key | WALLET-CREATE, WALLET batch |
+| `/nonce` | GET | Builder HMAC | Current WALLET nonce |
+| `/transaction` | GET | Builder HMAC | Poll transaction status |
+| `/deployed` | GET | Builder HMAC | Check if wallet deployed |
+| `/relay-payload` | GET | None | Get relayer address + nonce |
+| `/relayer/api/keys` | GET | Gamma auth or API key | List relayer API keys |
+
+### Transaction Types
+
+| Type | Purpose | Gas |
+|------|---------|-----|
+| `WALLET-CREATE` | Deploy deposit wallet | Sponsored |
+| `WALLET` batch | Execute calls from wallet (approvals, transfers) | Sponsored |
+| `SAFE` | Gnosis Safe operations | Sponsored |
+| `PROXY` | POLY_PROXY operations | Sponsored |
+
+## Gas Sponsorship
+
+| Operation | Who Pays | Cost to User |
+|-----------|---------|-------------|
+| Wallet deploy (WALLET-CREATE) | Polymarket relayer | FREE |
+| 6-call approve batch | Polymarket relayer | FREE |
+| Order placement | Polymarket relayer | FREE |
+| CTF split/merge/redeem | Polymarket relayer | FREE |
+| **Fund wallet (pUSD transfer)** | **User** | **~$0.01 POL** |
+
+The only transaction you pay gas for is the initial pUSD transfer from EOA to deposit wallet.
+
+## Alternate Deployment Paths (All Dead Ends)
+
+| Path | Verdict |
+|------|---------|
+| Direct EOA call to `deploy()` | ❌ Reverts — role-gated |
+| Old ProxyFactory `proxy()` | ❌ Creates type 1 wallets, not type 3 |
+| Self-deploy on implementation | ❌ No such function |
+| Separate permissionless factory | ❌ Only one DepositWalletFactory |
+| Meta-transaction relay (OpenGSN) | ❌ No third-party relay holds operator role |
+
+## See Also
+
+- [Deposit Wallet Lifecycle](/guides/deposit-wallet-lifecycle) — full onboarding walkthrough
+- [Secrets Management](/concepts/secrets-management) — builder credential handling
+- [Architecture](/concepts/architecture) — package boundaries
+- [CLOB API Reference](/reference/clob-api) — order signing and trade endpoints

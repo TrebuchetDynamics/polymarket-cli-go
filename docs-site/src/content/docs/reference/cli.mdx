@@ -1,201 +1,148 @@
 ---
 title: CLI Commands
+description: Current polygolem command tree for Gamma discovery, CLOB trading, Data API analytics, public WebSocket streams, bridge, paper mode, and deposit wallets.
 ---
 
-## Command tree
+import { Aside } from "@astrojs/starlight/components";
+
+## Command Tree
 
 ```
 polygolem
-├── builder
-│   └── auto               Create builder profile + HMAC creds (zero browser)
-├── discover                Market discovery (Gamma API)
-│   ├── search              Search markets by query
-│   ├── market              Get market by ID or slug
-│   └── enrich              Gamma + CLOB merged data
-├── deposit-wallet          Deposit wallet lifecycle
-│   ├── derive              Predict CREATE2 wallet address (local)
-│   ├── deploy              WALLET-CREATE via relayer
-│   ├── status              Check deployment, approvals, balance
-│   ├── approve             Review or submit 6-call WALLET batch
-│   ├── fund                Transfer pUSD EOA → deposit wallet
-│   └── onboard             One-command: deploy + approve + fund
-├── clob                    CLOB market data + trading
-│   ├── book                L2 order book depth
+├── builder                 Builder credential helpers
+├── discover                Gamma market discovery
+│   ├── search              Search markets and events
+│   ├── markets             List Gamma markets
+│   ├── market              Get one Gamma market
+│   ├── enrich              Join Gamma market with CLOB data
+│   ├── tags                List or fetch categories/tags
+│   ├── series              List or fetch series
+│   └── comments            List or fetch public comments
+├── orderbook               Public CLOB market data
+│   ├── get                 L2 order book depth
 │   ├── price               Best bid/ask
-│   ├── midpoint            Calculated midpoint
+│   ├── midpoint            Midpoint
 │   ├── spread              Bid-ask spread
 │   ├── tick-size           Minimum tick size
 │   ├── fee-rate            Fee in basis points
-│   ├── last-trade          Last trade price
-│   ├── prices-history      OHLCV price history
-│   ├── markets             CLOB market list (paginated)
-│   ├── balance             Balance + allowances
+│   └── last-trade          Last trade price
+├── clob                    Authenticated CLOB account and trading
+│   ├── book                L2 order book depth
+│   ├── tick-size           Minimum tick size
+│   ├── market              Get CLOB market by condition ID
+│   ├── markets             List CLOB markets
+│   ├── price-history       Token price history
+│   ├── create-api-key      Create or derive L2 credentials
+│   ├── balance             Balance and allowances
 │   ├── update-balance      Refresh CLOB balance cache
-│   ├── orders              List open orders
-│   ├── trades              List trade history
-│   ├── create-order        Place limit order (POLY_1271)
-│   ├── market-order        Place market/FOK order
-│   ├── cancel              Cancel single order by ID
-│   └── cancel-all          Cancel all open orders
-├── bridge                  Cross-chain deposits
-│   ├── assets              List supported assets
-│   └── deposit             Get deposit addresses
+│   ├── orders              List authenticated orders
+│   ├── order               Get one authenticated order
+│   ├── trades              List authenticated trades
+│   ├── cancel              Cancel one order
+│   ├── cancel-orders       Cancel a batch of orders
+│   ├── cancel-market       Cancel orders by market or asset
+│   ├── cancel-all          Cancel all open orders
+│   ├── create-order        Place a limit order
+│   └── market-order        Place a market/FOK order
+├── data                    Public Data API analytics
+│   ├── positions
+│   ├── closed-positions
+│   ├── trades
+│   ├── activity
+│   ├── holders
+│   ├── value
+│   ├── markets-traded
+│   ├── open-interest
+│   ├── leaderboard
+│   └── live-volume
+├── stream
+│   └── market              Public CLOB WebSocket stream
+├── deposit-wallet          Deposit wallet lifecycle
+├── bridge                  Bridge API helpers
 ├── paper                   Local simulation
-│   ├── buy                 Simulate buy
-│   ├── positions           View positions
-│   └── reset               Reset state
-├── health                  Gamma + CLOB reachability
-├── preflight               Safety gate checks
-└── version                 Print version
+├── events
+├── auth
+├── live
+├── health
+├── preflight
+└── version
 ```
 
-## builder
+<Aside type="caution">
+Trading commands default to `--signature-type deposit`. Deposit wallet
+(type 3 / POLY_1271) is the supported live trading mode.
+</Aside>
 
-### auto
+## Discovery
 
-Creates a builder profile and HMAC credentials programmatically. No browser required — signs a ClobAuth EIP-712 message locally and posts to `clob.polymarket.com/auth/api-key`.
-
-```bash
-polygolem builder auto
-# Writes BUILDER_API_KEY, BUILDER_SECRET, BUILDER_PASSPHRASE to env file
-```
-
-Requires: `POLYMARKET_PRIVATE_KEY`
-
-## deposit-wallet
-
-### derive
-```bash
-polygolem deposit-wallet derive
-```
-Returns predicted CREATE2 address. Pure local computation, no network calls.
-
-### deploy
-```bash
-polygolem deposit-wallet deploy --wait
-```
-Submits WALLET-CREATE to relayer. `--wait` polls until confirmed.
-
-### status
-```bash
-polygolem deposit-wallet status
-```
-Returns: deployed?, approvals?, pUSD_balance?, ready_to_trade?
-
-### approve
-```bash
-polygolem deposit-wallet approve           # Show 6-call calldata
-polygolem deposit-wallet approve --submit  # Sign + submit
-```
-
-### fund
-```bash
-polygolem deposit-wallet fund --amount 10.0
-```
-ERC-20 pUSD transfer EOA → deposit wallet. This is the only user-paid gas tx (~$0.01 POL).
-
-### onboard
-```bash
-polygolem deposit-wallet onboard --fund-amount 10.0
-```
-One command: deploy + approve + fund. Skips steps already completed.
-
-## clob
-
-### orders
-```bash
-polygolem clob orders
-```
-List open orders (requires `POLYMARKET_PRIVATE_KEY`). Returns typed `OrderRecord` array.
-
-### trades
-```bash
-polygolem clob trades
-```
-List trade history (requires `POLYMARKET_PRIVATE_KEY`). Returns typed `TradeRecord` array.
-
-### cancel
-```bash
-polygolem clob cancel "0xb816482a..."
-```
-Cancel a single order by ID. Requires `POLYMARKET_PRIVATE_KEY` + L2 auth.
-
-### cancel-all
-```bash
-polygolem clob cancel-all
-```
-Cancel all open orders. Requires `POLYMARKET_PRIVATE_KEY` + L2 auth.
-
-### create-order
-```bash
-polygolem clob create-order \
-  --token ID --side buy --price 0.5 --size 10 \
-  --signature-type deposit
-```
-Flags: `--token`, `--side` (buy/sell), `--price`, `--size`, `--type` (GTC/GTD/FAK/FOK), `--signature-type` (deposit/eoa)
-
-### market-order
-```bash
-polygolem clob market-order \
-  --token ID --side buy --amount 5 \
-  --signature-type deposit
-```
-
-## discover
-
-### search
 ```bash
 polygolem discover search --query "btc 5m" --limit 10
-```
-Flags: `--query` (required), `--limit` (default 10)
-
-### market
-```bash
+polygolem discover markets --limit 20 --active
 polygolem discover market --id "0xbd31dc8a..."
 polygolem discover market --slug "will-btc-be-above"
-```
-Flags: `--id`, `--slug`
-
-### enrich
-```bash
 polygolem discover enrich --id "0xbd31dc8a..."
+polygolem discover tags --limit 100
+polygolem discover series --limit 20
+polygolem discover comments --entity-id 123 --entity-type market
 ```
-Flags: `--id` (required)
 
-## orderbook
+Discovery commands are read-only and require no credentials.
+
+## CLOB
 
 ```bash
-polygolem orderbook get --token-id "123..."
-polygolem orderbook price --token-id "123..."
-polygolem orderbook midpoint --token-id "123..."
-polygolem orderbook spread --token-id "123..."
-polygolem orderbook tick-size --token-id "123..."
-polygolem orderbook fee-rate --token-id "123..."
-polygolem orderbook last-trade --token-id "123..."
+polygolem clob markets --cursor ""
+polygolem clob market <condition-id>
+polygolem clob orders
+polygolem clob order <order-id>
+polygolem clob trades
+polygolem clob cancel <order-id>
+polygolem clob cancel-orders <order-id-1,order-id-2>
+polygolem clob cancel-market --market <condition-id>
+polygolem clob cancel-all
 ```
 
-## bridge
+Authenticated CLOB account commands require `POLYMARKET_PRIVATE_KEY` so
+polygolem can derive L2 credentials. Cancel commands mutate upstream order
+state but reduce existing exposure; order placement still requires deposit
+wallet signing.
 
 ```bash
-polygolem bridge assets
-polygolem bridge deposit <wallet-address>
+polygolem clob create-order \
+  --token <token-id> --side buy --price 0.5 --size 10 \
+  --signature-type deposit
+
+polygolem clob market-order \
+  --token <token-id> --side buy --amount 5 \
+  --signature-type deposit
 ```
 
-## Env Vars
+## Data API
 
-| Variable | Required for |
-|----------|-------------|
-| `POLYMARKET_PRIVATE_KEY` | All authenticated commands |
-| `POLYMARKET_BUILDER_API_KEY` | Deposit wallet deploy/batch/onboard |
-| `POLYMARKET_BUILDER_SECRET` | Deposit wallet deploy/batch/onboard |
-| `POLYMARKET_BUILDER_PASSPHRASE` | Deposit wallet deploy/batch/onboard |
-| `POLYMARKET_RELAYER_URL` | Override relayer URL (default: relayer-v2.polymarket.com) |
+```bash
+polygolem data positions --user 0x...
+polygolem data closed-positions --user 0x...
+polygolem data trades --user 0x... --limit 20
+polygolem data activity --user 0x... --limit 20
+polygolem data holders --token-id <token-id> --limit 20
+polygolem data value --user 0x...
+polygolem data markets-traded --user 0x...
+polygolem data open-interest --token-id <token-id>
+polygolem data leaderboard --limit 20
+polygolem data live-volume --limit 20
+```
 
-Short-form `BUILDER_API_KEY` / `BUILDER_SECRET` / `BUILDER_PASS_PHRASE` also accepted.
+## Streams
 
-## Global flags
+```bash
+polygolem stream market --asset-ids <token-id-1>,<token-id-2> --max-messages 10
+```
 
-| Flag | Description |
-|------|-------------|
-| `--json` | Emit JSON output (default) |
-| `--help` | Show help |
+The CLI exposes the public market WebSocket stream. The authenticated user
+stream remains SDK-planned until L2 WebSocket auth has local tests.
+
+## More
+
+The canonical CLI reference is
+[`docs/COMMANDS.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/COMMANDS.md).
+Every command accepts `--json` and `--help`.

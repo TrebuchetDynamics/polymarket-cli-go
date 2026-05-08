@@ -34,10 +34,23 @@ See [Orderbook Data](/guides/orderbook-data).
 
 ```bash
 polygolem clob create-order --signature-type deposit ...
-polygolem clob cancel-order ...
-polygolem clob orders --status open
+polygolem clob market-order --signature-type deposit ...
+polygolem clob orders
+polygolem clob order <order-id>
 polygolem clob trades
+polygolem clob cancel <order-id>
+polygolem clob cancel-orders <order-id-1,order-id-2>
+polygolem clob cancel-market --market <condition-id>
+polygolem clob cancel-all
 polygolem clob update-balance --asset-type collateral --signature-type deposit
+```
+
+Read-only CLOB market discovery is also available through:
+
+```bash
+polygolem clob markets --cursor ""
+polygolem clob market <condition-id>
+polygolem clob price-history <token-id> --interval 1m
 ```
 
 Polygolem supports **deposit wallet (type 3 / POLY_1271)** exclusively.
@@ -52,6 +65,10 @@ and are not supported in this CLI.
 | 3 | `deposit` / `deposit-wallet` / `poly-1271` | ✅ Required |
 
 Polygolem's CLOB commands default to `--signature-type deposit`.
+
+Cancel commands require L2 credentials because they mutate upstream order
+state, but they remove open exposure instead of creating it. Order placement
+requires the deposit wallet path.
 
 <Aside type="caution">
 **Deposit wallet is mandatory.** Polymarket CLOB V2 requires deposit wallet
