@@ -101,6 +101,7 @@ polygolem clob book <token-id>
 polygolem clob balance --asset-type collateral --signature-type deposit
 polygolem clob update-balance --asset-type collateral --signature-type deposit
 polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --signature-type deposit
+polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --order-type GTD --expiration 1778125000 --signature-type deposit
 polygolem clob market-order --token ID --side buy --amount 5 --signature-type deposit
 polygolem clob orders
 polygolem clob order <order-id>

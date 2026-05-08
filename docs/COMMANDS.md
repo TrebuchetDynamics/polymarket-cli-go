@@ -548,6 +548,7 @@ polygolem clob create-order [flags]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-h, --help` | bool | `false` | Help for `create-order`. |
+| `--expiration` | string | `0` | Unix timestamp for GTD orders (`0` = no expiration). |
 | `--order-type` | string | `GTC` | Order type. |
 | `--output` | string | `json` | Output format (json). |
 | `--price` | string | `""` | Limit price. |
@@ -562,6 +563,9 @@ polygolem clob create-order [flags]
 ```bash
 polygolem --json clob create-order \
   --token <token-id> --side buy --price 0.51 --size 10 --signature-type deposit
+polygolem --json clob create-order \
+  --token <token-id> --side buy --price 0.51 --size 10 \
+  --order-type GTD --expiration 1778125000 --signature-type deposit
 ```
 
 ### clob market

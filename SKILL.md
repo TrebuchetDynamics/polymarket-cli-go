@@ -933,7 +933,7 @@ account.
 **Purpose:** Create a signed CLOB limit order.
 
 **Required flags:** `--token`, `--price`, `--size`, `--signature-type`.
-(Common optional flags: `--side`, `--order-type`.)
+(Common optional flags: `--side`, `--order-type`, `--expiration` for GTD.)
 
 **Env vars consumed:** `POLYMARKET_PRIVATE_KEY`.
 
