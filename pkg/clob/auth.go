@@ -129,6 +129,16 @@ func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (A
 	return apiKeyFromInternal(key), nil
 }
 
+// CreateAPIKeyForAddress creates CLOB L2 credentials for a deposit/smart
+// wallet address while signing L1 auth with the controlling EOA private key.
+func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (APIKey, error) {
+	key, err := c.inner.CreateAPIKeyForAddress(ctx, privateKey, ownerAddress)
+	if err != nil {
+		return APIKey{}, err
+	}
+	return apiKeyFromInternal(key), nil
+}
+
 // DeriveAPIKey derives existing CLOB L2 credentials.
 func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (APIKey, error) {
 	key, err := c.inner.DeriveAPIKey(ctx, privateKey)

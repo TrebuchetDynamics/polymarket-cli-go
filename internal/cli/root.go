@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/big"
@@ -19,6 +20,7 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/internal/preflight"
 	"github.com/TrebuchetDynamics/polygolem/internal/stream"
 	"github.com/TrebuchetDynamics/polygolem/pkg/bridge"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 )
 
@@ -410,6 +412,34 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	addOutput(createKeyCmd, &createKeyOutput)
 	cmd.AddCommand(createKeyCmd)
 
+	var createKeyForAddressOutput, createKeyForAddressOwner string
+	createKeyForAddressCmd := &cobra.Command{Use: "create-api-key-for-address", Short: "Create CLOB API credentials for a deposit wallet owner", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(createKeyForAddressOutput); err != nil {
+				return err
+			}
+			owner := strings.TrimSpace(createKeyForAddressOwner)
+			if owner == "" {
+				return fmt.Errorf("--owner is required")
+			}
+			if !common.IsHexAddress(owner) {
+				return fmt.Errorf("--owner must be an Ethereum address")
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			apiKey, err := w.clob.CreateAPIKeyForAddress(cmd.Context(), key, owner)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, map[string]string{"api_key": apiKey.Key, "owner": common.HexToAddress(owner).Hex()})
+		},
+	}
+	addOutput(createKeyForAddressCmd, &createKeyForAddressOutput)
+	createKeyForAddressCmd.Flags().StringVar(&createKeyForAddressOwner, "owner", "", "deposit wallet owner address")
+	cmd.AddCommand(createKeyForAddressCmd)
+
 	var createBuilderFeeKeyOutput string
 	createBuilderFeeKeyCmd := &cobra.Command{
 		Use:   "create-builder-fee-key",
@@ -686,12 +716,17 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 	cancelMarketCmd.Flags().StringVar(&cancelMarketAsset, "asset", "", "asset/token ID")
 	cmd.AddCommand(cancelMarketCmd)
 
-	var createOrderOutput, createOrderToken, createOrderSide, createOrderPrice, createOrderSize, createOrderType, createOrderExpiration string
+	var createOrderOutput, createOrderToken, createOrderSide, createOrderPrice, createOrderSize, createOrderType, createOrderExpiration, createOrderBuilderCode string
 	createOrderCmd := &cobra.Command{Use: "create-order", Short: "Create a signed CLOB limit order", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := checkOutput(createOrderOutput); err != nil {
 				return err
 			}
+			builderCode := builderCodeFromFlagOrEnv(createOrderBuilderCode)
+			if err := validateBuilderCodeForCLI(builderCode); err != nil {
+				return err
+			}
+			w.clob.SetBuilderCode(builderCode)
 			key, err := privateKey()
 			if err != nil {
 				return err
@@ -717,14 +752,20 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 	createOrderCmd.Flags().StringVar(&createOrderSize, "size", "", "order size")
 	createOrderCmd.Flags().StringVar(&createOrderType, "order-type", "GTC", "order type")
 	createOrderCmd.Flags().StringVar(&createOrderExpiration, "expiration", "0", "unix timestamp for GTD orders (0 = no expiration)")
+	createOrderCmd.Flags().StringVar(&createOrderBuilderCode, "builder-code", "", "0x-prefixed bytes32 builder attribution code")
 	cmd.AddCommand(createOrderCmd)
 
-	var marketOrderOutput, marketOrderToken, marketOrderSide, marketOrderAmount, marketOrderPrice, marketOrderType string
+	var marketOrderOutput, marketOrderToken, marketOrderSide, marketOrderAmount, marketOrderPrice, marketOrderType, marketOrderBuilderCode string
 	marketOrderCmd := &cobra.Command{Use: "market-order", Short: "Create a signed CLOB market/FOK order", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := checkOutput(marketOrderOutput); err != nil {
 				return err
 			}
+			builderCode := builderCodeFromFlagOrEnv(marketOrderBuilderCode)
+			if err := validateBuilderCodeForCLI(builderCode); err != nil {
+				return err
+			}
+			w.clob.SetBuilderCode(builderCode)
 			key, err := privateKey()
 			if err != nil {
 				return err
@@ -748,6 +789,7 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 	marketOrderCmd.Flags().StringVar(&marketOrderAmount, "amount", "", "USDC amount")
 	marketOrderCmd.Flags().StringVar(&marketOrderPrice, "price", "", "limit price")
 	marketOrderCmd.Flags().StringVar(&marketOrderType, "order-type", "FOK", "order type")
+	marketOrderCmd.Flags().StringVar(&marketOrderBuilderCode, "builder-code", "", "0x-prefixed bytes32 builder attribution code")
 	cmd.AddCommand(marketOrderCmd)
 
 	var priceHistoryOutput, priceHistoryInterval string
@@ -1059,6 +1101,31 @@ func splitCSV(value string) []string {
 	return out
 }
 
+func builderCodeFromFlagOrEnv(flagValue string) string {
+	if value := strings.TrimSpace(flagValue); value != "" {
+		return value
+	}
+	return firstEnv("POLYMARKET_BUILDER_CODE", "POLYMARKET_CLOB_BUILDER_CODE")
+}
+
+func validateBuilderCodeForCLI(builderCode string) error {
+	value := strings.TrimSpace(builderCode)
+	if value == "" {
+		return nil
+	}
+	if !strings.HasPrefix(value, "0x") {
+		return fmt.Errorf("builder code must be a 0x-prefixed bytes32 hex string")
+	}
+	hexValue := value[2:]
+	if len(hexValue) != 64 {
+		return fmt.Errorf("builder code must be 32 bytes, got %d hex characters", len(hexValue))
+	}
+	if _, err := hex.DecodeString(hexValue); err != nil {
+		return fmt.Errorf("builder code must be hex: %w", err)
+	}
+	return nil
+}
+
 func balanceResponseMap(res *clob.BalanceAllowanceResponse) map[string]interface{} {
 	out := map[string]interface{}{}
 	if res == nil {
@@ -1247,6 +1314,9 @@ func runLocalPreflight(ctx context.Context, version string) preflight.Result {
 			return nil
 		}},
 		{Name: "output", Probe: func(context.Context) error { return nil }},
+		{Name: "clob_builder_code", Probe: func(context.Context) error {
+			return validateBuilderCodeForCLI(builderCodeFromFlagOrEnv(""))
+		}},
 	})
 }
 

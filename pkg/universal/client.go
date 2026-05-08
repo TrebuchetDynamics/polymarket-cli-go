@@ -285,6 +285,12 @@ func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (s
 	return c.clobRead.CreateOrDeriveAPIKey(ctx, privateKey)
 }
 
+// CreateAPIKeyForAddress creates CLOB L2 credentials for a deposit/smart
+// wallet address while signing L1 auth with the controlling EOA private key.
+func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (sdkclob.APIKey, error) {
+	return c.clobRead.CreateAPIKeyForAddress(ctx, privateKey, ownerAddress)
+}
+
 // CreateBuilderFeeKey mints a builder fee key via L2 auth.
 // Used for V2 order builder field attribution. Requires existing L2 credentials.
 // Fully headless — no cookie, no browser, no relayer.

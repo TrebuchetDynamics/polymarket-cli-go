@@ -12,6 +12,7 @@ import (
 
 const testPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
 const testBuilderCode = "0x1111111111111111111111111111111111111111111111111111111111111111"
+const testDepositWallet = "0x19bE70b1e4F59C0663a999C0dC6f5b3C68CFCaF3"
 
 func TestClientOrderBookReturnsPublicDTO(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -144,6 +145,31 @@ func TestClientScalarMarketDataParsesCurrentNumericDTOs(t *testing.T) {
 	}
 	if got := history.History[0]; got.T != "123" || got.P != "0.45" {
 		t.Fatalf("unexpected history point: %+v", got)
+	}
+}
+
+func TestClientCreateAPIKeyForAddressReturnsPublicAPIKey(t *testing.T) {
+	var sawAddress string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/api-key" || r.Method != http.MethodPost {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		sawAddress = r.Header.Get("POLY_ADDRESS")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"owner-pass"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{BaseURL: server.URL})
+	key, err := client.CreateAPIKeyForAddress(context.Background(), testPrivateKey, testDepositWallet)
+	if err != nil {
+		t.Fatalf("CreateAPIKeyForAddress returned error: %v", err)
+	}
+	if sawAddress != testDepositWallet {
+		t.Fatalf("POLY_ADDRESS = %s, want %s", sawAddress, testDepositWallet)
+	}
+	if key.Key != "owner-key" || key.Passphrase != "owner-pass" {
+		t.Fatalf("unexpected key: %+v", key)
 	}
 }
 

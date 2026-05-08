@@ -190,6 +190,7 @@ func TestStreamClient(t *testing.T) {
 // Deterministic test EOA — same key the internal/clob tests use.
 const testPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
 const testBuilderCode = "0x1111111111111111111111111111111111111111111111111111111111111111"
+const testDepositWallet = "0x19bE70b1e4F59C0663a999C0dC6f5b3C68CFCaF3"
 
 func TestCreateOrDeriveAPIKey(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +218,37 @@ func TestCreateOrDeriveAPIKey(t *testing.T) {
 	}
 	if key.Passphrase != "pp1" {
 		t.Errorf("expected passphrase pp1, got %q", key.Passphrase)
+	}
+}
+
+func TestCreateAPIKeyForAddress(t *testing.T) {
+	var sawAddress string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/api-key" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		sawAddress = r.Header.Get("POLY_ADDRESS")
+		json.NewEncoder(w).Encode(map[string]string{
+			"apiKey":     "owner-key",
+			"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"passphrase": "owner-pass",
+		})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{CLOBBaseURL: srv.URL})
+	key, err := c.CreateAPIKeyForAddress(context.Background(), testPrivateKey, testDepositWallet)
+	if err != nil {
+		t.Fatalf("CreateAPIKeyForAddress error: %v", err)
+	}
+	if sawAddress != testDepositWallet {
+		t.Fatalf("POLY_ADDRESS = %s, want %s", sawAddress, testDepositWallet)
+	}
+	if key.Key != "owner-key" {
+		t.Errorf("expected owner key, got %q", key.Key)
 	}
 }
 

@@ -102,6 +102,20 @@ func (c *Client) createAPIKey(ctx context.Context, privateKey string) (auth.APIK
 	return raw.apiKey(), nil
 }
 
+// CreateAPIKeyForAddress creates CLOB L2 credentials for a deposit/smart
+// wallet while signing L1 auth with the controlling EOA private key.
+func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (auth.APIKey, error) {
+	headers, err := auth.BuildL1HeadersForAddress(privateKey, polygonChainID, time.Now().Unix(), 0, ownerAddress)
+	if err != nil {
+		return auth.APIKey{}, err
+	}
+	var raw apiKeyResponse
+	if err := c.transport.PostWithHeaders(ctx, "/auth/api-key", nil, headers, &raw); err != nil {
+		return auth.APIKey{}, err
+	}
+	return raw.apiKey(), nil
+}
+
 type apiKeyResponse struct {
 	APIKey         string `json:"apiKey"`
 	APIKeySnake    string `json:"api_key"`
