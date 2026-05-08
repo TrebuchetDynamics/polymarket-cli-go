@@ -41,7 +41,7 @@ Polymarket V2 separates two addresses that older guides conflate:
 The CLOB API key is **EOA-bound at the HTTP layer** but trades on behalf of
 the deposit wallet via the order's `signatureType=3` field. This was empirically
 verified by the 2026-05-08 Playwright capture and is documented in
-`docs/POLY_1271-SIGNING.md`.
+[POLY_1271-SIGNING.md](./POLY_1271-SIGNING.md).
 
 ### How an order is authorised vs settled
 
@@ -103,8 +103,8 @@ uses them directly.
 Gas: **0**.
 Cost: **$0**.
 
-See `docs/BROWSER-SETUP.md` for the one-time procedure and
-`BLOCKERS.md` for the residual server-side ERC-1271 gap.
+See [BROWSER-SETUP.md](./BROWSER-SETUP.md) for the one-time procedure and
+[BLOCKERS.md](../BLOCKERS.md) for the residual server-side ERC-1271 gap.
 
 ### 2.3 Deposit Wallet Deployment — `polygolem deposit-wallet deploy --wait`
 
@@ -424,10 +424,10 @@ remember the **$1 marketable minimum**.
 ## 6. References
 
 - Polymarket V2 deposit-wallet docs — https://docs.polymarket.com/trading/deposit-wallets
-- Polygolem onboarding (single source of truth) — `docs/ONBOARDING.md`
-- POLY_1271 signing details — `docs/POLY_1271-SIGNING.md`
-- Smart-contract addresses — `docs/CONTRACTS.md`
-- Browser one-time setup — `docs/BROWSER-SETUP.md`
+- Polygolem onboarding (single source of truth) — [ONBOARDING.md](./ONBOARDING.md)
+- POLY_1271 signing details — [POLY_1271-SIGNING.md](./POLY_1271-SIGNING.md)
+- Smart-contract addresses — [CONTRACTS.md](./CONTRACTS.md)
+- Browser one-time setup — [BROWSER-SETUP.md](./BROWSER-SETUP.md)
 - pUSD contract — `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB`
 - USDC.e (Polygon) — `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
 - WMATIC — `0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270`
