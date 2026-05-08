@@ -81,6 +81,10 @@ polygolem clob create-order \
   --token <token-id> --side buy --price 0.5 --size 10 \
   --builder-code "$POLYMARKET_BUILDER_CODE"
 
+polygolem clob create-order \
+  --token <token-id> --side buy --price 0.5 --size 10 \
+  --post-only
+
 polygolem clob market-order \
   --token <token-id> --side buy --amount 5 \
   --builder-code "$POLYMARKET_BUILDER_CODE"
@@ -105,14 +109,17 @@ the upstream "omit both filters" behavior.
 | `PricesHistory` | `GET /prices-history` | Public | OHLCV/history query |
 | `Markets` | `GET /markets` | Public | Cursor pagination |
 | `Market` | `GET /clob-markets/{condition_id}` | Public | One CLOB market with compact V2 fields expanded into SDK DTOs |
-| `CreateOrDeriveAPIKey` | `POST /auth/api-key`, then `GET /auth/derive-api-key` fallback | L1 | Returns L2 `{ apiKey, secret, passphrase }` |
+| `CreateOrDeriveAPIKey` | `POST /auth/api-key`, then `GET /auth/derive-api-key` fallback | L1 | Returns EOA/bootstrap L2 `{ apiKey, secret, passphrase }` |
+| `CreateOrDeriveAPIKeyForAddress` / `DeriveAPIKeyForAddress` | `POST /auth/api-key` / `GET /auth/derive-api-key` with owner override | L1 + ERC-1271 owner | Creates or derives L2 credentials owned by a deployed deposit/smart wallet |
 | `CreateAPIKeyForAddress` | `POST /auth/api-key` with owner override | L1 + ERC-1271 owner | Creates L2 credentials owned by a deployed deposit/smart wallet |
 | `CreateBuilderFeeKey` | `POST /auth/builder-api-key` | L2 | Mints a builder fee key for V2 order attribution |
 | `ListBuilderFeeKeys` | `GET /auth/builder-api-keys` | L2 | Lists existing builder fee keys |
 | `RevokeBuilderFeeKey` | `DELETE /auth/builder-api-key/{key}` | L2 | Deletes one builder fee key |
-| `BalanceAllowance` | `GET /balance-allowance` | L2 | Use `signature_type=3` for deposit wallet balances |
-| `UpdateBalanceAllowance` | `GET /balance-allowance/update` | L2 | Refreshes CLOB balance cache |
-| `CreateLimitOrder` / `CreateMarketOrder` | `POST /order` | L2 + order signature | Signs V2 order locally, then posts |
+| `BalanceAllowance` | `GET /balance-allowance` | L2 | Uses `signature_type=3` and deposit-wallet-owned L2 headers |
+| `UpdateBalanceAllowance` | `GET /balance-allowance/update` | L2 | Refreshes CLOB balance cache with deposit-wallet-owned L2 headers |
+| `CreateLimitOrder` / `CreateMarketOrder` | `POST /order` | L2 + order signature | Signs V2 order locally, then posts with deposit-wallet-owned L2 headers |
+| `CreateBatchOrders` | `POST /orders` | L2 + order signatures | Signs up to 15 V2 limit orders locally, then posts with deposit-wallet-owned L2 headers |
+| `Heartbeat` / `AutoHeartbeat` | `POST /v1/heartbeats` | L2 | Keepalive support for open-order heartbeat workflows |
 | `Order` | `GET /order/{id}` | L2 | One authenticated order |
 | `ListOrders` | `GET /data/orders` | L2 | Open orders for the API key owner |
 | `ListTrades` | `GET /data/trades` | L2 | Authenticated trade history |
@@ -209,7 +216,8 @@ live CLOB order and balance command to `deposit`.
 These upstream V2 capabilities are not yet exposed as stable polygolem SDK/CLI
 contracts:
 
-- Batch order placement (`POST /orders`) for multiple new orders.
+- CLI wrapper for batch order placement (`POST /orders`). The SDK exposes
+  `CreateBatchOrders`; the CLI still posts one order per command.
 - Authenticated user WebSocket stream. Authenticated REST account/order/trading
   DTOs are public through `pkg/clob`.
 - Sell-side market orders in `CreateMarketOrder`; the current implementation

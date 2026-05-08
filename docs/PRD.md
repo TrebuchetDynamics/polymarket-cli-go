@@ -364,8 +364,9 @@ Requirements:
   confused with user L2 credentials or with the per-order `builderCode`.
 - Signature types: Deposit wallet / `POLY_1271` (type 3) is the **only**
   supported mode. EOA, proxy, and Gnosis Safe are blocked by CLOB V2.
-  go-bot live execution keeps the EOA as owner/signer while using the
-  deposit-wallet address as maker/funder.
+  go-bot live execution keeps the EOA as the local signing key, while private
+  CLOB account operations and V2 orders use the deposit-wallet address as
+  L2 `POLY_ADDRESS`, maker, signer, and funder.
 - Funder, signer, and maker addresses must be represented separately.
 - Builder relayer auth must be a first-class, separate credential set for
   deposit-wallet `WALLET-CREATE` and `WALLET` batch flows; never reuse CLOB L2
@@ -455,7 +456,8 @@ Acceptance criteria:
 > **Status:** Fulfilled. `internal/execution` separates paper from live
 > executors and enforces gates; `internal/clob` covers place/cancel/query
 > with public account/order/trading DTOs re-exposed through `pkg/clob` and
-> `pkg/universal`. Live commands (`polygolem live ...` and the `polygolem clob
+> `pkg/universal`, including SDK batch order placement and heartbeats. Live
+> commands (`polygolem live ...` and the `polygolem clob
 > create-order|orders|trades`) ship behind preflight gates.
 
 The SDK must expose execution as a separate service from order building.

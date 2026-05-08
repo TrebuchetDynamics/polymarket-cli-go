@@ -118,8 +118,10 @@ func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor strin
 
 ```go
 func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (APIKey, error)
+func (c *Client) CreateOrDeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (APIKey, error)
 func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (APIKey, error)
 func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (APIKey, error)
+func (c *Client) DeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (APIKey, error)
 func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (APIKey, error)
 func (c *Client) ListBuilderFeeKeys(ctx context.Context, privateKey string) ([]BuilderFeeKeyRecord, error)
 func (c *Client) RevokeBuilderFeeKey(ctx context.Context, privateKey, builderKey string) error
@@ -133,7 +135,10 @@ func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs [
 func (c *Client) CancelAll(ctx context.Context, privateKey string) (*CancelOrdersResponse, error)
 func (c *Client) CancelMarket(ctx context.Context, privateKey string, params CancelMarketParams) (*CancelOrdersResponse, error)
 func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params CreateOrderParams) (*OrderPlacementResponse, error)
+func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, params []CreateOrderParams) (*BatchOrderResponse, error)
 func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params MarketOrderParams) (*OrderPlacementResponse, error)
+func (c *Client) Heartbeat(ctx context.Context, privateKey, heartbeatID string) error
+func (c *Client) AutoHeartbeat(ctx context.Context, privateKey string, interval time.Duration) context.CancelFunc
 ```
 
 ### Contract: Authenticated CLOB DTOs
@@ -145,6 +150,7 @@ type BalanceAllowanceResponse struct
 type CreateOrderParams struct
 type MarketOrderParams struct
 type OrderPlacementResponse struct
+type BatchOrderResponse struct
 type CancelOrdersResponse struct
 type CancelMarketParams struct
 type OrderRecord struct
@@ -463,17 +469,22 @@ func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor strin
 func (c *Client) HealthCheck(ctx context.Context) (HealthResponse, error)
 ```
 
-### Contract: Methods — CLOB Account, Orders, and Trading (15 methods)
+### Contract: Methods — CLOB Account, Orders, and Trading (20 methods)
 
 ```go
 func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (clob.APIKey, error)
+func (c *Client) CreateOrDeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (clob.APIKey, error)
 func (c *Client) CreateAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (clob.APIKey, error)
 func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (clob.APIKey, error)
+func (c *Client) DeriveAPIKeyForAddress(ctx context.Context, privateKey, ownerAddress string) (clob.APIKey, error)
 func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (clob.APIKey, error)
 func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error)
 func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error)
 func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params clob.CreateOrderParams) (*clob.OrderPlacementResponse, error)
+func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, params []clob.CreateOrderParams) (*clob.BatchOrderResponse, error)
 func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params clob.MarketOrderParams) (*clob.OrderPlacementResponse, error)
+func (c *Client) Heartbeat(ctx context.Context, privateKey, heartbeatID string) error
+func (c *Client) AutoHeartbeat(ctx context.Context, privateKey string, interval time.Duration) context.CancelFunc
 func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]clob.OrderRecord, error)
 func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*clob.OrderRecord, error)
 func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]clob.TradeRecord, error)
@@ -596,6 +607,28 @@ func (c *Client) GetDepositStatus(ctx context.Context, depositAddress string) (*
 func (c *Client) GetQuote(ctx context.Context, req QuoteRequest) (*QuoteResponse, error)
 ```
 
+## `pkg/ctf` — Conditional Tokens Helpers
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/ctf"
+```
+
+### Contract: Functions
+
+```go
+var USDC common.Address
+
+func SplitPositionData(collateral common.Address, parentCollectionID, conditionID common.Hash, partition []*big.Int, amount *big.Int) ([]byte, error)
+func MergePositionsData(collateral common.Address, parentCollectionID, conditionID common.Hash, partition []*big.Int, amount *big.Int) ([]byte, error)
+func RedeemPositionsData(collateral common.Address, parentCollectionID, conditionID common.Hash, indexSets []*big.Int) ([]byte, error)
+func PositionID(collateral common.Address, collectionID common.Hash) common.Hash
+func CollectionID(parentCollectionID, conditionID common.Hash, indexSet *big.Int) common.Hash
+```
+
+These helpers only build calldata and deterministic IDs. They do not submit
+transactions, bypass deposit-wallet gates, or perform split/merge/redeem
+execution.
+
 ## `pkg/relayer` — Builder Relayer Primitives
 
 ```go
@@ -662,7 +695,6 @@ The following are intentional gaps in the current stable `pkg/` contract:
 |---|---|
 | One-call deposit-wallet onboard SDK | Relayer primitives are public in `pkg/relayer`; full onboard orchestration remains CLI-only |
 | Public type ownership | Gamma, Data API, and read-only CLOB DTOs are public in `pkg/types`; authenticated CLOB account/trading DTOs are public in `pkg/clob`; market WebSocket DTOs are public in `pkg/stream`; rewards, enrichment, and user-stream signatures still need promotion work before claiming a fully clean external SDK |
-| Batch order placement | Single-order placement and cancellation are exposed; batch placement is not |
 | Authenticated user WebSocket stream | Public market stream is exposed; user stream waits for L2 WebSocket auth tests |
 | Consolidated V2 CLOB market info | Tick size, neg-risk, and fee-rate are separate calls today |
 

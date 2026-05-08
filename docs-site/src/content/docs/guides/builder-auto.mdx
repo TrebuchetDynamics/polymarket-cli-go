@@ -36,7 +36,14 @@ RELAYER_API_KEY="..." \
 RELAYER_API_KEY_ADDRESS="..." \
   polygolem deposit-wallet onboard --fund-amount 10 --json
 
-# Step 6: Sync balance and trade
+# Step 6: Mint the deposit-wallet-owned CLOB key
+DEPOSIT_WALLET=$(POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
+  polygolem --json deposit-wallet derive | jq -r '.data.depositWallet')
+
+POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
+  polygolem clob create-api-key-for-address --owner "$DEPOSIT_WALLET"
+
+# Step 7: Sync balance and trade
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
   polygolem clob update-balance --asset-type collateral
 
@@ -53,10 +60,11 @@ POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
 POST https://clob.polymarket.com/auth/api-key
 
 Headers:
-  POLY_ADDRESS    = EOA address
+  POLY_ADDRESS    = EOA address for bootstrap keys, deposit wallet for trading keys
   POLY_TIMESTAMP  = Unix seconds
   POLY_NONCE      = "0"
-  POLY_SIGNATURE  = ECDSA over EIP-712 ClobAuth hash
+  POLY_SIGNATURE  = raw EOA ClobAuth signature for bootstrap keys;
+                    ERC-7739 wrapped ClobAuth signature for deposit-wallet keys
 
 EIP-712 typed data:
   domain:  { name: "ClobAuthDomain", version: "1", chainId: 137 }
@@ -64,9 +72,12 @@ EIP-712 typed data:
   message: "This message attests that I control the given wallet"
 ```
 
-The endpoint returns the CLOB L2 HMAC triple: `{ apiKey, secret, passphrase }`.
-Those credentials authenticate CLOB balances, orders, trades, cancellations,
-and same-address order placement.
+The bootstrap endpoint returns the CLOB L2 HMAC triple:
+`{ apiKey, secret, passphrase }`. After the deposit wallet exists,
+`clob create-api-key-for-address --owner <deposit-wallet>` creates the
+deposit-wallet-owned key used by balances, orders, trades, and cancellations.
+That owner-scoped flow sets the ClobAuth `address` field to the deposit wallet
+and wraps the EOA signature for ERC-1271 validation.
 
 ## Idempotent
 

@@ -612,7 +612,9 @@ polygolem --json clob book <token-id>
 
 ### clob create-api-key
 
-Create or derive CLOB API credentials.
+Create or derive bootstrap CLOB API credentials for the EOA. For live
+deposit-wallet trading, also create the owner-scoped key with
+`clob create-api-key-for-address --owner <deposit-wallet>`.
 
 **Usage:**
 
@@ -704,6 +706,7 @@ polygolem clob create-order [flags]
 | `--expiration` | string | `0` | Unix timestamp for GTD orders (`0` = no expiration). |
 | `--order-type` | string | `GTC` | Order type. |
 | `--output` | string | `json` | Output format (json). |
+| `--post-only` | bool | `false` | Post-only order (maker-only, rejected if it would take). |
 | `--price` | string | `""` | Limit price. |
 | `--side` | string | `buy` | Order side. |
 | `--size` | string | `""` | Order size. |
@@ -721,6 +724,9 @@ polygolem --json clob create-order \
 polygolem --json clob create-order \
   --token <token-id> --side buy --price 0.51 --size 10 \
   --builder-code "$POLYMARKET_BUILDER_CODE"
+polygolem --json clob create-order \
+  --token <token-id> --side buy --price 0.51 --size 10 \
+  --post-only
 ```
 
 ### clob market

@@ -87,6 +87,7 @@ polygolem deposit-wallet status                          # deployed? approved? f
 polygolem deposit-wallet approve --submit                # sign + submit 6-call batch
 polygolem deposit-wallet fund --amount 0.71              # ERC-20 transfer EOA→wallet
 polygolem deposit-wallet onboard --fund-amount 0.71      # deploy + approve + fund
+polygolem clob create-api-key-for-address --owner 0xDepositWallet  # deposit-owned CLOB key
 ```
 
 ### CLOB Trading
@@ -94,9 +95,10 @@ polygolem deposit-wallet onboard --fund-amount 0.71      # deploy + approve + fu
 ```bash
 polygolem clob balance --asset-type collateral
 polygolem clob update-balance --asset-type collateral
-polygolem clob create-api-key
+polygolem clob create-api-key                             # EOA/bootstrap key
 polygolem clob create-api-key-for-address --owner 0xDepositWallet
 polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --builder-code "$POLYMARKET_BUILDER_CODE"
+polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --post-only
 polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --order-type GTD --expiration 1778125000
 polygolem clob market-order --token ID --side buy --amount 5 --builder-code "$POLYMARKET_BUILDER_CODE"
 polygolem clob orders                                      # list open orders
@@ -138,6 +140,7 @@ polygolem paper reset
 | `pkg/marketresolver` | Market + token ID resolution |
 | `pkg/bridge` | Bridge API — supported assets, deposit addresses, quotes |
 | `pkg/relayer` | Builder relayer primitives for wallet create and wallet batch flows |
+| `pkg/ctf` | Conditional Tokens calldata and ID helpers |
 | `pkg/pagination` | Cursor and offset pagination with concurrent batching |
 
 ## Internal Packages

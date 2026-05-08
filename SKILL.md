@@ -852,8 +852,8 @@ public; account/order paths require `POLYMARKET_PRIVATE_KEY`.
 
 ### `clob create-api-key`
 
-**Purpose:** Create or derive CLOB L2 API credentials for the signing
-account.
+**Purpose:** Create or derive bootstrap CLOB L2 API credentials for the EOA
+signing account.
 
 **Required flags:** None.
 
@@ -898,6 +898,24 @@ account.
   echo them back to the user.
 - Repeated calls are idempotent — the CLOB returns the existing creds
   rather than minting new ones.
+- Deposit-wallet trading still needs an owner-scoped key after the wallet is
+  deployed: run `clob create-api-key-for-address --owner <deposit-wallet>`.
+
+### `clob create-api-key-for-address`
+
+**Purpose:** Create deposit-wallet-owned CLOB L2 API credentials while the
+EOA in `POLYMARKET_PRIVATE_KEY` signs the owner-scoped ClobAuth payload.
+
+**Required flags:** `--owner`.
+
+**Env vars consumed:** `POLYMARKET_PRIVATE_KEY`.
+
+**Caveats:**
+
+- `--owner` must be the deployed deposit wallet address for live sigtype-3
+  trading. Do not pass the EOA address here.
+- Run this after `deposit-wallet deploy`/`onboard` and before `clob
+  update-balance`, `clob create-order`, or cancel/order account commands.
 
 ### `clob create-order`
 
@@ -905,7 +923,8 @@ account.
 
 **Required flags:** `--token`, `--price`, `--size`.
 (Common optional flags: `--side`, `--order-type`, `--expiration` for GTD,
-`--builder-code` for V2 attribution.)
+`--builder-code` for V2 attribution, `--post-only` for maker-only GTC/GTD
+orders.)
 
 **Env vars consumed:** `POLYMARKET_PRIVATE_KEY`, optional `POLYMARKET_BUILDER_CODE`.
 
@@ -1108,8 +1127,10 @@ Use these when reconciling or reducing live exposure:
 
 Agent rules:
 
-- `order`, `orders`, `trades`, and all cancel commands consume
-  `POLYMARKET_PRIVATE_KEY` to derive L2 credentials.
+- `balance`, `update-balance`, `order`, `orders`, `trades`, order placement,
+  and all cancel commands consume `POLYMARKET_PRIVATE_KEY` to derive the
+  deposit-wallet address and authenticate with deposit-wallet-owned CLOB L2
+  credentials.
 - `cancel`, `cancel-orders`, `cancel-market`, and `cancel-all` mutate
   upstream order state. Prefer the narrowest cancel command that matches the
   user's request.
@@ -1554,7 +1575,7 @@ signing EOA.
 {
   "ok": true,
   "version": "1",
-  "data": { "wallet": "0x...", "owner": "0x..." },
+  "data": { "depositWallet": "0x...", "owner": "0x..." },
   "meta": { "command": "deposit-wallet derive", "ts": "2026-05-07T12:34:56Z", "duration_ms": 12 }
 }
 ```

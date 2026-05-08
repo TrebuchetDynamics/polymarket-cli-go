@@ -1,6 +1,6 @@
 # POLY_1271 Signing Chain — sigtype 3 Full Flow
 
-> **Status:** Live-verified against production CLOB V2
+> **Status:** Implementation contract for polygolem's CLOB V2 deposit-wallet path.
 > **Last updated:** 2026-05-08
 > **Companion:** [DEPOSIT-WALLET-DEPLOYMENT.md](./DEPOSIT-WALLET-DEPLOYMENT.md), [CONTRACTS.md](./CONTRACTS.md)
 
@@ -18,7 +18,7 @@ For sigtype 3 (POLY_1271 / deposit wallet) to work end-to-end, four conditions m
 │  ┌──────────────────────────────────────────────────────────────┐      │
 │  │ POST /auth/api-key                                           │      │
 │  │   POLY_ADDRESS = depositWallet (not EOA)                     │      │
-│  │   POLY_SIGNATURE = raw 65-byte ECDSA from EOA                │      │
+│  │   POLY_SIGNATURE = ERC-7739 wrapped ClobAuth from EOA        │      │
 │  │   → L2 key is now "bound" to the deposit wallet address       │      │
 │  └──────────────────────────────────────────────────────────────┘      │
 │                              │                                          │
@@ -56,9 +56,9 @@ For sigtype 3 (POLY_1271 / deposit wallet) to work end-to-end, four conditions m
 The L2 API key must be bound to the **deposit wallet address**, not the EOA. This is done at key creation time via `POST /auth/api-key`.
 
 ```go
-// internal/auth/l1.go — BuildL1HeadersForAddress
+// internal/auth/l1.go — BuildL1HeadersForDepositWallet
 // ownerAddress overrides POLY_ADDRESS to the deposit wallet
-headers, err := auth.BuildL1HeadersForAddress(
+headers, err := auth.BuildL1HeadersForDepositWallet(
     privateKeyHex,  // EOA private key (signs the ClobAuth)
     chainID,
     timestamp,
@@ -66,16 +66,13 @@ headers, err := auth.BuildL1HeadersForAddress(
     depositWallet,  // ← bind the L2 key to this address
 )
 // headers["POLY_ADDRESS"] = depositWallet (not EOA)
-// headers["POLY_SIGNATURE"] = raw 65-byte ECDSA from EOA
+// headers["POLY_SIGNATURE"] = ERC-7739 wrapped ClobAuth from EOA
 ```
 
-**The ClobAuth signature is a raw 65-byte ECDSA from the EOA.** It is NOT ERC-7739 wrapped. The order signing path uses ERC-7739 wrapping, but the L1 auth path uses raw ECDSA.
-
-From the [official Polymarket docs](https://docs.polymarket.com/trading/deposit-wallets):
-
-> "The owner or session signer signs a nested TypedDataSign payload under the correct CTF Exchange V2 domain."
-
-This applies to ORDER signing, not L1 auth. L1 auth uses the standard ClobAuth EIP-712 with raw ECDSA.
+Polygolem uses the same nested signature wrapper helper for deposit-wallet
+ClobAuth and order signing. The L1 auth wrapper uses `ClobAuthDomain` as the
+outer app domain and `DepositWallet` as the inner ERC-7739 domain; the order
+wrapper uses the CTF Exchange V2 domain as the outer app domain.
 
 ## Step 2 — CLOB HTTP Gate
 
@@ -130,8 +127,8 @@ The deposit wallet:
 
 | Aspect | L1 Auth (ClobAuth) | Order Signing (POLY_1271) |
 |--------|-------------------|--------------------------|
-| Signature type | Raw 65-byte ECDSA | ERC-7739 wrapped (636 chars) |
-| EIP-712 domain | `ClobAuthDomain` v1 | `Polymarket CTF Exchange` v2 |
+| Signature type | ERC-7739 wrapped ClobAuth (406 chars) | ERC-7739 wrapped order (636 chars) |
+| Outer EIP-712 domain | `ClobAuthDomain` v1 | `Polymarket CTF Exchange` v2 |
 | Signer | EOA | EOA |
 | `POLY_ADDRESS` | Deposit wallet (for key binding) | Deposit wallet (L2 header) |
 | Purpose | Create/bind L2 API key | Authorize trade |
@@ -140,10 +137,11 @@ The deposit wallet:
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| L1 key binding | `internal/auth/l1.go::BuildL1HeadersForAddress` | Bind L2 key to deposit wallet |
+| L1 key binding | `internal/auth/l1.go::BuildL1HeadersForDepositWallet` | Bind L2 key to deposit wallet |
+| Owner-scoped SDK | `pkg/clob.Client::{CreateOrDeriveAPIKeyForAddress,DeriveAPIKeyForAddress}` | Public SDK access to deposit-wallet-owned keys |
 | Order signing | `internal/clob/orders.go::buildSignedOrderPayload` | Build POLY_1271 order with correct maker/signer |
 | ERC-7739 wrap | `internal/clob/orders.go::wrapPOLY1271Signature` | Wrap EOA sig in TypedDataSign envelope |
-| ClobAuth | `internal/auth/eip712.go::SignClobAuth` | Raw ECDSA ClobAuth signing |
+| ClobAuth wrapper | `internal/auth/l1.go::BuildL1HeadersForDepositWallet` | Wrapped deposit-wallet ClobAuth signing |
 
 ## Verification Checklist
 
@@ -152,7 +150,7 @@ The deposit wallet:
 - [ ] Order `maker` = order `signer` = deposit wallet
 - [ ] Order `signatureType` = 3
 - [ ] Order `signature` is ERC-7739 wrapped (636 hex chars)
-- [ ] L1 ClobAuth signature is raw 65-byte ECDSA (NOT wrapped)
+- [ ] L1 ClobAuth signature is ERC-7739 wrapped for deposit-wallet key binding
 - [ ] Deposit wallet is deployed (relayer `/deployed` returns true)
 - [ ] Deposit wallet has approvals (6 contracts approved)
 

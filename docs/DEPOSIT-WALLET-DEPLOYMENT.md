@@ -98,15 +98,17 @@ POLYMARKET_PRIVATE_KEY="0x$(cat fresh_key.txt)" \
 
 ### 2.1 CLOB and Relayer Credentials
 
-Create CLOB L2 credentials:
+Create bootstrap CLOB L2 credentials:
 
 ```bash
 POLYMARKET_PRIVATE_KEY="0x..." polygolem builder auto
 ```
 
-This signs the canonical ClobAuth EIP-712 message locally, calls
-`/auth/api-key`, and writes CLOB L2 credentials to a local env file with `0600`
-permissions.
+This signs the canonical ClobAuth EIP-712 message locally with the EOA, calls
+`/auth/api-key`, and writes bootstrap CLOB L2 credentials to a local env file
+with `0600` permissions. These credentials are enough to mint a builder fee
+key before the deposit wallet exists. Live trading uses a later
+deposit-wallet-owned CLOB key.
 
 Create V2 relayer credentials for deploy and approval batches:
 
@@ -221,7 +223,7 @@ polygolem deposit-wallet approve --submit
 **What it does:**
 1. Builds a batch of 6 `approve()` calls targeting the deposit wallet
 2. Fetches the current WALLET nonce from the relayer
-3. Constructs the EIP-712 signed envelope (POLY_1271)
+3. Constructs the deposit-wallet `Batch` EIP-712 envelope
 4. EOA signs the batch (private key)
 5. POSTs the signed batch as `{"type": "WALLET", "from": eoa, "to": factory, ...}` to the relayer
 6. Relayer calls `factory.proxy(batch[], signatures[])` which executes the 6 calls through the wallet
@@ -309,6 +311,16 @@ polygolem clob market-order \
 ```
 
 Orders are POLY_1271 signed — the deposit wallet's contract signature format.
+Before placing orders, mint the deposit-wallet-owned CLOB key once:
+
+```bash
+WALLET=$(POLYMARKET_PRIVATE_KEY="0x..." polygolem --json deposit-wallet derive | jq -r '.data.depositWallet')
+POLYMARKET_PRIVATE_KEY="0x..." polygolem clob create-api-key-for-address --owner "$WALLET"
+```
+
+Private CLOB calls then use `POLY_ADDRESS = depositWallet` in L2 HMAC headers;
+polygolem derives the wallet address from `POLYMARKET_PRIVATE_KEY` when
+placing orders, reading balances, listing orders, or cancelling orders.
 
 ---
 

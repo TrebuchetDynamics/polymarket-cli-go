@@ -129,6 +129,10 @@ _ = cancelled
 
 Order placement is exposed as `CreateLimitOrder` and `CreateMarketOrder`.
 Polygolem's supported live path is deposit wallet (`signatureType = 3`).
+After wallet deployment, create or derive the deposit-wallet-owned CLOB key
+with `CreateOrDeriveAPIKeyForAddress` or `DeriveAPIKeyForAddress`; private
+CLOB account methods and order placement use the deposit wallet as L2
+`POLY_ADDRESS`.
 
 ## Streams
 

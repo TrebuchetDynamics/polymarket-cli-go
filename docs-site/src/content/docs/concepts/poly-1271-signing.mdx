@@ -9,7 +9,8 @@ For deposit wallet (sigtype 3 / POLY_1271) orders to work end-to-end, four condi
 
 ```
 POST /auth/api-key          → bind L2 key to deposit wallet
-  POLY_ADDRESS = depositWallet (raw 65-byte ECDSA from EOA)
+  POLY_ADDRESS = depositWallet
+  POLY_SIGNATURE = ERC-7739 wrapped ClobAuth from EOA
 
 POST /order (L2 HMAC)       → CLOB HTTP gate
   POLY_ADDRESS = depositWallet → matches L2 key binding ✓
@@ -30,13 +31,13 @@ CTFExchangeV2.isValidSignature(depositWallet, hash, wrappedSig)
 The L2 API key must be bound to the **deposit wallet address**, not the EOA.
 
 ```go
-headers, err := auth.BuildL1HeadersForAddress(
+headers, err := auth.BuildL1HeadersForDepositWallet(
     privateKeyHex,  // EOA signs
     chainID, timestamp, nonce,
     depositWallet,  // ← key bound to this address
 )
 // POLY_ADDRESS = depositWallet
-// POLY_SIGNATURE = raw 65-byte ECDSA (NOT ERC-7739 wrapped)
+// POLY_SIGNATURE = ERC-7739 wrapped ClobAuth
 ```
 
 ## Step 2 — CLOB HTTP Gate
@@ -67,8 +68,8 @@ The CTF Exchange V2 calls `depositWallet.isValidSignature(hash, wrappedSig)`. Th
 
 | Aspect | L1 (ClobAuth) | Order (POLY_1271) |
 |--------|--------------|-------------------|
-| Signature | Raw 65-byte ECDSA | ERC-7739 wrapped (636 chars) |
-| Domain | `ClobAuthDomain` v1 | `Polymarket CTF Exchange` v2 |
+| Signature | ERC-7739 wrapped ClobAuth (406 chars) | ERC-7739 wrapped order (636 chars) |
+| Outer domain | `ClobAuthDomain` v1 | `Polymarket CTF Exchange` v2 |
 | Purpose | Create L2 API key | Authorize trade |
 
 ## See Also

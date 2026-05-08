@@ -9,7 +9,8 @@ Polygolem interacts with three distinct Polymarket credential systems. They are 
 
 | Credential | Endpoint | Auth Required | Headless? | Used For |
 |-----------|----------|--------------|-----------|----------|
-| **CLOB L2 Trading Key** | `POST /auth/api-key` | L1 EIP-712 (EOA signs) | ✅ Yes — `builder auto` | Order placement, balance queries, trade history |
+| **CLOB L2 Bootstrap Key** | `POST /auth/api-key` | L1 EIP-712 (EOA signs) | ✅ Yes — `builder auto` | Builder fee key minting before the deposit wallet exists |
+| **Deposit-Wallet CLOB L2 Trading Key** | `POST /auth/api-key` / `GET /auth/derive-api-key` with `POLY_ADDRESS = depositWallet` | Deposit-wallet ClobAuth wrapper | ✅ Yes — `clob create-api-key-for-address` / SDK `CreateOrDeriveAPIKeyForAddress` | Order placement, balance queries, trade history, cancellations |
 | **Builder Fee Key** | `POST /auth/builder-api-key` | L2 HMAC (existing L2 creds) | ✅ Yes — `CreateBuilderFeeKey` | V2 order `builder` field attribution |
 | **Relayer API Key** | `POST /relayer/api/auth` | SIWE-backed Gamma session | ✅ Yes — `auth headless-onboard` | WALLET-CREATE, WALLET batch, relayer operations |
 
@@ -65,12 +66,12 @@ So the only working path is sigtype 3, and sigtype 3 has its own coupling: **the
 
 The well-formed end-to-end path is therefore:
 
-1. Mint CLOB L2 trading creds via `polygolem builder auto` (`POST /auth/api-key`, headless).
+1. Mint bootstrap CLOB L2 creds via `polygolem builder auto` (`POST /auth/api-key`, headless).
 2. Mint a CLOB Builder Fee Key via `polygolem clob create-builder-fee-key` (`POST /auth/builder-api-key`, headless — needs L2 creds from step 1).
 3. Mint a Relayer API Key via `polygolem auth headless-onboard` (SIWE login + `POST /relayer/api/auth`).
 4. Deploy the deposit wallet via `polygolem deposit-wallet deploy` (`POST relayer-v2/submit`, gated on the Relayer API Key from step 3).
-5. Mint a CLOB API key **owned by the deposit wallet**, not the EOA, when an owner-scoped key is required: `polygolem clob create-api-key-for-address --owner <deposit-wallet>`.
-6. Submit orders signed by the deposit wallet (sigtype 3).
+5. Mint a CLOB API key **owned by the deposit wallet**, not the EOA: `polygolem clob create-api-key-for-address --owner <deposit-wallet>`.
+6. Submit orders and private CLOB account calls with deposit-wallet L2 headers (polygolem derives the deposit wallet address from `POLYMARKET_PRIVATE_KEY`).
 
 > Empirically verified 2026-05-07 against profiled EOA `0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C`: registering a builder code without minting a Relayer API Key still returns `HTTP 401 invalid authorization` from `relayer-v2/submit`. The "Builder Keys: No builder API keys yet" UI label refers specifically to the Relayer API Key row.
 
@@ -164,23 +165,26 @@ Headers (all required):
 
 | Header | Value |
 | --- | --- |
-| `POLY_ADDRESS` | EOA address, hex with `0x` prefix |
+| `POLY_ADDRESS` | EOA address for `builder auto`; deposit wallet address for `create-api-key-for-address` |
 | `POLY_TIMESTAMP` | Unix seconds, decimal string |
 | `POLY_NONCE` | Decimal string (use `0`) |
-| `POLY_SIGNATURE` | Hex `0x…` 65-byte ECDSA over the EIP-712 hash below |
+| `POLY_SIGNATURE` | For `builder auto`: hex `0x…` 65-byte ECDSA over the ClobAuth EIP-712 hash below. For `create-api-key-for-address`: ERC-7739 wrapped ClobAuth signature validated through the deployed deposit wallet. |
 
 EIP-712 typed data:
 
 ```
 domain:  { name: "ClobAuthDomain", version: "1", chainId: 137 }
 type:    ClobAuth(address address, string timestamp, uint256 nonce, string message)
-value:   { address:   <EOA>,
+value:   { address:   <EOA for builder auto; deposit wallet for create-api-key-for-address>,
            timestamp: <unix_seconds_as_string>,
            nonce:     0,
            message:   "This message attests that I control the given wallet" }
 ```
 
-Signed digest = `keccak256(0x1901 || keccak256(domainSep) || keccak256(structHash))` — standard EIP-712.
+For bootstrap keys, the EOA signs `keccak256(0x1901 || keccak256(domainSep) || keccak256(structHash))`.
+For deposit-wallet-owned keys, polygolem wraps that ClobAuth digest in the
+ERC-7739 nested typed-data signature expected by the deployed wallet's
+ERC-1271 validator.
 
 ### Response
 
