@@ -39,7 +39,8 @@ client := gamma.NewClient("https://gamma-api.polymarket.com", nil)
 
 ### `internal/clob`
 
-CLOB API client — read + write, EIP-712, POLY_1271, ERC-7739 signing.
+CLOB V2 API client — read + write, L1/L2 auth, EIP-712 order signing,
+POLY_1271, and ERC-7739 signature wrapping.
 
 ```go
 import "github.com/TrebuchetDynamics/polygolem/internal/clob"
@@ -77,8 +78,11 @@ client := clob.NewClient("https://clob.polymarket.com", nil)
 | `CreateLimitOrder(ctx, pk, params)` | `*OrderPlacementResponse` |
 | `CreateMarketOrder(ctx, pk, params)` | `*OrderPlacementResponse` |
 | `ListOrders(ctx, pk)` | `[]OrderRecord` |
+| `Order(ctx, pk, orderID)` | `*OrderRecord` |
 | `ListTrades(ctx, pk)` | `[]TradeRecord` |
 | `CancelOrder(ctx, pk, orderID)` | `*CancelOrdersResponse` |
+| `CancelOrders(ctx, pk, orderIDs)` | `*CancelOrdersResponse` |
+| `CancelMarket(ctx, pk, params)` | `*CancelOrdersResponse` |
 | `CancelAll(ctx, pk)` | `*CancelOrdersResponse` |
 | `RewardsConfig`, `RawRewards`, `UserEarnings`, `TotalEarnings`, `RewardPercentages`, `UserRewardsByMarket`, `RebatedFees` | various |
 | `OrderScoring(ctx, orderID)`, `OrdersScoring(ctx, orderIDs)` | `bool` / `[]bool` |
@@ -103,7 +107,7 @@ client, _ := relayer.New("https://relayer-v2.polymarket.com", builderConfig, 137
 
 ### `internal/dataapi`
 
-Data API client — 11 methods. Positions, volume, leaderboards.
+Data API client — positions, activity, holders, volume, leaderboards.
 
 ```go
 import "github.com/TrebuchetDynamics/polygolem/internal/dataapi"
@@ -113,7 +117,9 @@ client := dataapi.NewClient("https://data-api.polymarket.com", nil)
 | Method | Returns |
 |--------|---------|
 | `CurrentPositions(ctx, user)` | `[]Position` |
+| `CurrentPositionsWithLimit(ctx, user, limit)` | `[]Position` |
 | `ClosedPositions(ctx, user)` | `[]ClosedPosition` |
+| `ClosedPositionsWithLimit(ctx, user, limit)` | `[]ClosedPosition` |
 | `Trades(ctx, user, limit)` | `[]Trade` |
 | `Activity(ctx, user, limit)` | `[]Activity` |
 | `TopHolders(ctx, tokenID, limit)` | `[]MetaHolder` |

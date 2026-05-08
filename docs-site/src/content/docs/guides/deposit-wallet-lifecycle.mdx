@@ -60,7 +60,7 @@ This is a single WALLET batch signed via EIP-712 and submitted to the relayer.
 
 With the wallet deployed, funded, and approved, orders are placed with
 `--signature-type deposit`. The EOA signs the order, but the CLOB sees the
-deposit wallet as the maker.
+deposit wallet as both `maker` and `signer` in the V2 order payload.
 
 ## Recovery Modes
 
@@ -93,16 +93,20 @@ This guarantees:
 - Recovery from lost responses without operator intervention
 - Max 3 retries before failing with a clear error
 
-## One-Command Onboard (Fully Automated)
+## First-Time Onboard
 
-For a first-time setup, zero browser interaction:
+First-time setup has one upstream account step: create or verify the builder
+profile at `polymarket.com/settings?tab=builder`. After that, polygolem can
+derive CLOB credentials, validate relayer HMAC credentials, and run the wallet
+lifecycle from the CLI.
 
 ```bash
-# Step 1: Create builder profile + HMAC creds (programmatic, no browser)
+# Optional: derive CLOB credentials and validate whether they can auth relayer calls.
+# Requires the upstream builder profile to already exist for this EOA.
 POLYMARKET_PRIVATE_KEY="0x..." \
   polygolem builder auto
 
-# Step 2: Full wallet onboarding (deploy + approve + fund, gas sponsored)
+# Full wallet onboarding (deploy + approve + fund).
 POLYMARKET_PRIVATE_KEY="0x..." \
 POLYMARKET_BUILDER_API_KEY="..." \
 POLYMARKET_BUILDER_SECRET="..." \
@@ -110,7 +114,11 @@ POLYMARKET_BUILDER_PASSPHRASE="..." \
   polygolem deposit-wallet onboard --fund-amount 50 --json
 ```
 
-`builder auto` signs a ClobAuth EIP-712 message locally and posts to `clob.polymarket.com/auth/api-key`. This creates the builder profile, builder code, and HMAC credentials — no polymarket.com visit needed.
+`builder auto` signs a ClobAuth EIP-712 message locally and posts to
+`clob.polymarket.com/auth/api-key`. It does not create the upstream builder
+profile or a non-zero V2 `builderCode`; it only creates or derives CLOB API
+credentials and can test whether the relayer accepts them for wallet lifecycle
+requests.
 
 This single command runs: derive → deploy → approve (6 calls) → fund (transfer).
 

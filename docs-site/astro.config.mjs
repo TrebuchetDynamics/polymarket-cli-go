@@ -6,7 +6,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Polygolem",
-      description: "Safe Polymarket SDK and CLI for Go",
+      description: "Safe Polymarket SDK and CLI for Go — V2 deposit wallet (POLY_1271)",
       logo: {
         src: "./src/assets/logo.svg",
       },
@@ -39,7 +39,7 @@ export default defineConfig({
           items: [
             { label: "Polymarket API Overview", link: "/concepts/polymarket-api" },
             { label: "Smart Contracts", link: "/concepts/contracts" },
-            { label: "Deposit Wallets & Signature Types", link: "/concepts/deposit-wallets" },
+            { label: "Deposit Wallets (POLY_1271)", link: "/concepts/deposit-wallets" },
             { label: "Secrets Management", link: "/concepts/secrets-management" },
             { label: "Markets, Events & Tokens", link: "/concepts/markets-events-tokens" },
             { label: "Safety Model", link: "/concepts/safety" },
@@ -50,7 +50,9 @@ export default defineConfig({
           label: "Reference",
           items: [
             { label: "CLI Commands", link: "/reference/cli" },
-            { label: "Go SDK", link: "/reference/sdk" },
+            { label: "Go SDK Contracts", link: "/reference/sdk" },
+            { label: "Protocol Types", link: "/reference/polytypes" },
+            { label: "Internal Packages", link: "/reference/internal-packages" },
             { label: "Gamma API", link: "/reference/gamma-api" },
             { label: "CLOB API", link: "/reference/clob-api" },
             { label: "Data API", link: "/reference/data-api" },

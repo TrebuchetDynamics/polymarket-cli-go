@@ -1,22 +1,39 @@
 ---
-title: CLOB API
-description: The Polymarket Central Limit Order Book V2 — read endpoints (book, midpoint, trades) plus authenticated order submission with deposit wallet (POLY_1271).
+title: CLOB V2 API
+description: "Polymarket CLOB V2 as implemented by polygolem — public market data, L1/L2 auth, order queries, cancellation, and POLY_1271 order signing."
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-The CLOB API (`https://clob.polymarket.com`) is Polymarket's order book and
-trading layer. It has two tiers:
+Production CLOB V2 runs at `https://clob.polymarket.com`. The pre-cutover
+`https://clob-v2.polymarket.com` host is not the production target.
 
-- **L0 / read-only** — order book depth, midpoint, spread, tick size, fee rate,
-  last trade, price history. No authentication required.
-- **L1 / L2 / authenticated** — create order, cancel, list orders/trades, rewards,
-  scoring, balances. Requires EOA private key + L2 API credentials.
+Polygolem wraps CLOB in `internal/clob`. The public Go SDK exposes the supported
+surface through `pkg/universal` and read-only order books through
+`pkg/bookreader`.
 
-Polygolem implements the full surface in `internal/clob`. Read-only access is
-also exposed via `pkg/bookreader` and `pkg/universal`.
+## Auth Boundaries
 
-## Read-only commands
+| Boundary | Credentials | Used For |
+|---|---|---|
+| Public | None | Books, prices, spreads, market lists, price history |
+| CLOB L1 | EOA EIP-712 `ClobAuth` signature | Create or derive CLOB API credentials |
+| CLOB L2 | `POLY_ADDRESS`, `POLY_API_KEY`, `POLY_PASSPHRASE`, `POLY_TIMESTAMP`, `POLY_SIGNATURE` | Post orders, cancel orders, balances, user orders, trades |
+| Relayer | `POLYMARKET_BUILDER_API_KEY`, `POLYMARKET_BUILDER_SECRET`, `POLYMARKET_BUILDER_PASSPHRASE` | Deposit-wallet deploy and `WALLET` batches |
+
+Builder relayer credentials are not CLOB L2 credentials. CLOB V2 order
+attribution is the order's `builder` bytes32 field, not `POLY_BUILDER_*`
+headers. Polygolem currently signs orders with `builder = bytes32(0)`.
+
+<Aside type="caution">
+Do not reuse builder relayer secrets as CLOB L2 secrets in your own
+integrations. Polygolem keeps these auth systems separate even when a command
+can derive and validate both during setup.
+</Aside>
+
+## CLI Surface
+
+Read-only commands:
 
 ```bash
 polygolem orderbook get        --token-id <token-id>
@@ -26,6 +43,7 @@ polygolem orderbook spread     --token-id <token-id>
 polygolem orderbook tick-size  --token-id <token-id>
 polygolem orderbook fee-rate   --token-id <token-id>
 polygolem orderbook last-trade --token-id <token-id>
+
 polygolem clob book <token-id>
 polygolem clob tick-size <token-id>
 polygolem clob price-history <token-id> --interval 1m
@@ -33,80 +51,162 @@ polygolem clob markets --cursor ""
 polygolem clob market <condition-id>
 ```
 
-See [Orderbook Data](/guides/orderbook-data).
-
-## Authenticated commands
+Authenticated commands:
 
 ```bash
-# Order management
-polygolem clob create-order   --token <id> --side buy --price 0.5 --size 10 --signature-type deposit
-polygolem clob market-order   --token <id> --side buy --amount 5 --signature-type deposit
-polygolem clob cancel         <order-id>
-polygolem clob cancel-orders  <order-id-1,order-id-2>
-polygolem clob cancel-market  --market <condition-id>
-polygolem clob cancel-all
-
-# Account queries
-polygolem clob orders
-polygolem clob order          <order-id>
-polygolem clob trades
+polygolem clob create-api-key
 polygolem clob balance        --asset-type collateral --signature-type deposit
 polygolem clob update-balance --asset-type collateral --signature-type deposit
 
-# API key management
-polygolem clob create-api-key
+polygolem clob orders
+polygolem clob order          <order-id>
+polygolem clob trades
+
+polygolem clob cancel         <order-id>
+polygolem clob cancel-orders  <order-id-1,order-id-2>
+polygolem clob cancel-market  --market <condition-id>
+polygolem clob cancel-market  --asset <token-id>
+polygolem clob cancel-all
+
+polygolem clob create-order \
+  --token <token-id> --side buy --price 0.5 --size 10 --signature-type deposit
+
+polygolem clob market-order \
+  --token <token-id> --side buy --amount 5 --signature-type deposit
 ```
 
-Polygolem supports **deposit wallet (type 3 / POLY_1271)** exclusively.
-EOA, proxy, and Gnosis Safe are blocked by CLOB V2 for new API users.
+`cancel-market` requires at least one filter in polygolem. Use `cancel-all` for
+the upstream "omit both filters" behavior.
 
-| Type | CLI alias | Status |
-|------|-----------|--------|
-| 0 | `eoa` | Blocked by CLOB V2 |
-| 1 | `proxy` | Blocked by CLOB V2 |
-| 2 | `safe` / `gnosis-safe` | Blocked by CLOB V2 |
-| 3 | `deposit` / `deposit-wallet` / `poly-1271` | Required |
+## REST Mapping
 
-## Authentication Flow
+| Polygolem method | REST path | Auth | Notes |
+|---|---|---|---|
+| `OrderBook` | `GET /book?token_id=...` | Public | L2 book depth for one token |
+| `OrderBooks` | `POST /books` | Public | Batch books |
+| `Price` / `Prices` | `GET /price`, `POST /prices-post` | Public | `Prices` falls back to `/prices` |
+| `Midpoint` / `Midpoints` | `GET /midpoint`, `POST /midpoints` | Public | Best-effort midpoint |
+| `Spread` | `GET /spread` | Public | Token spread |
+| `TickSize` | `GET /tick-size` | Public | Includes minimum tick/order fields when upstream returns them |
+| `NegRisk` | `GET /neg-risk` | Public | Selects regular vs neg-risk exchange domain |
+| `FeeRateBps` | `GET /fee-rate` | Public | Legacy-shaped response; V2 fees are protocol-set at match time |
+| `LastTradePrice` | `GET /last-trade-price` | Public | Last trade price |
+| `PricesHistory` | `GET /prices-history` | Public | OHLCV/history query |
+| `Markets` | `GET /markets` | Public | Cursor pagination |
+| `Market` | `GET /markets/{condition_id}` | Public | One CLOB market |
+| `CreateOrDeriveAPIKey` | `POST /auth/api-key`, then `GET /auth/derive-api-key` fallback | L1 | Returns L2 `{ apiKey, secret, passphrase }` |
+| `BalanceAllowance` | `GET /balance-allowance` | L2 | Use `signature_type=3` for deposit wallet balances |
+| `UpdateBalanceAllowance` | `GET /balance-allowance/update` | L2 | Refreshes CLOB balance cache |
+| `CreateLimitOrder` / `CreateMarketOrder` | `POST /order` | L2 + order signature | Signs V2 order locally, then posts |
+| `Order` | `GET /order/{id}` | L2 | One authenticated order |
+| `ListOrders` | `GET /data/orders` | L2 | Open orders for the API key owner |
+| `ListTrades` | `GET /data/trades` | L2 | Authenticated trade history |
+| `CancelOrder` | `DELETE /order` | L2 | Body: `{ "orderID": "..." }` |
+| `CancelOrders` | `DELETE /orders` | L2 | Body: `{ "orderIDs": ["..."] }`, max 3000 |
+| `CancelMarket` | `DELETE /cancel-market-orders` | L2 | Body can include `market`, `asset_id` |
+| `CancelAll` | `DELETE /cancel-all` | L2 | Cancels all open orders |
 
-CLOB V2 uses a two-level auth system:
+## V2 Signed Order Contract
 
-1. **L1** — EOA signs an EIP-712 `ClobAuth` message, posted to `POST /auth/api-key`
-2. **L2** — CLOB returns `{ apiKey, secret, passphrase }`, used for HMAC-SHA256 request signing
-3. **POLY_1271** — orders signed by the EOA, validated by the deposit wallet via ERC-1271
+Polygolem signs the CLOB V2 `Order` EIP-712 type under:
 
-```bash
-# One command: create builder profile + L2 creds
-polygolem builder auto
-# Writes BUILDER_API_KEY, BUILDER_SECRET, BUILDER_PASSPHRASE to env file
+```text
+name:              Polymarket CTF Exchange
+version:           2
+chainId:           137
+verifyingContract: 0xE111180000d2663C0091e4f400237545B87B996B
 ```
 
-The same HMAC credentials work for both CLOB L2 endpoints AND relayer v2 endpoints.
+Neg-risk markets use
+`0xe2222d279d744050d28e00520010520000310F59` as the verifying contract.
 
-## V2 Order Envelope
+The signed V2 struct is:
 
-Orders in CLOB V2 use the `Polymarket CTF Exchange` domain (version `"2"`) and include:
-- `salt`, `maker`, `signer`, `tokenId`, `makerAmount`, `takerAmount`
-- `side` (0=BUY, 1=SELL), `signatureType` (3=POLY_1271)
-- `timestamp`, `metadata`, `builder` (bytes32 for builder fee attribution)
+```text
+Order(
+  uint256 salt,
+  address maker,
+  address signer,
+  uint256 tokenId,
+  uint256 makerAmount,
+  uint256 takerAmount,
+  uint8 side,
+  uint8 signatureType,
+  uint256 timestamp,
+  bytes32 metadata,
+  bytes32 builder
+)
+```
 
-For POLY_1271, the order signature is wrapped in an ERC-7739 `TypedDataSign` envelope:
-`innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186)` = 636 hex chars.
+V2 removed `taker`, `nonce`, and `feeRateBps` from the signed struct.
+`expiration` is included in the posted order object but is not part of the
+signed struct in polygolem's V2 signer.
 
-See [`docs/JSON-CONTRACT.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/JSON-CONTRACT.md) for the full wire format.
+The POST body shape is:
 
-<Aside type="caution">
-**Deposit wallet is mandatory.** Polymarket CLOB V2 requires deposit wallet
-(POLY_1271) for order placement. See
-[Deposit Wallets & Signature Types](/concepts/deposit-wallets) for the full
-onboarding flow.
-</Aside>
+```json
+{
+  "order": {
+    "salt": 12345,
+    "maker": "0xDepositWallet",
+    "signer": "0xDepositWallet",
+    "tokenId": "123...",
+    "makerAmount": "5000000",
+    "takerAmount": "10000000",
+    "side": "BUY",
+    "expiration": "0",
+    "signatureType": 3,
+    "timestamp": "1770000000000",
+    "metadata": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "builder": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "signature": "0x..."
+  },
+  "owner": "<clob-api-key>",
+  "orderType": "GTC",
+  "postOnly": false,
+  "deferExec": false
+}
+```
+
+For `signatureType = 3` (`POLY_1271`), `maker` and `signer` are the deposit
+wallet address. The owner EOA signs an ERC-7739 `TypedDataSign` wrapper that
+the deposit wallet validates through ERC-1271. Polygolem's wrapped signature is
+`0x` plus 634 hex chars:
+
+```text
+innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186)
+```
+
+## Signature Types
+
+| Type | CLI alias | Polygolem live status |
+|---|---|---|
+| 0 | `eoa` | Parseable, legacy upstream path |
+| 1 | `proxy` | Parseable, legacy upstream path |
+| 2 | `safe`, `gnosis-safe` | Parseable, legacy upstream path |
+| 3 | `deposit`, `deposit-wallet`, `poly-1271` | Default and supported live path |
+
+New Polymarket API users should use deposit wallets. Polygolem defaults every
+live CLOB order and balance command to `deposit`.
+
+## Current Gaps
+
+These upstream V2 capabilities are not yet exposed as stable polygolem SDK/CLI
+contracts:
+
+- Configured non-zero `builderCode` / `builder` attribution on orders.
+- Batch order placement (`POST /orders`) for multiple new orders.
+- Authenticated user WebSocket stream.
+- Sell-side market orders in `CreateMarketOrder`; the current implementation
+  supports buy-side budgeted market orders.
+- `getClobMarketInfo()`-style consolidated V2 market parameters. Polygolem
+  currently exposes tick size, neg-risk, and fee-rate lookups separately.
 
 ## Related
 
-- [Orderbook Data](/guides/orderbook-data) — read-only walkthrough
-- [Smart Contracts](/concepts/contracts) — factory addresses and ABI
-- [Deposit Wallets & Signature Types](/concepts/deposit-wallets) — required for new accounts
-- [Polymarket API Overview](/concepts/polymarket-api) — every API in one place
-- Upstream: [docs.polymarket.com](https://docs.polymarket.com/)
-- Base URL: `https://clob.polymarket.com`
+- [Go SDK Contracts](/reference/sdk) — public package contracts
+- [Smart Contracts](/concepts/contracts) — CTF Exchange, pUSD, and wallet factory addresses
+- [Deposit Wallets & Signature Types](/concepts/deposit-wallets) — POLY_1271 flow
+- [Orderbook Data](/guides/orderbook-data) — public data walkthrough
+- Upstream: [Polymarket CLOB V2 migration](https://docs.polymarket.com/v2-migration)
+- Upstream: [Polymarket order cancellation](https://docs.polymarket.com/trading/orders/cancel)

@@ -1,153 +1,98 @@
 ---
-title: Deposit Wallets & Signature Types
-description: How Polymarket signature types work — EOA, proxy, Gnosis Safe, and deposit wallets (POLY_1271)
+title: Deposit Wallets (POLY_1271)
+description: The V2 deposit wallet architecture — signature type 3, ERC-1271 validation, EIP-712 order signing, and the relayer proxy flow.
 ---
 
-Polygolem handles **all four Polymarket signature types** for order placement.
-Understanding the difference between them — especially _proxy_ (type 1) vs
-_deposit_ (type 3) — is critical for correct wallet setup and order signing.
+Polygolem implements Polymarket CLOB V2's **deposit wallet (type 3 /
+POLY_1271)** architecture as its supported live trading path. This page
+explains how it works, why new API users should use it, and how the signature
+flow differs from legacy wallet types.
 
-## Why This Matters
+## Why Deposit Wallets
 
-In May 2026, Polymarket **blocked EOA orders (type 0) for new API users**.
-All new accounts must use POLY_1271 (type 3) — the _deposit wallet_ method.
-Polygolem was purpose-built for this migration.
+In May 2026, Polymarket migrated to CLOB V2 and **blocked direct EOA orders for new API users**. All new accounts must use POLY_1271 — the deposit wallet signature scheme. Polygolem was purpose-built for this migration.
 
-## Signature Type Reference
-
-| Type | Canonical Name | CLI Alias | Signer | On-Chain Maker | Who Uses It |
-|------|---------------|-----------|--------|----------------|-------------|
-| **0** | EOA | `"eoa"`, `"0"` | EOA directly | EOA itself | Legacy users (blocked for new accounts) |
-| **1** | POLY_PROXY | `"proxy"`, `"1"` | EOA signs | CREATE2 proxy wallet | Magic Link / email accounts |
-| **2** | POLY_GNOSIS_SAFE | `"safe"`, `"gnosis-safe"`, `"2"` | EOA signs | CREATE2 Safe wallet | Browser wallet multisig |
-| **3** | POLY_1271 | `"deposit"`, `"deposit-wallet"`, `"poly-1271"`, `"3"` | EOA signs (ERC-1271 wrapped) | CREATE2 deposit wallet | **New API users (required)** |
-
-## Proxy vs Deposit — Not the Same Thing
-
-Both type 1 and type 3 use **CREATE2 deterministic address derivation**
-from the EOA, but they are completely different mechanisms:
-
-| Property | Type 1 (POLY_PROXY) | Type 3 (POLY_1271) |
-|----------|---------------------|---------------------|
-| Factory address | `0xaB45c5A4B0c941a2F231C04C3f49182e1A254052` | `0x00000000000Fb5C9ADea0298D729A0CB3823Cc07` |
-| Implementation | Internal to factory | `0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB` |
-| Signing method | Standard EIP-712 | ERC-1271 + ERC-7739 wrapped |
-| Signature length | ~130 bytes | ~636 bytes |
-| Deployment | Via relayer PROXY-CREATE | Via relayer **WALLET-CREATE** |
-| CLI default (Rust) | ✅ (polymarket-cli) | ❌ |
-| CLI default (Go) | ❌ | ✅ (polygolem) |
-
-> **Never confuse "proxy" with "deposit".** They are separate signature types
-> with different factories, bytecode, and signing protocols.
-
-## Full Deposit Wallet Flow
-
-Polygolem's `deposit-wallet onboard` command handles the entire flow in one step.
-
-### 1. Derive the Deposit Wallet Address (Off-chain)
-
-The deposit wallet address is **deterministic** — the same EOA always produces
-the same wallet address via CREATE2:
-
-```
-address = CreateAddress2(
-    factory = 0x00000000000Fb5C9ADea0298D729A0CB3823Cc07
-    salt    = keccak256(abi.encode(factory, LeftPad32(EOA)))
-    hash    = keccak256(initCode)
-)
-```
-
-### 2. Deploy via Relayer (`WALLET-CREATE`)
-
-The Polymarket relayer deploys the proxy clone via the factory, funding gas on
-your behalf. No direct EOA transaction needed.
-
-Submitted via `POST /submit` with body:
-```json
-{
-  "type": "WALLET-CREATE",
-  "from": "<EOA address>",
-  "to":   "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07"
-}
-```
-
-### 3. Approve Trading Contracts (`WALLET` batch)
-
-Six EIP-712 signed calls submitted as a single batch to approve the deposit
-wallet to interact with CTF and CLOB contracts. See the `deposit-wallet approve`
-command for exact calldata.
-
-### 4. Fund with pUSD
-
-The EOA transfers pUSD to the deposit wallet via ERC-20 transfer:
-
-```bash
-polygolem deposit-wallet fund --amount 0.71
-```
-
-> pUSD held by the EOA does **not** count as CLOB buying power for
-> deposit wallet orders. Only pUSD in the deposit wallet counts.
-
-### 5. Place Orders with POLY_1271
-
-Orders are signed by the EOA but the **maker address** is the deposit wallet.
-The signature is wrapped in an ERC-7739 `TypedDataSign` envelope — a 636-byte
-signature that the CLOB verifies via ERC-1271 `isValidSignature()` on the
-deposit wallet contract.
+| Signature Type | Status for New API Users |
+|---------------|--------------------------|
+| 0 (EOA) | Blocked |
+| 1 (POLY_PROXY) | Blocked |
+| 2 (GNOSIS_SAFE) | Blocked |
+| **3 (POLY_1271 / Deposit Wallet)** | **Required** |
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                      YOUR EOA                             │
-│  Private key: signs everything, pays for gas              │
-│  pUSD balance: 0 (NOT used for orders)                    │
-└──────────────────────┬───────────────────────────────────┘
-                       │ owns via CREATE2 deterministic salt
-                       ▼
-┌──────────────────────────────────────────────────────────┐
-│                  DEPOSIT WALLET                            │
-│  Address: deterministic from EOA + factory                │
-│  pUSD balance: funded by EOA via ERC-20 transfer          │
-│  Implements ERC-1271 isValidSignature()                   │
-│  ERC-7739 wrapped signatures for CLOB orders              │
-└──────────────────────────────────────────────────────────┘
+┌──────────────┐         ┌──────────────────┐         ┌─────────────────┐
+│   Your EOA   │  signs  │ Deposit Wallet    │  holds  │  pUSD + Tokens  │
+│  (signer)    │────────▶│ (POLY_1271)       │────────▶│  (on-chain)     │
+└──────────────┘         └──────────────────┘         └─────────────────┘
+                                  │
+                                  │ ERC-1271
+                                  ▼
+                         ┌──────────────────┐
+                         │  CLOB Exchange   │
+                         │  validates sig   │
+                         └──────────────────┘
 ```
 
-## One Command Onboard
+The EOA signs. The deposit wallet holds funds. The CLOB Exchange calls `isValidSignature()` on the deposit wallet to verify POLY_1271 typed orders. The wallet has no private key — it's a smart contract that validates EOA signatures via ERC-1271.
+
+## CREATE2 Derivation
+
+The deposit wallet address is deterministic — computed from the EOA address:
+
+```
+walletId      = bytes32(owner)   // owner address left-padded to 32 bytes
+args          = abi.encode(factory, walletId)
+salt          = keccak256(args)
+bytecodeHash  = SoladyLibClone.initCodeHashERC1967(implementation, args)
+depositWallet = CREATE2(factory, salt, bytecodeHash)
+
+factory       = 0x00000000000Fb5C9ADea0298D729A0CB3823Cc07
+implementation = 0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB
+```
+
+Same EOA → same wallet address. Always. Pure local computation via `polygolem deposit-wallet derive`.
+
+## Deployment (Relayer)
+
+The wallet is deployed via the Polymarket relayer. The factory's `deploy()` is role-gated — only the relayer's EOA holds the operator role. Deployment is gas-sponsored.
 
 ```bash
-POLYMARKET_PRIVATE_KEY="0x..." \
-POLYMARKET_BUILDER_API_KEY="..." \
-POLYMARKET_BUILDER_SECRET="..." \
-POLYMARKET_BUILDER_PASSPHRASE="..." \
-  polygolem deposit-wallet onboard --fund-amount 0.71 --json
+polygolem deposit-wallet deploy --wait
 ```
 
-This single command: derives address → deploys → approves 6 contracts → funds pUSD.
+After deployment, the wallet's `proxy()` function is **ungated** — anyone can submit EOA-signed batches on behalf of a deployed wallet.
 
-Then sync your CLOB balance:
+## Signing Flow (POLY_1271)
 
-```bash
-POLYMARKET_PRIVATE_KEY="0x..." \
-  polygolem clob update-balance --asset-type collateral --signature-type deposit
-```
+1. App builds V2 order typed data (`Polymarket CTF Exchange`, version `"2"`)
+2. EOA signs the order hash
+3. Signature is wrapped in an ERC-7739 TypedDataSign envelope
+4. Order is posted to CLOB with `signatureType = 3`
+5. CLOB calls `isValidSignature()` on the deposit wallet contract
+6. Deposit wallet validates the EOA signature via ERC-1271
 
-## CLI Defaults
+The ERC-7739 wrapper structure:
+`innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186)`.
+That is 317 bytes, encoded as `0x` plus 634 hex chars.
 
-| Command context | Default --signature-type |
-|----------------|-------------------------|
-| `polygolem clob *` | `"deposit"` (type 3) |
-| Rust `polymarket-cli` | `"proxy"` (type 1) |
-| `go-bot` execution layer | `"deposit"` (type 3) |
+## Builder Attribution
 
-## Related Commands
+V2 orders include a `builder` field (bytes32). Upstream uses this builder code
+for order attribution. It is distinct from builder relayer credentials and does
+not use `POLY_BUILDER_*` HMAC headers on the order request.
 
-```bash
-polygolem deposit-wallet derive            # Derive wallet address (no creds needed)
-polygolem deposit-wallet deploy --wait     # Deploy via relayer
-polygolem deposit-wallet status            # Check deployment + approval state
-polygolem deposit-wallet approve --submit  # Sign + submit 6-call approval batch
-polygolem deposit-wallet fund --amount X   # Transfer pUSD from EOA to wallet
-polygolem deposit-wallet onboard           # Full flow (deploy + approve + fund)
-```
+Polygolem currently signs orders with `builder = bytes32(0)`. Configurable
+non-zero builder attribution is tracked as an SDK/CLI gap.
+
+Builder credentials (API key/secret/passphrase) are separate — used only for
+relayer auth (`WALLET-CREATE`, `WALLET` batch). Never mix builder creds with
+CLOB L2 creds.
+
+## See Also
+
+- [Smart Contracts](/concepts/contracts) — factory addresses and ABI
+- [Deposit Wallet Lifecycle](/guides/deposit-wallet-lifecycle) — full end-to-end walkthrough
+- [CLOB API](/reference/clob-api) — order creation and signing
+- [Secrets Management](/concepts/secrets-management) — builder credential handling

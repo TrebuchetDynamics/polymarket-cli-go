@@ -1,9 +1,14 @@
 ---
 title: Go SDK Contracts
-description: The public SDK surface — exact Go types, interfaces, and method signatures that form the polygolem API contract.
+description: "The stable public Go SDK surface — exact packages, types, and method signatures exposed by polygolem."
 ---
 
-Public packages for consumption by `go-bot` and other Go projects. These are the stable API contracts — what you can depend on across minor versions.
+Public packages for consumption by `go-bot` and other Go projects. These are
+the stable API contracts: what callers can depend on across minor versions.
+
+The `internal/` packages are implementation detail. They are documented in
+[Internal Packages](/reference/internal-packages), but they do not carry the
+same semver promise as the `pkg/` packages below.
 
 ## `pkg/bookreader` — Read-Only Order Book
 
@@ -141,20 +146,50 @@ func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor strin
 func (c *Client) HealthCheck(ctx context.Context) (HealthResponse, error)
 ```
 
-### Contract: Methods — CLOB Auth (4 methods)
+### Contract: Methods — CLOB Account, Orders, and Trading (13 methods)
 
 ```go
+func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (auth.APIKey, error)
+func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (auth.APIKey, error)
+func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error)
+func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, params clob.BalanceAllowanceParams) (*clob.BalanceAllowanceResponse, error)
+func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params clob.CreateOrderParams) (*clob.OrderPlacementResponse, error)
+func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params clob.MarketOrderParams) (*clob.OrderPlacementResponse, error)
 func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]clob.OrderRecord, error)
+func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*clob.OrderRecord, error)
 func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]clob.TradeRecord, error)
 func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*clob.CancelOrdersResponse, error)
+func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs []string) (*clob.CancelOrdersResponse, error)
+func (c *Client) CancelMarket(ctx context.Context, privateKey string, params clob.CancelMarketParams) (*clob.CancelOrdersResponse, error)
 func (c *Client) CancelAll(ctx context.Context, privateKey string) (*clob.CancelOrdersResponse, error)
 ```
 
-### Contract: Methods — Data API (10 methods)
+`CreateMarketOrder` currently supports buy-side budgeted market orders. Use
+`CreateLimitOrder` for sell-side limit orders until sell-side market order
+support is promoted into the public contract.
+
+### Contract: Methods — CLOB Metadata, Scoring, and Rewards (10 methods)
+
+```go
+func (c *Client) CLOBServerTime(ctx context.Context) (*polytypes.ServerTime, error)
+func (c *Client) OrderScoring(ctx context.Context, orderID string) (bool, error)
+func (c *Client) OrdersScoring(ctx context.Context, orderIDs []string) ([]bool, error)
+func (c *Client) RewardsConfig(ctx context.Context) ([]polytypes.RewardsConfig, error)
+func (c *Client) RawRewards(ctx context.Context, market string) ([]polytypes.RawRewards, error)
+func (c *Client) UserEarnings(ctx context.Context, date string) ([]polytypes.UserEarnings, error)
+func (c *Client) TotalEarnings(ctx context.Context, date string) (*polytypes.TotalEarnings, error)
+func (c *Client) RewardPercentages(ctx context.Context) ([]polytypes.RewardPercentages, error)
+func (c *Client) UserRewardsByMarket(ctx context.Context, params *polytypes.UserRewardsByMarketRequest) ([]polytypes.UserRewardsMarket, error)
+func (c *Client) RebatedFees(ctx context.Context) ([]polytypes.RebatedFees, error)
+```
+
+### Contract: Methods — Data API (12 methods)
 
 ```go
 func (c *Client) CurrentPositions(ctx context.Context, user string) ([]dataapi.Position, error)
+func (c *Client) CurrentPositionsWithLimit(ctx context.Context, user string, limit int) ([]dataapi.Position, error)
 func (c *Client) ClosedPositions(ctx context.Context, user string) ([]dataapi.ClosedPosition, error)
+func (c *Client) ClosedPositionsWithLimit(ctx context.Context, user string, limit int) ([]dataapi.ClosedPosition, error)
 func (c *Client) Trades(ctx context.Context, user string, limit int) ([]dataapi.Trade, error)
 func (c *Client) Activity(ctx context.Context, user string, limit int) ([]dataapi.Activity, error)
 func (c *Client) TopHolders(ctx context.Context, tokenID string, limit int) ([]dataapi.MetaHolder, error)
@@ -163,6 +198,18 @@ func (c *Client) MarketsTraded(ctx context.Context, user string) (*dataapi.Total
 func (c *Client) OpenInterest(ctx context.Context, tokenID string) (*dataapi.OpenInterest, error)
 func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]dataapi.TraderLeaderboardEntry, error)
 func (c *Client) LiveVolume(ctx context.Context, limit int) (*dataapi.LiveVolumeResponse, error)
+```
+
+### Contract: Utilities
+
+```go
+type HealthResponse struct {
+    GammaOK bool `json:"gamma_ok"`
+    CLOBOK  bool `json:"clob_ok"`
+    DataOK  bool `json:"data_ok"`
+}
+
+func DefaultTransportConfig(baseURL string) transport.Config
 ```
 
 ### Contract: Methods — Discovery + Stream (5 methods)
@@ -244,8 +291,21 @@ func CollectOffset[T any](ctx context.Context, fn OffsetPageFunc[T], pageSize in
 func Batch[T, R any](ctx context.Context, items []T, concurrency int, fn BatchFunc[T, R]) ([]R, error)
 ```
 
+## Known Public SDK Gaps
+
+The following are intentional gaps in the current stable `pkg/` contract:
+
+| Gap | Current Status |
+|---|---|
+| Deposit-wallet deploy / approve / batch SDK | Implemented under `internal/relayer`, `internal/wallet`, and CLI commands, but not promoted to a public `pkg/` package |
+| Non-zero V2 `builderCode` attribution | The signer emits `builder = bytes32(0)` today |
+| Batch order placement | Single-order placement and cancellation are exposed; batch placement is not |
+| Authenticated user WebSocket stream | Public market stream is exposed; user stream waits for L2 WebSocket auth tests |
+| Consolidated V2 CLOB market info | Tick size, neg-risk, and fee-rate are separate calls today |
+
 ## See Also
 
 - [Internal Packages](/reference/internal-packages) — full internal package contracts
+- [CLOB V2 API](/reference/clob-api) — upstream REST mapping and signed order contract
 - [CLI Commands](/reference/cli) — command-line surface
 - [Smart Contracts](/concepts/contracts) — on-chain addresses and ABI

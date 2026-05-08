@@ -22,6 +22,11 @@ Polygolem interacts with Polymarket's on-chain infrastructure on Polygon (chain 
 | **pUSD (proxy)** | `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB` | ERC-20 collateral token |
 | **pUSD (impl)** | `0x6bBCef9f7ef3B6C592c99e0f206a0DE94Ad0925f` | Collateral implementation |
 | **CTF** | `0x4D97DCd97eC945f40cF65F87097ACe5EA0476045` | Conditional Tokens (ERC-1155) |
+| **CollateralOnramp** | `0x93070a847efEf7F70739046A929D47a521F5B8ee` | Wrap/onramp collateral |
+| **CollateralOfframp** | `0x2957922Eb93258b93368531d39fAcCA3B4dC5854` | Offramp collateral |
+| **PermissionedRamp** | `0xebC2459Ec962869ca4c0bd1E06368272732BCb08` | Permissioned ramp |
+| **CtfCollateralAdapter** | `0xAdA100Db00Ca00073811820692005400218FcE1f` | CTF collateral adapter |
+| **NegRiskCtfCollateralAdapter** | `0xadA2005600Dec949baf300f4C6120000bDB6eAab` | Neg-risk CTF collateral adapter |
 
 ### Wallet Factories
 
@@ -48,7 +53,7 @@ The factory deploys per-user deposit wallets via CREATE2. Each wallet is an ERC-
 | Property | Value |
 |----------|-------|
 | Compiler | v0.8.34, 1M optimizer runs |
-| CREATE2 salt | `keccak256(abi.encodePacked(EOA_address))` |
+| CREATE2 salt | `keccak256(abi.encode(factory, bytes32(owner)))` |
 | Pattern | ERC-1967 upgradeable proxy |
 
 ### Public ABI
@@ -88,12 +93,15 @@ Presence of `OnlyAdmin` and `OnlyOperator` confirms role-gated functions. The op
 The deposit wallet address is deterministically computed from the EOA address:
 
 ```
-address = keccak256(0xff + factory_address + salt + keccak256(clone_init_code))[12:]
+walletId      = bytes32(owner)   // owner address left-padded to 32 bytes
+args          = abi.encode(factory, walletId)
+salt          = keccak256(args)
+bytecodeHash  = SoladyLibClone.initCodeHashERC1967(implementation, args)
+depositWallet = CREATE2(factory, salt, bytecodeHash)
 
 where:
   factory_address = 0x00000000000Fb5C9ADea0298D729A0CB3823Cc07
-  salt            = keccak256(abi.encodePacked(EOA_address))
-  clone_init_code = ERC-1967 minimal proxy bytecode
+  implementation  = 0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB
 ```
 
 **The factory address is embedded in the derivation.** You cannot deploy from a different address and get the same result. This is why the relayer must handle deployment — only the factory at `0x000...b5C9` can produce wallets at CLOB-recognized addresses.
@@ -164,8 +172,9 @@ The relayer at `relayer-v2.polymarket.com` provides gas-sponsored transaction su
 |-----------|---------|-------------|
 | Wallet deploy (WALLET-CREATE) | Polymarket relayer | FREE |
 | 6-call approve batch | Polymarket relayer | FREE |
-| Order placement | Polymarket relayer | FREE |
-| CTF split/merge/redeem | Polymarket relayer | FREE |
+| Order placement | No user transaction; posted to CLOB | No user gas |
+| Trade settlement | CLOB executor / exchange settlement path | No user-submitted gas transaction |
+| CTF split/merge/redeem via WALLET batch | Polymarket relayer | FREE |
 | **Fund wallet (pUSD transfer)** | **User** | **~$0.01 POL** |
 
 The only transaction you pay gas for is the initial pUSD transfer from EOA to deposit wallet.

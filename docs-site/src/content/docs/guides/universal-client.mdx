@@ -1,11 +1,11 @@
 ---
 title: Universal Client
-description: Query all Polymarket market data through one typed surface — no API credentials needed.
+description: Query Polymarket market data and the supported authenticated CLOB surface through one typed Go client.
 ---
 
-The `pkg/universal` package provides a single client that wraps all public
-Polymarket APIs: Gamma (markets, events, search), CLOB (order books,
-prices, spreads), Data API (positions, volume, leaderboards), and more.
+The `pkg/universal` package provides a single client that wraps Gamma, CLOB,
+Data API, discovery enrichment, and the supported authenticated CLOB order
+surface.
 
 ## Quick Start
 
@@ -15,8 +15,9 @@ import "github.com/TrebuchetDynamics/polygolem/pkg/universal"
 client := universal.NewClient(universal.Config{})
 ```
 
-No credentials needed for read-only operations. All methods are safe for
-concurrent use.
+No credentials are needed for read-only operations. Authenticated methods take
+the EOA private key per call, derive CLOB L2 credentials, and sign locally. All
+methods are safe for concurrent use.
 
 ## Market Discovery
 
@@ -103,6 +104,28 @@ holdings, _ := client.TopHolders(ctx, "token-id", 20)
 interest, _ := client.OpenInterest(ctx, "token-id")
 ```
 
+## Authenticated CLOB
+
+```go
+key, _ := client.CreateOrDeriveAPIKey(ctx, privateKey)
+_ = key
+
+balance, _ := client.BalanceAllowance(ctx, privateKey, clob.BalanceAllowanceParams{
+    AssetType:     "COLLATERAL",
+    SignatureType: 3,
+})
+_ = balance
+
+order, _ := client.Order(ctx, privateKey, "0xorder-id")
+_ = order
+
+cancelled, _ := client.CancelOrders(ctx, privateKey, []string{"0xorder-id"})
+_ = cancelled
+```
+
+Order placement is exposed as `CreateLimitOrder` and `CreateMarketOrder`.
+Polygolem's supported live path is deposit wallet (`signatureType = 3`).
+
 ## Streams
 
 ```go
@@ -136,5 +159,6 @@ Use `pkg/universal` when you need to query multiple Polymarket APIs from
 one client. Use the individual packages (`pkg/gamma`, `pkg/bookreader`,
 etc.) when you only need one API and want minimal dependencies.
 
-For authenticated operations (order placement, cancellation), use
-the CLI or the internal CLOB client directly.
+For deposit-wallet deployment, approvals, and other relayer wallet lifecycle
+operations, use the CLI. Those commands are still internal implementation
+surfaces, not public SDK contracts.
