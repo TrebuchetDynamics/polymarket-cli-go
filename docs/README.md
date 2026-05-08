@@ -9,6 +9,7 @@ This directory contains the canonical documentation for polygolem. For a single 
 | Install and run polygolem | [../README.md](../README.md) |
 | Understand the deposit wallet onboarding flow | [ONBOARDING.md](./ONBOARDING.md) |
 | Do the one-time browser signup (new users only) | [BROWSER-SETUP.md](./BROWSER-SETUP.md) |
+| See a real EOA-to-filled-sell trade with every tx and gas figure | [LIVE-TRADE-WALKTHROUGH.md](./LIVE-TRADE-WALKTHROUGH.md) |
 | See all CLI commands | [COMMANDS.md](./COMMANDS.md) |
 | Understand the architecture | [ARCHITECTURE.md](./ARCHITECTURE.md) |
 | Review safety and risk features | [SAFETY.md](./SAFETY.md) |
@@ -38,6 +39,7 @@ This directory contains the canonical documentation for polygolem. For a single 
 |-----|---------------|--------|
 | [INTEGRATION_PLAN.md](../opensource-projects/INTEGRATION_PLAN.md) | Ecosystem survey, 7 gap implementations, headless onboarding blocker analysis. | **Canonical** |
 | [LIVE-TRADING-BLOCKER-REPORT.md](./LIVE-TRADING-BLOCKER-REPORT.md) | Empirical live trading test results with real funds. | **Canonical** |
+| [LIVE-TRADE-WALKTHROUGH.md](./LIVE-TRADE-WALKTHROUGH.md) | End-to-end 2026-05-08 reference run: every tx hash, gas figure, and pUSD movement from EOA private key to a filled buy + sell. | **Canonical** |
 
 ## Deleted Docs
 
