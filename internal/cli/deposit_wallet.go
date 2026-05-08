@@ -517,8 +517,8 @@ afterwards to move pUSD into the deposit wallet.
 				return fmt.Errorf("swap POL→pUSD: %w", err)
 			}
 			return printJSON(cmd, map[string]string{
-				"txHash":   txHash,
-				"recipient": signer.Address(),
+				"txHash":        txHash,
+				"recipient":     signer.Address(),
 				"amountPUSDOut": amountPUSDOut,
 				"maxPOLIn":      maxPOLIn,
 			})

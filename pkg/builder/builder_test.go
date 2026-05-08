@@ -79,10 +79,10 @@ func TestRemoteSignerCallsServerAndReturnsHeaders(t *testing.T) {
 			t.Fatalf("decode payload: %v", err)
 		}
 		resp := map[string]string{
-			"POLY_BUILDER_API_KEY":     "remote-key",
-			"POLY_BUILDER_TIMESTAMP":   "1234567890",
-			"POLY_BUILDER_PASSPHRASE":  "remote-pass",
-			"POLY_BUILDER_SIGNATURE":   "remote-sig",
+			"POLY_BUILDER_API_KEY":    "remote-key",
+			"POLY_BUILDER_TIMESTAMP":  "1234567890",
+			"POLY_BUILDER_PASSPHRASE": "remote-pass",
+			"POLY_BUILDER_SIGNATURE":  "remote-sig",
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
