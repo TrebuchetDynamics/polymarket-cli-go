@@ -141,6 +141,21 @@ func TestCLOBSignatureTypeDefaultsToDepositWallet(t *testing.T) {
 	}
 }
 
+func TestCLOBCreateOrderExpirationDefaultsToZero(t *testing.T) {
+	root := NewRootCommand(Options{Version: "test-version", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	cmd, _, err := root.Find([]string{"clob", "create-order"})
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	flag := cmd.Flags().Lookup("expiration")
+	if flag == nil {
+		t.Fatal("expiration flag missing")
+	}
+	if flag.DefValue != "0" {
+		t.Fatalf("default expiration=%q, want 0", flag.DefValue)
+	}
+}
+
 func TestStreamMarketReadsFromLocalWebSocket(t *testing.T) {
 	upgrader := websocket.Upgrader{}
 	subscriptions := make(chan []string, 1)
