@@ -15,32 +15,39 @@ full CLI for the deposit wallet lifecycle.
 deposit wallet for new API users. Polygolem is built exclusively for type 3
 (POLY_1271) — the only mode that works on current production.
 
-## Zero-Browser Onboarding
+## One Env Var. Everything Else Auto-Generated.
 
-Generate a fresh key, create builder credentials programmatically, deploy a
-deposit wallet, and start trading — no browser, no polymarket.com visit.
+**`POLYMARKET_PRIVATE_KEY` is the only environment variable you ever set manually.**
+Builder credentials, CLOB L2 keys — polygolem generates them all programmatically.
+No browser, no polymarket.com, no copy-paste.
 
 ```bash
-# 1. Create builder profile + HMAC credentials (programmatic, no browser)
-POLYMARKET_PRIVATE_KEY="0x..." \
-  polygolem builder auto
+# The only env var you'll ever set.
+export POLYMARKET_PRIVATE_KEY="0x..."
 
-# 2. Deploy wallet + approve + fund (all gas-sponsored)
-POLYMARKET_PRIVATE_KEY="0x..." \
-POLYMARKET_BUILDER_API_KEY="..." \
-POLYMARKET_BUILDER_SECRET="..." \
-POLYMARKET_BUILDER_PASSPHRASE="..." \
-  polygolem deposit-wallet onboard --fund-amount 0.71 --json
+# 1. Builder credentials — auto-generated (ClobAuth EIP-712, local signing)
+polygolem builder auto
+# → writes BUILDER_API_KEY, BUILDER_SECRET, BUILDER_PASSPHRASE to env file
 
-# 3. Sync balance and trade
-POLYMARKET_PRIVATE_KEY="0x..." \
-  polygolem clob update-balance --asset-type collateral --signature-type deposit
+# 2. Full deposit wallet onboarding — deploy + approve + fund (all gas-sponsored)
+source .env.builder  # or wherever builder auto wrote the creds
+polygolem deposit-wallet onboard --fund-amount 0.71 --json
 
-POLYMARKET_PRIVATE_KEY="0x..." \
-  polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --signature-type deposit
+# 3. Sync and trade
+polygolem clob update-balance --asset-type collateral --signature-type deposit
+polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --signature-type deposit
 ```
 
-**Total cost: ~$0.01 POL for one funding transfer. Everything else is gas-sponsored.**
+**Total cost: ~$0.01 POL for one funding transfer. Everything else is sponsored.**
+
+| What You Set | What Polygolem Auto-Generates |
+|-------------|------------------------------|
+| `POLYMARKET_PRIVATE_KEY` | `BUILDER_API_KEY` — builder profile + HMAC creds |
+| *(that's it)* | `BUILDER_SECRET` — HMAC signing key |
+| | `BUILDER_PASSPHRASE` — relayer auth identifier |
+| | CLOB L2 `apiKey` / `secret` / `passphrase` — on first trade |
+| | `bytes32` builder code — V2 order attribution |
+| | Deposit wallet address — CREATE2 local derivation |
 
 ## Install
 
@@ -137,15 +144,15 @@ polygolem paper reset
 
 ## Env Vars
 
-| Variable | Required For |
-|----------|-------------|
-| `POLYMARKET_PRIVATE_KEY` | All authenticated commands |
-| `POLYMARKET_BUILDER_API_KEY` | Deploy, batch, onboard |
-| `POLYMARKET_BUILDER_SECRET` | Deploy, batch, onboard |
-| `POLYMARKET_BUILDER_PASSPHRASE` | Deploy, batch, onboard |
-| `POLYMARKET_RELAYER_URL` | Override relayer URL (default: `relayer-v2.polymarket.com`) |
+| Variable | Set By | Required For |
+|----------|--------|-------------|
+| `POLYMARKET_PRIVATE_KEY` | **You** (one-time) | All authenticated operations |
+| `POLYMARKET_BUILDER_API_KEY` | `builder auto` | Auto-generated — deploy, batch, onboard |
+| `POLYMARKET_BUILDER_SECRET` | `builder auto` | Auto-generated — deploy, batch, onboard |
+| `POLYMARKET_BUILDER_PASSPHRASE` | `builder auto` | Auto-generated — deploy, batch, onboard |
+| `POLYMARKET_RELAYER_URL` | Optional override | Default: `relayer-v2.polymarket.com` |
 
-Short-form `BUILDER_API_KEY` / `BUILDER_SECRET` / `BUILDER_PASS_PHRASE` accepted.
+**The only env var you ever manually provide is `POLYMARKET_PRIVATE_KEY`.** Everything else — builder profile, HMAC creds, CLOB L2 keys, builder code, deposit wallet address — is generated locally by polygolem with zero browser interaction.
 
 ## Status
 
