@@ -62,6 +62,12 @@ func (c *Client) GetWithHeaders(ctx context.Context, path string, headers map[st
 
 // GetRaw performs a GET request and returns raw bytes.
 func (c *Client) GetRaw(ctx context.Context, path string) ([]byte, error) {
+	return c.GetRawWithHeaders(ctx, path, nil)
+}
+
+// GetRawWithHeaders performs a GET request with caller-supplied headers and
+// returns raw bytes.
+func (c *Client) GetRawWithHeaders(ctx context.Context, path string, headers map[string]string) ([]byte, error) {
 	url := c.config.BaseURL + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -69,6 +75,9 @@ func (c *Client) GetRaw(ctx context.Context, path string) ([]byte, error) {
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", c.config.UserAgent)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {

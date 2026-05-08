@@ -91,6 +91,14 @@ func (c *Client) get(ctx context.Context, path string, result interface{}) error
 	return c.transport.GetWithHeaders(ctx, path, headers, result)
 }
 
+func (c *Client) getRaw(ctx context.Context, path string) ([]byte, error) {
+	headers, err := c.buildAuthHeaders(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("relayer: build auth headers: %w", err)
+	}
+	return c.transport.GetRawWithHeaders(ctx, path, headers)
+}
+
 // SubmitWalletCreate deploys a new deposit wallet via WALLET-CREATE.
 func (c *Client) SubmitWalletCreate(ctx context.Context, ownerAddress string) (*RelayerTransaction, error) {
 	ownerAddress = strings.TrimSpace(ownerAddress)
@@ -162,11 +170,22 @@ func (c *Client) GetTransaction(ctx context.Context, txID string) (*RelayerTrans
 		return nil, fmt.Errorf("relayer: transaction ID is required")
 	}
 	path := fmt.Sprintf("/transaction?id=%s", txID)
-	var tx RelayerTransaction
-	if err := c.get(ctx, path, &tx); err != nil {
+	body, err := c.getRaw(ctx, path)
+	if err != nil {
 		return nil, fmt.Errorf("relayer: get transaction: %w", err)
 	}
-	return &tx, nil
+	var tx RelayerTransaction
+	if err := json.Unmarshal(body, &tx); err == nil {
+		return &tx, nil
+	}
+	var txs []RelayerTransaction
+	if err := json.Unmarshal(body, &txs); err != nil {
+		return nil, fmt.Errorf("relayer: get transaction: decode response: %w", err)
+	}
+	if len(txs) == 0 {
+		return nil, fmt.Errorf("relayer: transaction %s not found", txID)
+	}
+	return &txs[0], nil
 }
 
 // PollTransaction polls the relayer until the transaction reaches a
