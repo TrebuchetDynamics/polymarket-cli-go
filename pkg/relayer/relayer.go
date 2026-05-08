@@ -9,9 +9,9 @@
 // submission, so the only on-chain cost the end user pays in the canonical
 // onboarding flow is a single pUSD transfer into the deployed deposit wallet.
 //
-// The package re-exports types and constructors from internal/relayer and
-// internal/auth via type aliases — there is no behavioral wrapper layer,
-// just stable import paths for SDK consumers.
+// The package re-exports low-level types from internal/relayer and
+// internal/auth via type aliases and adds a small public onboarding helper
+// that composes those primitives.
 //
 // Stability: every exported identifier here follows polygolem's public
 // SDK semver guarantee.
@@ -50,6 +50,10 @@ type NonceResponse = internalrelayer.NonceResponse
 // DeployedResponse is the wire shape of GET /deployed.
 type DeployedResponse = internalrelayer.DeployedResponse
 
+// V2APIKey is the plain-header relayer credential minted by
+// `polygolem auth headless-onboard`.
+type V2APIKey = internalrelayer.V2APIKey
+
 // State constants — re-exported from internal/relayer.
 const (
 	StateNew       = internalrelayer.StateNew
@@ -65,6 +69,12 @@ const (
 // Returns an error when [BuilderConfig] is incomplete.
 func New(baseURL string, bc BuilderConfig, chainID int64) (*Client, error) {
 	return internalrelayer.New(baseURL, bc, chainID)
+}
+
+// NewV2 constructs a relayer Client using the V2 plain-header scheme:
+// RELAYER_API_KEY + RELAYER_API_KEY_ADDRESS.
+func NewV2(baseURL string, key V2APIKey, chainID int64) (*Client, error) {
+	return internalrelayer.NewV2(baseURL, key, chainID)
 }
 
 // NewSigner builds a [PrivateKeySigner] from a 0x-prefixed (or unprefixed)

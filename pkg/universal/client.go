@@ -10,7 +10,7 @@
 //
 // When not to use this package:
 //   - For deposit wallet lifecycle (deploy / proxy / approvals) — that
-//     surface is gated to builder credentials and lives in internal/relayer.
+//     surface is gated to relayer credentials and lives in pkg/relayer.
 //
 // Stability: Client, NewClient, DefaultConfig, and every method on Client
 // are part of the polygolem public SDK and follow semver. Some method

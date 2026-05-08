@@ -128,6 +128,133 @@ func TestClientGetNonceAndDeployedRoundTrip(t *testing.T) {
 	}
 }
 
+func TestNewV2UsesPlainRelayerHeaders(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("RELAYER_API_KEY"); got != "v2-key" {
+			t.Errorf("RELAYER_API_KEY=%q", got)
+		}
+		if got := r.Header.Get("RELAYER_API_KEY_ADDRESS"); got != "0xabc" {
+			t.Errorf("RELAYER_API_KEY_ADDRESS=%q", got)
+		}
+		json.NewEncoder(w).Encode(DeployedResponse{Deployed: true})
+	}))
+	defer srv.Close()
+
+	c, err := NewV2(srv.URL, V2APIKey{Key: "v2-key", Address: "0xabc"}, 137)
+	if err != nil {
+		t.Fatalf("NewV2 error: %v", err)
+	}
+	if _, err := c.IsDeployed(context.Background(), "0xb72dbe5d44c1b549351bef276ba48a1cca5df662"); err != nil {
+		t.Fatalf("IsDeployed error: %v", err)
+	}
+}
+
+func TestOnboardDepositWalletDeploysAndApproves(t *testing.T) {
+	signer, err := NewSigner(testPrivateKey, 137)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var submitTypes []string
+	var nonceAddress string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/deployed":
+			if r.URL.Query().Get("address") != signer.Address() {
+				t.Errorf("deployed address=%q want %q", r.URL.Query().Get("address"), signer.Address())
+			}
+			json.NewEncoder(w).Encode(DeployedResponse{Deployed: false})
+		case "/submit":
+			var body map[string]interface{}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("decode submit body: %v", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			submitType, _ := body["type"].(string)
+			submitTypes = append(submitTypes, submitType)
+			switch submitType {
+			case "WALLET-CREATE":
+				if body["from"] != signer.Address() {
+					t.Errorf("wallet-create from=%v want %s", body["from"], signer.Address())
+				}
+				json.NewEncoder(w).Encode(RelayerTransaction{TransactionID: "deploy-1", State: string(StateNew), Type: submitType})
+			case "WALLET":
+				if body["nonce"] != "7" {
+					t.Errorf("wallet nonce=%v want 7", body["nonce"])
+				}
+				params, _ := body["depositWalletParams"].(map[string]interface{})
+				calls, _ := params["calls"].([]interface{})
+				if len(calls) != 6 {
+					t.Errorf("approval call count=%d want 6", len(calls))
+				}
+				json.NewEncoder(w).Encode(RelayerTransaction{TransactionID: "approve-1", State: string(StateNew), Type: submitType})
+			default:
+				t.Errorf("unexpected submit type %q", submitType)
+				http.NotFound(w, r)
+			}
+		case "/transaction":
+			if r.URL.Query().Get("id") != "deploy-1" {
+				t.Errorf("transaction id=%q want deploy-1", r.URL.Query().Get("id"))
+			}
+			json.NewEncoder(w).Encode(RelayerTransaction{TransactionID: "deploy-1", State: string(StateMined), Type: "WALLET-CREATE"})
+		case "/nonce":
+			nonceAddress = r.URL.Query().Get("address")
+			json.NewEncoder(w).Encode(NonceResponse{Nonce: "7"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	c, err := NewV2(srv.URL, V2APIKey{Key: "v2-key", Address: signer.Address()}, 137)
+	if err != nil {
+		t.Fatalf("NewV2 error: %v", err)
+	}
+	got, err := OnboardDepositWallet(context.Background(), c, testPrivateKey, OnboardOptions{})
+	if err != nil {
+		t.Fatalf("OnboardDepositWallet error: %v", err)
+	}
+	if got.Owner != signer.Address() {
+		t.Fatalf("owner=%q want %q", got.Owner, signer.Address())
+	}
+	if !strings.HasPrefix(got.DepositWallet, "0x") {
+		t.Fatalf("deposit wallet malformed: %q", got.DepositWallet)
+	}
+	if got.Deploy == nil || got.Deploy.TransactionID != "deploy-1" || got.Deploy.State != string(StateMined) {
+		t.Fatalf("deploy result=%+v", got.Deploy)
+	}
+	if got.Approve == nil || got.Approve.TransactionID != "approve-1" || got.Approve.CallCount != 6 || got.Approve.Nonce != "7" {
+		t.Fatalf("approve result=%+v", got.Approve)
+	}
+	if nonceAddress != signer.Address() {
+		t.Fatalf("nonce address=%q want %q", nonceAddress, signer.Address())
+	}
+	if strings.Join(submitTypes, ",") != "WALLET-CREATE,WALLET" {
+		t.Fatalf("submit order=%v", submitTypes)
+	}
+}
+
+func TestOnboardDepositWalletSkipDeployAndApproveOnlyDerives(t *testing.T) {
+	c, err := NewV2("https://relayer.example", V2APIKey{Key: "v2-key", Address: "0xabc"}, 137)
+	if err != nil {
+		t.Fatalf("NewV2 error: %v", err)
+	}
+	got, err := OnboardDepositWallet(context.Background(), c, testPrivateKey, OnboardOptions{SkipDeploy: true, SkipApprove: true})
+	if err != nil {
+		t.Fatalf("OnboardDepositWallet error: %v", err)
+	}
+	if got.Deploy == nil || !got.Deploy.Skipped {
+		t.Fatalf("deploy result=%+v", got.Deploy)
+	}
+	if got.Approve == nil || !got.Approve.Skipped {
+		t.Fatalf("approve result=%+v", got.Approve)
+	}
+	if !strings.HasPrefix(got.DepositWallet, "0x") {
+		t.Fatalf("deposit wallet malformed: %q", got.DepositWallet)
+	}
+}
+
 func TestStateConstantsLifecycle(t *testing.T) {
 	if !StateMined.IsTerminal() {
 		t.Error("StateMined should be terminal")

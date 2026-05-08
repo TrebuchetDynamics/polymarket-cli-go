@@ -35,6 +35,7 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
 	"github.com/TrebuchetDynamics/polygolem/pkg/gamma"
 	"github.com/TrebuchetDynamics/polygolem/pkg/orderbook"
+	"github.com/TrebuchetDynamics/polygolem/pkg/relayer"
 	sdkstream "github.com/TrebuchetDynamics/polygolem/pkg/stream"
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 	"github.com/TrebuchetDynamics/polygolem/pkg/universal"
@@ -77,6 +78,11 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var orderbookSnapshot orderbook.OrderBook
 	var orderbookLevel orderbook.Level
 	var legacyReader bookreader.Reader = bookreader.NewReader("")
+	var relayerClient *relayer.Client
+	var relayerV2Key relayer.V2APIKey
+	var relayerOnboardOptions relayer.OnboardOptions
+	var relayerOnboard func(context.Context, *relayer.Client, string, relayer.OnboardOptions) (*relayer.OnboardResult, error) = relayer.OnboardDepositWallet
+	var relayerNewV2 func(string, relayer.V2APIKey, int64) (*relayer.Client, error) = relayer.NewV2
 	var dataPositions func(*data.Client, context.Context, string) ([]types.Position, error) = (*data.Client).CurrentPositions
 	var universalPositions func(*universal.Client, context.Context, string) ([]types.Position, error) = (*universal.Client).CurrentPositions
 	var dataLeaderboard func(*data.Client, context.Context, int) ([]types.LeaderboardRow, error) = (*data.Client).TraderLeaderboard
@@ -111,6 +117,7 @@ func TestPublicSDKSignatures(t *testing.T) {
 	_, _, _, _ = clobCreateParams, clobCreate, clobMarketOrderParams, clobMarketOrder
 	_, _, _, _, _, _, _, _, _, _ = streamClient, streamConfig, streamConnect, streamSubscribe, streamClose, streamConnected, streamBook, streamPriceChange, streamLastTrade, streamDeduplicator
 	_, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, legacyReader
+	_, _, _, _, _ = relayerClient, relayerV2Key, relayerOnboardOptions, relayerOnboard, relayerNewV2
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
 	_, _, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments, universalConfig
 	_, _, _, _, _, _ = universalCLOBMarkets, universalCLOBMarket, universalOrderBook, universalOrderBooks, universalTickSize, universalPriceHistory
