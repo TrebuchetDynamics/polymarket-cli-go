@@ -137,8 +137,10 @@ That is 317 bytes, encoded as <code dir="auto">0x</code> plus 634 hex chars.</p>
 <p>V2 orders include a <code dir="auto">builder</code> field (bytes32). Upstream uses this builder code
 for order attribution. It is distinct from builder relayer credentials and does
 not use <code dir="auto">POLY_BUILDER_*</code> HMAC headers on the order request.</p>
-<p>Polygolem currently signs orders with <code dir="auto">builder = bytes32(0)</code>. Configurable
-non-zero builder attribution is tracked as an SDK/CLI gap.</p>
+<p>Polygolem signs orders with <code dir="auto">builder = bytes32(0)</code> by default. Configure a
+non-zero builder code with <code dir="auto">pkg/clob.Config.BuilderCode</code>,
+<code dir="auto">pkg/universal.Config.BuilderCode</code>, CLI <code dir="auto">--builder-code</code>, or
+<code dir="auto">POLYMARKET_BUILDER_CODE</code>.</p>
 <p>Builder credentials (API key/secret/passphrase) are separate — used only for
 relayer auth (<code dir="auto">WALLET-CREATE</code>, <code dir="auto">WALLET</code> batch). Never mix builder creds with
 CLOB L2 creds.</p>

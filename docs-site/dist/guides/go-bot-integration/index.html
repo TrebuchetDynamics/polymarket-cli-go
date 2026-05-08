@@ -115,8 +115,6 @@ page concurrently:</p>
 and <code dir="auto">pkg/universal</code> exposes CLOB order placement and cancellation, but the
 full <code dir="auto">deploy -> approve -> fund -> sync -> preflight</code> operator flow remains
 a CLI workflow.</li>
-<li>Configured V2 <code dir="auto">builderCode</code> order attribution. Polygolem currently signs
-orders with <code dir="auto">builder = bytes32(0)</code>.</li>
 <li>Live execution gates. Those are CLI-layer concerns; embedding them would
 bypass the operator confirmation surface.</li>
 <li>Mutable global state. Every package returns its own client instance.</li>

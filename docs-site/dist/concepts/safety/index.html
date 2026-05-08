@@ -114,7 +114,7 @@ is the CLOB <code dir="auto">maker</code>). These must never be confused:</p>
 <li><strong>Diagnostics must distinguish</strong> <code dir="auto">signer_eoa</code> from <code dir="auto">funder/deposit_wallet</code> in logs.</li>
 </ul>
 <h3 id="builder-credential-isolation">Builder Credential Isolation</h3>
-<p>Builder credentials authenticate with the relayer for WALLET-CREATE and WALLET batch. They are a separate auth system and must never be:</p>
+<p>V2 relayer keys and legacy builder HMAC credentials authenticate with the relayer for WALLET-CREATE and WALLET batch. They are a separate auth system and must never be:</p>
 <ul>
 <li>Reused as CLOB L2 credentials</li>
 <li>Stored alongside CLOB API keys in the same config section</li>
@@ -131,7 +131,7 @@ is the CLOB <code dir="auto">maker</code>). These must never be confused:</p>
 </ol>
 <h3 id="relayer-auth-vs-trading-auth">Relayer Auth vs Trading Auth</h3>
 <ul>
-<li><strong>Relayer auth</strong>: Builder HMAC credentials → wallet lifecycle operations</li>
+<li><strong>Relayer auth</strong>: V2 relayer key or builder HMAC credentials → wallet lifecycle operations</li>
 <li><strong>Trading auth</strong>: CLOB L1/L2 credentials → order placement and balance queries</li>
 <li>These systems are independent. A failed relayer call must not be retried as a CLOB call.</li>
 </ul>
