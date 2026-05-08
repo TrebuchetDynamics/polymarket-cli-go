@@ -42,6 +42,7 @@ type CreateOrderParams struct {
 	Size          string
 	OrderType     string
 	SignatureType int
+	Expiration    string // Unix timestamp; "0" = no expiration (GTC). Used by GTD.
 }
 
 type MarketOrderParams struct {
@@ -148,6 +149,7 @@ type orderDraft struct {
 	takerAmount   string
 	signatureType int
 	orderType     string
+	expiration    string
 }
 
 func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params CreateOrderParams) (*OrderPlacementResponse, error) {
@@ -186,6 +188,7 @@ func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params
 		takerAmount:   takerAmount,
 		signatureType: params.SignatureType,
 		orderType:     normalizeOrderType(params.OrderType, "GTC"),
+		expiration:    firstNonEmpty(params.Expiration, "0"),
 	}
 	return c.signAndPostOrder(ctx, privateKey, draft)
 }
@@ -644,7 +647,7 @@ func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts
 		MakerAmount:   draft.makerAmount,
 		TakerAmount:   draft.takerAmount,
 		Side:          draft.side,
-		Expiration:    "0",
+		Expiration:    draft.expiration,
 		SignatureType: draft.signatureType,
 		Timestamp:     fmt.Sprintf("%d", ts.UnixMilli()),
 		Metadata:      bytes32Zero,
