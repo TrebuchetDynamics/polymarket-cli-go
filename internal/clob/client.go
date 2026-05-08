@@ -114,6 +114,78 @@ func (r apiKeyResponse) apiKey() auth.APIKey {
 	}
 }
 
+// CreateBuilderFeeKey mints a builder fee key via L2 auth.
+// The returned creds are used for V2 order builder field attribution.
+// Requires existing L2 credentials (from builder auto or CreateOrDeriveAPIKey).
+// This endpoint is fully headless — no cookie, no browser, no relayer.
+//
+// See docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md for the V2 split-cred
+// model that distinguishes this CLOB-side builder fee key from the
+// browser-gated Relayer API Key.
+func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (auth.APIKey, error) {
+	key, err := c.DeriveAPIKey(ctx, privateKey)
+	if err != nil {
+		return auth.APIKey{}, fmt.Errorf("derive api key: %w", err)
+	}
+	body := map[string]string{}
+	bodyBytes, _ := json.Marshal(body)
+	bodyStr := string(bodyBytes)
+	headers, err := c.l2Headers(privateKey, &key, http.MethodPost, "/auth/builder-api-key", &bodyStr)
+	if err != nil {
+		return auth.APIKey{}, err
+	}
+	var raw apiKeyResponse
+	if err := c.transport.PostWithHeaders(ctx, "/auth/builder-api-key", body, headers, &raw); err != nil {
+		return auth.APIKey{}, fmt.Errorf("create builder fee key: %w", err)
+	}
+	return raw.apiKey(), nil
+}
+
+// BuilderFeeKeyRecord represents one row from `GET /auth/builder-api-keys`.
+// Fields are best-effort — the upstream shape is loosely typed.
+type BuilderFeeKeyRecord struct {
+	Key        string `json:"key"`
+	Secret     string `json:"secret,omitempty"`
+	Passphrase string `json:"passphrase,omitempty"`
+	CreatedAt  string `json:"created_at,omitempty"`
+}
+
+// ListBuilderFeeKeys returns every builder fee key minted for the
+// authenticated wallet via `GET /auth/builder-api-keys`.
+func (c *Client) ListBuilderFeeKeys(ctx context.Context, privateKey string) ([]BuilderFeeKeyRecord, error) {
+	key, err := c.DeriveAPIKey(ctx, privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("derive api key: %w", err)
+	}
+	headers, err := c.l2Headers(privateKey, &key, http.MethodGet, "/auth/builder-api-keys", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result []BuilderFeeKeyRecord
+	if err := c.transport.GetWithHeaders(ctx, "/auth/builder-api-keys", headers, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// RevokeBuilderFeeKey deletes a builder fee key via
+// `DELETE /auth/builder-api-key/{key}`.
+func (c *Client) RevokeBuilderFeeKey(ctx context.Context, privateKey, builderKey string) error {
+	if strings.TrimSpace(builderKey) == "" {
+		return fmt.Errorf("builderKey is required")
+	}
+	key, err := c.DeriveAPIKey(ctx, privateKey)
+	if err != nil {
+		return fmt.Errorf("derive api key: %w", err)
+	}
+	path := "/auth/builder-api-key/" + url.PathEscape(builderKey)
+	headers, err := c.l2Headers(privateKey, &key, http.MethodDelete, path, nil)
+	if err != nil {
+		return err
+	}
+	return c.transport.DeleteWithHeaders(ctx, path, nil, headers, nil)
+}
+
 // BalanceAllowance returns collateral or conditional token balance and allowances.
 func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params BalanceAllowanceParams) (*BalanceAllowanceResponse, error) {
 	key, err := c.DeriveAPIKey(ctx, privateKey)

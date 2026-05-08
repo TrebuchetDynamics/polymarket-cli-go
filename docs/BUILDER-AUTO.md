@@ -3,19 +3,31 @@
 > **Status:** Empirically verified 2026-05-07 against production.
 > **Supersedes:** `docs/BUILDER-CREDENTIAL-ISSUANCE.md` (which claimed curl-only issuance was impossible — that conclusion was wrong).
 
-## TL;DR
+## Three Credential Types — No Longer Conflated
 
-`polygolem builder auto` headlessly mints **CLOB L2 trading creds** (HMAC `apiKey` / `secret` / `passphrase`) for any EOA. One ECDSA signature, one HTTP POST. No browser.
+Polygolem interacts with three distinct Polymarket credential systems. They are not the same thing.
 
+| Credential | Endpoint | Auth Required | Headless? | Used For |
+|-----------|----------|--------------|-----------|----------|
+| **CLOB L2 Trading Key** | `POST /auth/api-key` | L1 EIP-712 (EOA signs) | ✅ Yes — `builder auto` | Order placement, balance queries, trade history |
+| **Builder Fee Key** | `POST /auth/builder-api-key` | L2 HMAC (existing L2 creds) | ✅ Yes — `CreateBuilderFeeKey` | V2 order `builder` field attribution |
+| **Relayer API Key** | `POST /relayer/api/auth` | Cookie (Gamma session) | ❌ Browser-gated | WALLET-CREATE, WALLET batch, relayer operations |
+
+### Builder Fee Key (headless, new)
+
+`POST /auth/builder-api-key` at `clob.polymarket.com` takes L2 HMAC headers (from existing CLOB L2 creds) and returns a builder fee key. This key goes in the V2 order `builder` field for attribution. Fully headless — no cookie, no browser.
+
+```go
+// After obtaining L2 creds via builder auto or CreateOrDeriveAPIKey:
+feeKey, err := client.CreateBuilderFeeKey(ctx, privateKey)
+// feeKey.Key → used as builderCode in V2 order struct
 ```
-polygolem builder auto
-```
 
-reads `POLYMARKET_PRIVATE_KEY`, signs the canonical ClobAuth EIP-712 message, posts it to `https://clob.polymarket.com/auth/api-key`, validates the returned creds against the relayer's read endpoints, and persists them to `../go-bot/.env.builder` (mode `0600`).
+This is distinct from the Relayer API Key which gates `/relayer/api/auth` behind a cookie from `/login/internal`.
 
-**What this gets you:** L2 read access (book, balances, GET /nonce, GET /deployed) — and the *signing identity* needed by every subsequent step.
+### Relayer API Key (cookie-gated)
 
-**What this does NOT get you:** the ability to place orders. As of the 2026-04-28 V2 cutover, `POST /order` is gated on the **deposit-wallet flow** (sigtype 3 + an API key whose owner address is the deposit wallet, not the EOA). See [§ Production V2 reality check](#production-v2-reality-check-2026-05-07) below.
+The relayer's `/relayer/api/auth` endpoint requires a Gamma session cookie — obtained through a browser-mediated wallet challenge at `/login/internal`. This is the true gate: Relayer API Key issuance cannot be fully automated without characterizing the `/login/internal` flow (SIWE-style vs CSRF + fingerprinting). See [Sub-investigation: /login/internal](#logininternal-sub-investigation).
 
 ## Empirical proof
 

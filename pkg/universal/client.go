@@ -275,6 +275,13 @@ func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (a
 	return c.clob.CreateOrDeriveAPIKey(ctx, privateKey)
 }
 
+// CreateBuilderFeeKey mints a builder fee key via L2 auth.
+// Used for V2 order builder field attribution. Requires existing L2 credentials.
+// Fully headless — no cookie, no browser, no relayer.
+func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (auth.APIKey, error) {
+	return c.clob.CreateBuilderFeeKey(ctx, privateKey)
+}
+
 // DeriveAPIKey returns the deterministic L2 credentials for an existing
 // account via GET /auth/derive-api-key. Use CreateOrDeriveAPIKey when the
 // caller is unsure whether an account has been provisioned yet.
