@@ -17,14 +17,16 @@ deposit wallet for new API users. Polygolem is built exclusively for type 3
 
 ## Headless V2 Onboarding
 
-`POLYMARKET_PRIVATE_KEY` is the root input. Polygolem can mint CLOB L2
-credentials, mint V2 relayer credentials via SIWE, derive the deposit wallet,
-deploy/approve/fund it, and attach a V2 builder code to orders.
+`POLYMARKET_PRIVATE_KEY` is the root input. Polygolem can mint V2 relayer
+credentials via SIWE, derive and deploy the deposit wallet, approve and fund it,
+and attach a V2 builder code to orders.
 
 ```bash
 export POLYMARKET_PRIVATE_KEY="0x..."
 
 # 1. CLOB L2 credentials for reads and same-address order auth.
+#    NOTE: For NEW deposit wallet users, this requires one browser login
+#    to create the deposit-wallet-owned API key. After that, fully headless.
 polygolem builder auto
 
 # 2. V2 relayer credentials for deposit-wallet deploy/approve.
@@ -43,6 +45,14 @@ polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --builde
 ```
 
 **Total cost: ~$0.01 POL for one funding transfer. Everything else is sponsored.**
+
+> **New user limitation:** Pure headless onboarding for users without an existing
+> Polymarket account is currently impossible due to a server-side gate. Polymarket's
+> L1 auth endpoint does not support ERC-1271 validation for deposit wallets. New
+> users must complete one browser login to create their deposit-wallet-owned CLOB
+> API key. After that, all operations are fully headless. See
+> [`opensource-projects/INTEGRATION_PLAN.md`](opensource-projects/INTEGRATION_PLAN.md)
+> for the full technical analysis.
 
 Under the hood, `builder auto` signs a local EIP-712 ClobAuth message and posts
 it to the CLOB API. `auth headless-onboard` signs SIWE, mints

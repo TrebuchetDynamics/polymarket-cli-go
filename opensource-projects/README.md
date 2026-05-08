@@ -188,7 +188,7 @@ DepositWalletImplementation: 0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB
 | **FOK Orders** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ? | ✅ |
 | **FAK Orders** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ? | ✅ |
 | **Post Only** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ? | ✅ |
-| **Batch Order Posting** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ? | ✅ |
+| **Batch Order Posting** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ? | ✅ |
 | **Order Cancellation** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Gamma API** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Data API** | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
@@ -197,10 +197,10 @@ DepositWalletImplementation: 0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB
 | **RFQ API** | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ |
 | **Relayer Client** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **On-chain / Web3** | 🟡 | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| **CTF Split/Merge/Redeem** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **CTF Split/Merge/Redeem** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | **Builder Attribution** | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 | ✅ | ❌ | ✅ |
-| **Remote Builder Signing** | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
-| **Heartbeats** | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| **Remote Builder Signing** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
+| **Heartbeats** | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
 | **Turnkey Integration** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **AWS KMS Signer** | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
 | **CLI Tool** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -247,23 +247,24 @@ DepositWalletImplementation: 0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB
 1. **Only Go implementation with full deposit wallet lifecycle** — No other Go SDK ships CREATE2 derivation, WALLET-CREATE, WALLET batch, ERC-7739 signing, and CLI onboarding in one repo.
 2. **Read-only by default** — All `pkg/` public APIs are read-only. Authentication is explicit. This is a safety feature no other SDK emphasizes.
 3. **Zero external SDK dependencies** — All signing, type definitions, and protocol logic implemented from spec. Only depends on `go-ethereum`, `gorilla/websocket`, `cobra`, `viper`.
-4. **Headless V2 onboarding CLI** — `polygolem builder auto` + `auth headless-onboard` + `deposit-wallet onboard` is a complete zero-browser flow. Official SDKs require browser-based SIWE or Reown.
+4. **Headless V2 onboarding CLI** — `polygolem builder auto` + `auth headless-onboard` + `deposit-wallet onboard` is a complete zero-browser flow for existing users. New users need one browser login to create their deposit-wallet-owned API key; after that, fully headless.
 5. **Paper trading built-in** — `polygolem paper buy/positions/reset` for local simulation without API keys.
-6. **Circuit breaker & risk management** — Per-trade caps, daily loss limits, and transport-level circuit breaker.
+6. **Circuit breaker & risk management** — Per-trade caps, daily loss limits, typed trip reasons, position tracking, and transport-level circuit breaker.
 7. **V2-only deposit-wallet order signing** — Internal `orders` package signs POLY_1271 orders with deposit-wallet maker/signer, deposit-wallet-owned L2 headers, optional builder attribution, post-only support, batch posting, and heartbeats.
-8. **Verified against official test vectors** — CREATE2 derivation verified against official Python SDK test vector.
+8. **CTF on-chain operations** — `pkg/ctf` provides split/merge/redeem calldata encoding and position/collection ID helpers.
+9. **Remote builder signing** — `pkg/builder` supports both local HMAC signing and remote signer-server patterns.
+10. **Streaming pagination** — `pkg/pagination` provides `StreamItems` for cursor-based streaming over large result sets.
+11. **Verified against official test vectors** — CREATE2 derivation verified against official Python SDK test vector.
 
 ### Where polygolem has gaps vs. the ecosystem
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | **RFQ API** | Low | Request-for-quote is a specialized feature. Most bots don't need it. |
-| **CTF on-chain operations** | Medium | Split/merge/redeem positions. 0xNetuser's Go SDK has full Web3 clients for this. |
-| **Remote builder signing** | Low | For client-side apps that can't expose builder secrets. GoPolymarket SDK has a signer-server pattern. |
 | **AWS KMS / Turnkey signers** | Low | Institutional custody. GoPolymarket SDK and ybina SDK support this. |
-| **Streaming pagination** | Low | `StreamData()` helper in GoPolymarket SDK and official Rust SDK. Polygolem has `pkg/pagination` but not streaming. |
 | **Web3 / on-chain transfers** | Low | Direct USDC/conditional token transfers. Polygolem only has bridge deposit + relayer batch. |
 | **V1/V2 auto-detection** | Low | Official Rust SDK auto-detects protocol from host. Polygolem requires explicit version awareness. |
+| **Headless onboarding (new users)** | High | Server-side: Polymarket L1 auth lacks ERC-1271 support for deposit wallets. New users need one browser login. See INTEGRATION_PLAN.md. |
 | **Cross-venue arbitrage** | N/A | Out of scope for an SDK. Trading bots handle this. |
 | **Dashboard / Web UI** | N/A | Out of scope. Bots like qntrade have Next.js dashboards. |
 | **Machine learning** | N/A | Out of scope. LvcidPsyche bot has ML opportunity predictor. |
