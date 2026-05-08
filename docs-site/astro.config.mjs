@@ -51,6 +51,7 @@ export default defineConfig({
           items: [
             { label: "CLI Commands", slug: "reference/cli" },
             { label: "Go SDK", slug: "reference/sdk" },
+            { label: "Internal Packages", slug: "reference/internal-packages" },
             { label: "Gamma API", slug: "reference/gamma-api" },
             { label: "CLOB API", slug: "reference/clob-api" },
             { label: "Stream API", slug: "reference/stream-api" },

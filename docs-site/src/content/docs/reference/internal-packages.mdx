@@ -1,0 +1,222 @@
+---
+title: Internal Packages
+description: Polygolem internal package reference — auth, clob, gamma, relayer, wallet, orders, stream, and more.
+---
+
+The `internal/` packages implement the full Polymarket protocol stack. They are not part of the public SDK contract but are the authoritative implementation that `pkg/` wraps.
+
+## Protocol Clients
+
+### `internal/gamma`
+
+Gamma API client — 26 methods. Read-only market discovery.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/internal/gamma"
+client := gamma.NewClient("https://gamma-api.polymarket.com", nil)
+```
+
+| Method | Returns |
+|--------|---------|
+| `ActiveMarkets(ctx)` | `[]polytypes.Market` |
+| `Markets(ctx, params)` | `[]polytypes.Market` |
+| `MarketByID(ctx, id)` | `*polytypes.Market` |
+| `MarketBySlug(ctx, slug)` | `*polytypes.Market` |
+| `MarketByToken(ctx, tokenID)` | `*polytypes.MarketByTokenResponse` |
+| `Events(ctx, params)` | `[]polytypes.Event` |
+| `EventByID(ctx, id)` | `*polytypes.Event` |
+| `EventBySlug(ctx, slug)` | `*polytypes.Event` |
+| `EventsKeyset(ctx, params)` | `([]polytypes.Event, string cursor, error)` |
+| `MarketsKeyset(ctx, params)` | `([]polytypes.Market, string cursor, error)` |
+| `Search(ctx, params)` | `*polytypes.SearchResponse` |
+| `Series(ctx, params)`, `SeriesByID(ctx, id)` | `[]polytypes.Series` / `*polytypes.Series` |
+| `Tags(ctx, params)`, `TagByID`, `TagBySlug`, `RelatedTagsByID`, `RelatedTagsBySlug` | `[]polytypes.Tag` etc. |
+| `Teams(ctx, params)` | `[]polytypes.Team` |
+| `SportsMetadata(ctx)` | `[]polytypes.SportMetadata` |
+| `SportsMarketTypes(ctx)` | `[]polytypes.SportsMarketType` |
+| `Comments(ctx, params)`, `CommentByID`, `CommentsByUser` | `[]polytypes.Comment` etc. |
+| `PublicProfile(ctx, walletAddr)` | `*polytypes.Profile` |
+
+### `internal/clob`
+
+CLOB API client — read + write, EIP-712, POLY_1271, ERC-7739 signing.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/internal/clob"
+client := clob.NewClient("https://clob.polymarket.com", nil)
+```
+
+**Read methods (no auth):**
+
+| Method | Returns |
+|--------|---------|
+| `OrderBook(ctx, tokenID)` | `*polytypes.OrderBook` |
+| `OrderBooks(ctx, params)` | `[]polytypes.OrderBook` |
+| `Price(ctx, tokenID, side)` | `string` |
+| `Prices(ctx, params)` | `map[string]string` |
+| `Midpoint(ctx, tokenID)` | `string` |
+| `Midpoints(ctx, params)` | `map[string]string` |
+| `Spread(ctx, tokenID)` | `string` |
+| `TickSize(ctx, tokenID)` | `*polytypes.TickSize` |
+| `NegRisk(ctx, tokenID)` | `*polytypes.NegRiskInfo` |
+| `FeeRateBps(ctx, tokenID)` | `int` |
+| `LastTradePrice(ctx, tokenID)` | `string` |
+| `LastTradesPrices(ctx, params)` | `map[string]string` |
+| `PricesHistory(ctx, params)` | `*polytypes.PriceHistory` |
+| `Markets(ctx, cursor)`, `Market(ctx, conditionID)` | `*polytypes.CLOBPaginatedMarkets` / `*polytypes.CLOBMarket` |
+| `SimplifiedMarkets`, `SamplingMarkets`, `SamplingSimplifiedMarkets` | `*polytypes.CLOBPaginatedMarkets` |
+
+**Auth methods (require privateKey):**
+
+| Method | Returns |
+|--------|---------|
+| `CreateOrDeriveAPIKey(ctx, pk)` | `auth.APIKey` |
+| `DeriveAPIKey(ctx, pk)` | `auth.APIKey` |
+| `BalanceAllowance(ctx, pk, params)` | `*BalanceAllowanceResponse` |
+| `UpdateBalanceAllowance(ctx, pk, params)` | `*BalanceAllowanceResponse` |
+| `CreateLimitOrder(ctx, pk, params)` | `*OrderPlacementResponse` |
+| `CreateMarketOrder(ctx, pk, params)` | `*OrderPlacementResponse` |
+| `ListOrders(ctx, pk)` | `[]OrderRecord` |
+| `ListTrades(ctx, pk)` | `[]TradeRecord` |
+| `CancelOrder(ctx, pk, orderID)` | `*CancelOrdersResponse` |
+| `CancelAll(ctx, pk)` | `*CancelOrdersResponse` |
+| `RewardsConfig`, `RawRewards`, `UserEarnings`, `TotalEarnings`, `RewardPercentages`, `UserRewardsByMarket`, `RebatedFees` | various |
+| `OrderScoring(ctx, orderID)`, `OrdersScoring(ctx, orderIDs)` | `bool` / `[]bool` |
+
+### `internal/relayer`
+
+Builder relayer client for WALLET-CREATE and WALLET batch operations.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/internal/relayer"
+client, _ := relayer.New("https://relayer-v2.polymarket.com", builderConfig, 137)
+```
+
+| Method | Returns |
+|--------|---------|
+| `SubmitWalletCreate(ctx, ownerAddr)` | `*RelayerTransaction` |
+| `SubmitWalletBatch(ctx, owner, wallet, nonce, sig, deadline, calls)` | `*RelayerTransaction` |
+| `GetNonce(ctx, ownerAddr)` | `string` |
+| `GetTransaction(ctx, txID)` | `*RelayerTransaction` |
+| `PollTransaction(ctx, txID, maxAttempts, interval)` | `*RelayerTransaction` |
+| `IsDeployed(ctx, ownerAddr)` | `bool` |
+
+### `internal/dataapi`
+
+Data API client — 11 methods. Positions, volume, leaderboards.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/internal/dataapi"
+client := dataapi.NewClient("https://data-api.polymarket.com", nil)
+```
+
+| Method | Returns |
+|--------|---------|
+| `CurrentPositions(ctx, user)` | `[]Position` |
+| `ClosedPositions(ctx, user)` | `[]ClosedPosition` |
+| `Trades(ctx, user, limit)` | `[]Trade` |
+| `Activity(ctx, user, limit)` | `[]Activity` |
+| `TopHolders(ctx, tokenID, limit)` | `[]MetaHolder` |
+| `TotalValue(ctx, user)` | `*TotalValue` |
+| `MarketsTraded(ctx, user)` | `*TotalMarketsTraded` |
+| `OpenInterest(ctx, tokenID)` | `*OpenInterest` |
+| `TraderLeaderboard(ctx, limit)` | `[]TraderLeaderboardEntry` |
+| `LiveVolume(ctx, limit)` | `*LiveVolumeResponse` |
+
+### `internal/stream`
+
+WebSocket market stream client with reconnect and dedup.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/internal/stream"
+client := stream.NewMarketClient(stream.DefaultConfig("wss://ws-subscriptions-clob.polymarket.com/ws/"))
+client.OnBook = func(msg stream.BookMessage) { ... }
+client.OnPriceChange = func(msg stream.PriceChangeMessage) { ... }
+client.OnLastTrade = func(msg stream.LastTradeMessage) { ... }
+client.Connect(ctx)
+```
+
+## Cross-Cutting Packages
+
+### `internal/auth`
+
+EIP-712 typed data signing, L0/L1/L2 auth headers, builder attribution, deposit wallet CREATE2 derivation.
+
+**Key types:**
+
+| Type | Purpose |
+|------|---------|
+| `BuilderConfig` | Holds `BUILDER_API_KEY` / `SECRET` / `PASSPHRASE` |
+| `APIKey` | `{ Key, Secret, Passphrase }` from CLOB L2 derivation |
+| `PrivateKeySigner` | ECDSA signer for EIP-712 and raw hashes |
+
+**Key functions:**
+
+| Function | Purpose |
+|----------|---------|
+| `BuildL1Headers(pk, chainID, ts, nonce)` | POLY_ADDRESS + POLY_SIGNATURE for `/auth/api-key` |
+| `BuildL2Headers(key, ts, method, path, body)` | HMAC-SHA256 headers for CLOB authenticated endpoints |
+| `BuildBuilderHeaders(bc, ts, method, path, body)` | HMAC-SHA256 headers for relayer endpoints |
+| `NewPrivateKeySigner(pk, chainID)` | Creates signer from hex private key |
+| `MakerAddressForSignatureType(signer, chainID, sigType)` | Returns deposit wallet address for POLY_1271 |
+
+### `internal/wallet`
+
+Deposit wallet primitives — derive, deploy, status, batch signing.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/internal/wallet"
+addr := wallet.DeriveProxyWallet(eoa)   // Type 1
+addr := wallet.DeriveSafeWallet(eoa)    // Type 2
+info := wallet.GetReadyInfo(ctx, ...)   // Status check
+```
+
+### `internal/orders`
+
+OrderIntent, fluent builder, validation, lifecycle states.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/internal/orders"
+intent := orders.NewBuilder().
+    TokenID("123").Side(polytypes.SideBuy).
+    Price("0.55").Size("10").
+    TickSize("0.01").FeeRateBps(0).
+    Build()
+```
+
+**Key types:** `OrderIntent`, `Builder`, `ValidatePriceAgainstTick()`
+
+### `internal/transport`
+
+HTTP client with retry, rate limiting, circuit breaker, credential redaction.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/internal/transport"
+tc := transport.New(nil, transport.DefaultConfig("https://..."))
+// Get, GetWithHeaders, GetRaw, Post, PostWithHeaders, Delete, DeleteWithHeaders
+```
+
+**Key types:** `Client`, `Config`, `RateLimiter`, `CircuitBreaker`
+
+### `internal/risk`
+
+Per-trade caps, daily loss limits, circuit breaker.
+
+### `internal/execution`
+
+Paper executor (local-only) and live executor surface.
+
+### `internal/marketdiscovery`
+
+Enriches Gamma markets with CLOB data.
+
+```go
+service := marketdiscovery.New(gammaClient, clobClient)
+enriched, _ := service.EnrichedMarkets(ctx, 50)
+```
+
+## See Also
+
+- [Go SDK Reference](/reference/sdk) — public `pkg/` packages
+- [Architecture](/concepts/architecture) — dependency direction and package boundaries
+- [Smart Contracts](/concepts/contracts) — on-chain contract addresses and ABI

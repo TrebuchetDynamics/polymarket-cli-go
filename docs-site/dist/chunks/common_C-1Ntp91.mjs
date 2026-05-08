@@ -2,10 +2,10 @@ import { d as createAstro, c as createComponent, m as maybeRenderHead, u as unes
 import 'piccolore';
 import { p as printHref } from './index.9f91b58d_eBlW1P7D.mjs';
 import 'clsx';
-import { $ as $$Icon, a as $$LinkButton, b as $$Badge } from './Code_C-FHzrx6.mjs';
-import { s as starlightConfig, a as stripTrailingSlash, b as stripLeadingSlash, e as ensureHtmlExtension, c as stripHtmlExtension, d as ensureTrailingSlash, p as project, B as BuiltInDefaultLocale, g as getCollection, f as getCollectionPathFromRoot, h as pickLang, i as stripLeadingAndTrailingSlashes, j as ensureLeadingSlash, k as stripExtension, r as renderEntry, l as getEntry, u as useTranslations } from './translations_DwCaV7m9.mjs';
+import { $ as $$Icon, a as $$LinkButton, b as $$Badge } from './Code_BF6vLxYs.mjs';
+import { s as starlightConfig, a as stripTrailingSlash, b as stripLeadingSlash, e as ensureHtmlExtension, c as stripHtmlExtension, d as ensureTrailingSlash, p as project, B as BuiltInDefaultLocale, g as getCollection, f as getCollectionPathFromRoot, h as pickLang, i as stripLeadingAndTrailingSlashes, j as ensureLeadingSlash, k as stripExtension, r as renderEntry, l as getEntry, u as useTranslations } from './translations_D9G-wpT6.mjs';
 import * as z from 'zod';
-import { $ as $$Image } from './_astro_assets_unR_wDB4.mjs';
+import { $ as $$Image } from './_astro_assets_CrQkjGpm.mjs';
 import { klona } from 'klona/lite';
 
 const $$Astro$t = createAstro("https://trebuchetdynamics.github.io/polygolem");
@@ -992,7 +992,7 @@ const makeAPI = (data) => {
   };
 };
 
-const api = makeAPI([]);const getNewestCommitDate = api.getNewestCommitDate;
+const api = makeAPI([["src/content/docs/concepts/contracts.mdx",1778213935000],["src/content/docs/reference/cli.mdx",1778213935000],["src/content/docs/reference/clob-api.mdx",1778213935000],["src/content/docs/reference/coverage-matrix.mdx",1778213935000],["src/content/docs/reference/data-api.mdx",1778213935000],["src/content/docs/reference/stream-api.mdx",1778213935000],["src/content/docs/guides/deposit-wallet-lifecycle.mdx",1778213753000],["src/content/docs/guides/universal-client.mdx",1778213753000],["src/content/docs/reference/sdk.mdx",1778213753000],["src/content/docs/getting-started/quickstart.mdx",1778188185000],["src/content/docs/guides/bridge-funding.mdx",1778188185000],["src/content/docs/index.mdx",1778188185000],["src/content/docs/concepts/secrets-management.mdx",1778187496000],["src/content/docs/concepts/architecture.mdx",1778180727000],["src/content/docs/concepts/deposit-wallets.mdx",1778180727000],["src/content/docs/concepts/markets-events-tokens.mdx",1778180727000],["src/content/docs/concepts/safety.mdx",1778180727000],["src/content/docs/guides/go-bot-integration.mdx",1778180727000],["src/content/docs/guides/orderbook-data.mdx",1778180727000],["src/content/docs/guides/paper-trading.mdx",1778180727000],["src/content/docs/reference/gamma-api.mdx",1778180727000],["src/content/docs/concepts/polymarket-api.mdx",1778117815000],["src/content/docs/getting-started/installation.mdx",1778117815000],["src/content/docs/guides/market-discovery.mdx",1778117815000]]);const getNewestCommitDate = api.getNewestCommitDate;
 
 async function useRouteData(context) {
   const route = "slug" in context.params && getRouteBySlugParam(context.params.slug) || await get404Route(context.locals);

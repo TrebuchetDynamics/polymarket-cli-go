@@ -1,5 +1,5 @@
 async function getMod() {
-						return import('./sdk_Dg2C4j_K.mjs');
+						return import('./quickstart_D8bB725l.mjs');
 					}
 					const collectedLinks = [];
 					const collectedStyles = [];

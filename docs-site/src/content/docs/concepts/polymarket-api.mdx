@@ -40,13 +40,28 @@ Order book, pricing, market data, orders, trades, rewards.
 
 **Read-only analytics. No auth for most endpoints.**
 
-Positions, volume, leaderboards, open interest.
+Positions, volume, leaderboards, open interest, top holders.
 
 ## Bridge API (`bridge.polymarket.com`)
 
 **Read-only. No auth.**
 
 Supported assets, deposit addresses, quotes, transaction status.
+
+## Relayer API (`relayer-v2.polymarket.com`)
+
+**Authenticated. Requires Builder API Key or Relayer API Key.**
+
+Gas-sponsored transaction submission for wallet lifecycle operations.
+
+| Category | Endpoints |
+|----------|-----------|
+| Transactions | Submit (WALLET-CREATE, WALLET batch), poll, list |
+| Nonce | Get current WALLET nonce for EOA |
+| Deployment | Check if wallet deployed |
+| API Keys | List relayer API keys (Gamma auth required) |
+
+The relayer pays all gas for deploy, approve, and trade operations. Users only pay gas for the initial pUSD transfer to their deposit wallet.
 
 ## WebSocket (`ws-subscriptions-clob.polymarket.com`)
 

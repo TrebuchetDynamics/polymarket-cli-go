@@ -27,8 +27,8 @@ client := universal.NewClient(universal.Config{})
 | **Profiles** | `PublicProfile` |
 | **Series** | `Series`, `SeriesByID` |
 | **Token** | `MarketByToken` |
-| **Data API** | `CurrentPositions`, `ClosedPositions`, `Trades`, `Activity`, `TopHolders`, `TotalValue`, `MarketsTraded`, `OpenInterest`, `TraderLeaderboard`, `LiveVolume` |
-| **Orders** | `ListOrders`, `ListTrades`, `CancelOrder`, `CancelAll` |
+| **Data API** | `CurrentPositions`, `CurrentPositionsWithLimit`, `ClosedPositions`, `ClosedPositionsWithLimit`, `Trades`, `Activity`, `TopHolders`, `TotalValue`, `MarketsTraded`, `OpenInterest`, `TraderLeaderboard`, `LiveVolume` |
+| **Orders** | `ListOrders`, `Order`, `ListTrades`, `CancelOrder`, `CancelOrders`, `CancelMarket`, `CancelAll` |
 | **Stream** | `StreamClient`, `StreamClientWithConfig` |
 | **Health** | `HealthCheck` |
 

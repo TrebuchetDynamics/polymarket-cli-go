@@ -1,6 +1,6 @@
 ---
 title: CLOB API
-description: The Polymarket Central Limit Order Book — read endpoints (book, midpoint, trades) plus authenticated order submission with deposit wallet (POLY_1271).
+description: The Polymarket Central Limit Order Book V2 — read endpoints (book, midpoint, trades) plus authenticated order submission with deposit wallet (POLY_1271).
 ---
 
 import { Aside } from "@astrojs/starlight/components";
@@ -9,23 +9,26 @@ The CLOB API (`https://clob.polymarket.com`) is Polymarket's order book and
 trading layer. It has two tiers:
 
 - **L0 / read-only** — order book depth, midpoint, spread, tick size, fee rate,
-  last trade. No authentication required.
-- **L1 / L2 / authenticated** — create order, cancel, query, trades, rewards,
-  scoring, balances. Requires an EOA private key + deposit wallet.
+  last trade, price history. No authentication required.
+- **L1 / L2 / authenticated** — create order, cancel, list orders/trades, rewards,
+  scoring, balances. Requires EOA private key + L2 API credentials.
 
 Polygolem implements the full surface in `internal/clob`. Read-only access is
-also exposed via the public `pkg/bookreader` package.
+also exposed via `pkg/bookreader` and `pkg/universal`.
 
 ## Read-only commands
 
 ```bash
-polygolem orderbook get        --token-id 71321045679...
-polygolem orderbook price      --token-id 71321045679...
-polygolem orderbook midpoint   --token-id 71321045679...
-polygolem orderbook spread     --token-id 71321045679...
-polygolem orderbook tick-size  --token-id 71321045679...
-polygolem orderbook fee-rate   --token-id 71321045679...
-polygolem orderbook last-trade --token-id 71321045679...
+polygolem clob book        <token-id>
+polygolem clob price       <token-id>
+polygolem clob midpoint    <token-id>
+polygolem clob spread      <token-id>
+polygolem clob tick-size   <token-id>
+polygolem clob fee-rate    <token-id>
+polygolem clob last-trade  <token-id>
+polygolem clob prices-history --market <id> --interval 1h
+polygolem clob markets --cursor ""
+polygolem clob market      <condition-id>
 ```
 
 See [Orderbook Data](/guides/orderbook-data).
@@ -33,42 +36,59 @@ See [Orderbook Data](/guides/orderbook-data).
 ## Authenticated commands
 
 ```bash
-polygolem clob create-order --signature-type deposit ...
-polygolem clob market-order --signature-type deposit ...
-polygolem clob orders
-polygolem clob order <order-id>
-polygolem clob trades
-polygolem clob cancel <order-id>
-polygolem clob cancel-orders <order-id-1,order-id-2>
-polygolem clob cancel-market --market <condition-id>
+# Order management
+polygolem clob create-order   --token <id> --side buy --price 0.5 --size 10 --signature-type deposit
+polygolem clob market-order   --token <id> --side buy --amount 5 --signature-type deposit
+polygolem clob cancel         <order-id>
 polygolem clob cancel-all
+
+# Account queries
+polygolem clob orders
+polygolem clob trades
+polygolem clob balance        --asset-type collateral --signature-type deposit
 polygolem clob update-balance --asset-type collateral --signature-type deposit
-```
 
-Read-only CLOB market discovery is also available through:
-
-```bash
-polygolem clob markets --cursor ""
-polygolem clob market <condition-id>
-polygolem clob price-history <token-id> --interval 1m
+# API key management
+polygolem clob create-api-key
 ```
 
 Polygolem supports **deposit wallet (type 3 / POLY_1271)** exclusively.
-EOA, proxy, and Gnosis Safe are blocked by CLOB V2 for new API users
-and are not supported in this CLI.
+EOA, proxy, and Gnosis Safe are blocked by CLOB V2 for new API users.
 
 | Type | CLI alias | Status |
 |------|-----------|--------|
-| 0 | `eoa` | ❌ Blocked by CLOB V2 |
-| 1 | `proxy` | ❌ Blocked by CLOB V2 |
-| 2 | `safe` / `gnosis-safe` | ❌ Blocked by CLOB V2 |
-| 3 | `deposit` / `deposit-wallet` / `poly-1271` | ✅ Required |
+| 0 | `eoa` | Blocked by CLOB V2 |
+| 1 | `proxy` | Blocked by CLOB V2 |
+| 2 | `safe` / `gnosis-safe` | Blocked by CLOB V2 |
+| 3 | `deposit` / `deposit-wallet` / `poly-1271` | Required |
 
-Polygolem's CLOB commands default to `--signature-type deposit`.
+## Authentication Flow
 
-Cancel commands require L2 credentials because they mutate upstream order
-state, but they remove open exposure instead of creating it. Order placement
-requires the deposit wallet path.
+CLOB V2 uses a two-level auth system:
+
+1. **L1** — EOA signs an EIP-712 `ClobAuth` message, posted to `POST /auth/api-key`
+2. **L2** — CLOB returns `{ apiKey, secret, passphrase }`, used for HMAC-SHA256 request signing
+3. **POLY_1271** — orders signed by the EOA, validated by the deposit wallet via ERC-1271
+
+```bash
+# One command: create builder profile + L2 creds
+polygolem builder auto
+# Writes BUILDER_API_KEY, BUILDER_SECRET, BUILDER_PASSPHRASE to env file
+```
+
+The same HMAC credentials work for both CLOB L2 endpoints AND relayer v2 endpoints.
+
+## V2 Order Envelope
+
+Orders in CLOB V2 use the `Polymarket CTF Exchange` domain (version `"2"`) and include:
+- `salt`, `maker`, `signer`, `tokenId`, `makerAmount`, `takerAmount`
+- `side` (0=BUY, 1=SELL), `signatureType` (3=POLY_1271)
+- `timestamp`, `metadata`, `builder` (bytes32 for builder fee attribution)
+
+For POLY_1271, the order signature is wrapped in an ERC-7739 `TypedDataSign` envelope:
+`innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16BE(186)` = 636 hex chars.
+
+See [`docs/JSON-CONTRACT.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/JSON-CONTRACT.md) for the full wire format.
 
 <Aside type="caution">
 **Deposit wallet is mandatory.** Polymarket CLOB V2 requires deposit wallet
@@ -77,25 +97,11 @@ requires the deposit wallet path.
 onboarding flow.
 </Aside>
 
-## Order envelope
-
-The full order JSON contract — fields, signing payload, validation rules — is
-documented in
-[`docs/JSON-CONTRACT.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/JSON-CONTRACT.md).
-
-## Upstream
-
-- Polymarket public docs: [docs.polymarket.com](https://docs.polymarket.com/)
-- Base URL: `https://clob.polymarket.com`
-
-<Aside type="note">
-**Source of truth** for `polygolem clob` flag semantics is
-[`docs/COMMANDS.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/COMMANDS.md)
-(see the `clob` section). Run `polygolem clob --help` for live help.
-</Aside>
-
 ## Related
 
 - [Orderbook Data](/guides/orderbook-data) — read-only walkthrough
+- [Smart Contracts](/concepts/contracts) — factory addresses and ABI
 - [Deposit Wallets & Signature Types](/concepts/deposit-wallets) — required for new accounts
 - [Polymarket API Overview](/concepts/polymarket-api) — every API in one place
+- Upstream: [docs.polymarket.com](https://docs.polymarket.com/)
+- Base URL: `https://clob.polymarket.com`

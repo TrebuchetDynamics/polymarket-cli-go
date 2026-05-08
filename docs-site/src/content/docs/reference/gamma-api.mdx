@@ -19,9 +19,13 @@ The `polygolem discover` family is the CLI interface to Gamma:
 
 ```bash
 polygolem discover search --query "btc 5m" --limit 10
+polygolem discover markets --limit 20 --active
 polygolem discover market --id    0xbd31dc8a...
 polygolem discover market --slug  will-btc-be-above
 polygolem discover enrich --id    0xbd31dc8a...   # joins Gamma + CLOB
+polygolem discover tags --limit 100
+polygolem discover series --limit 20
+polygolem discover comments --entity-id 123 --entity-type market
 ```
 
 ## Endpoint categories

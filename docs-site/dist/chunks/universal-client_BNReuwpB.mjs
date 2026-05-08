@@ -1,5 +1,5 @@
 async function getMod() {
-						return import('./quickstart_BezIDIjn.mjs');
+						return import('./universal-client_BtAmFO54.mjs');
 					}
 					const collectedLinks = [];
 					const collectedStyles = [];

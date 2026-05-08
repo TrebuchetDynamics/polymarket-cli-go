@@ -35,8 +35,46 @@ the canonical doc wins.
 
 All four. No partial credit.
 
+## Deposit Wallet Safety (V2)
+
+Polymarket requires deposit wallet (POLY_1271 / signature type 3) for all
+trading. EOA, proxy, and Gnosis Safe are blocked by CLOB V2 for new accounts.
+
+### Signer vs Funder Separation
+
+The EOA remains the signing key. The deposit wallet is the funder (holds pUSD,
+is the CLOB `maker`). These must never be confused:
+
+- **EOA pUSD does NOT fund deposit-wallet orders.** CLOB reads the deposit wallet's balance.
+- **Approvals must come from the deposit wallet** via relayer WALLET batch, not from the EOA.
+- **Diagnostics must distinguish** `signer_eoa` from `funder/deposit_wallet` in logs.
+
+### Builder Credential Isolation
+
+Builder credentials authenticate with the relayer for WALLET-CREATE and WALLET batch. They are a separate auth system and must never be:
+- Reused as CLOB L2 credentials
+- Stored alongside CLOB API keys in the same config section
+- Added to order-signing headers (orders use `builderCode`, not builder HMAC)
+
+### Deposit-Wallet Balance Routing
+
+When `signature_type = 3` (deposit), the CLOB balance endpoint returns the
+**deposit wallet's pUSD balance**, not the EOA's. Live readiness must:
+1. Check CLOB balance with `signature_type = 3`
+2. Verify deposit wallet is deployed (relayer `/deployed`)
+3. Verify collateral allowances are non-zero
+4. Block before order submission if any check fails
+
+### Relayer Auth vs Trading Auth
+
+- **Relayer auth**: Builder HMAC credentials → wallet lifecycle operations
+- **Trading auth**: CLOB L1/L2 credentials → order placement and balance queries
+- These systems are independent. A failed relayer call must not be retried as a CLOB call.
+
 ## Related
 
 - [`docs/SAFETY.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/SAFETY.md) — canonical policy
+- [Deposit Wallets & Signature Types](/concepts/deposit-wallets) — required for new accounts
+- [Smart Contracts](/concepts/contracts) — factory addresses and permission model
 - [Paper Trading](/guides/paper-trading) — the local-only execution surface
 - [Architecture](/concepts/architecture) — where the gates live in code

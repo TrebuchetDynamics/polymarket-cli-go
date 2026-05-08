@@ -1,7 +1,7 @@
-import { B as BuiltInDefaultLocale, n as getCollectionPath, s as starlightConfig, u as useTranslations } from './translations_DwCaV7m9.mjs';
+import { B as BuiltInDefaultLocale, n as getCollectionPath, s as starlightConfig, u as useTranslations } from './translations_D9G-wpT6.mjs';
 import { ExpressiveCodeTheme, pluginFramesTexts } from 'rehype-expressive-code';
 import { addClassName } from 'rehype-expressive-code/hast';
-import { s as slugToLocale } from './common_BDCY_WHT.mjs';
+import { s as slugToLocale } from './common_C-1Ntp91.mjs';
 
 function localeToLang(config, locale) {
   const lang = locale ? config.locales?.[locale]?.lang : config.locales?.root?.lang;

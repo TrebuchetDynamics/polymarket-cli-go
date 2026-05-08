@@ -28,7 +28,7 @@ polygolem data live-volume --limit 20
 `pkg/universal` client exposes matching read methods for downstream Go code:
 
 ```go
-positions, err := client.CurrentPositions(ctx, user)
+positions, err := client.CurrentPositionsWithLimit(ctx, user, 20)
 leaders, err := client.TraderLeaderboard(ctx, 20)
 volume, err := client.LiveVolume(ctx, 20)
 ```
