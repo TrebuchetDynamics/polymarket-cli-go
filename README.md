@@ -115,6 +115,7 @@ polygolem paper reset
 | `pkg/data` | Read-only Data API analytics client using public DTOs |
 | `pkg/types` | Shared public DTOs for SDK packages |
 | `pkg/orderbook` | Read-only CLOB order book reader |
+| `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook` |
 | `pkg/marketresolver` | Market + token ID resolution |
 | `pkg/bridge` | Bridge API — supported assets, deposit addresses, quotes |
 | `pkg/relayer` | Builder relayer primitives for wallet create and wallet batch flows |

@@ -59,6 +59,16 @@ type Level struct {
 func NewReader(clobBaseURL string) Reader
 ```
 
+## `pkg/bookreader` — Deprecated Order Book Alias
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
+```
+
+`pkg/bookreader` remains for source compatibility and aliases
+`pkg/orderbook` types plus `NewReader`. New consumers should import
+`pkg/orderbook`.
+
 ## `pkg/gamma` — Read-Only Market Metadata
 
 ```go

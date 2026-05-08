@@ -1,6 +1,6 @@
 # Architecture and Taxonomy Improvement Plan
 
-Status: proposed
+Status: active
 
 Scope: package names, public SDK contracts, docs language, and command taxonomy.
 This plan does not change live trading behavior or wallet safety gates.
@@ -17,7 +17,8 @@ The main gaps are not missing nouns. The gaps are inconsistent boundaries:
 
 - Public SDK packages expose some `internal/*` protocol types.
 - `pkg/universal` is doing too much without a crisp contract.
-- `pkg/bookreader` should become `pkg/orderbook`, or be deprecated in favor of it.
+- CLOB read-only order-book naming is now canonicalized on `pkg/orderbook`;
+  `pkg/bookreader` remains only as a deprecated compatibility wrapper.
 - The word "builder" is overloaded across CLOB API credentials, builder relayer credentials, and order attribution.
 - Docs describe the current surface well, but there is no canonical glossary or ADR that protects names from drifting.
 
@@ -52,7 +53,7 @@ Public SDK packages should describe stable consumer contracts:
 | `pkg/data` | Stable Data API analytics client |
 | `pkg/stream` | Stable WebSocket clients |
 | `pkg/bridge` | Stable Bridge client |
-| `pkg/orderbook` | Stable order-book reader; replace or deprecate `pkg/bookreader` |
+| `pkg/orderbook` | Stable order-book reader; `pkg/bookreader` is a deprecated compatibility wrapper |
 | `pkg/types` | Exported shared protocol DTOs used by public packages |
 | `pkg/client` | Optional facade across stable SDK packages |
 
@@ -137,6 +138,12 @@ Verification:
 
 Introduce `pkg/orderbook` and keep `pkg/bookreader` as a deprecated wrapper for
 one minor release if compatibility matters.
+
+Progress:
+
+- 2026-05-08: `pkg/orderbook` became the documented read-only order-book
+  reader. `pkg/bookreader` now aliases `pkg/orderbook` types and constructor
+  with Go deprecation comments so existing consumers continue compiling.
 
 Verification:
 

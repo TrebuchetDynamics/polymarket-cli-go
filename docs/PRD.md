@@ -148,7 +148,7 @@ Observed paper-mode issues:
   `orderbook source=synthetic`, and blocks decisions with
   `BLOCKED: live orderbook unavailable`.
 - This was the first Phase 0 migration bug. Paper mode must call a
-  Polygolem-backed `BookReader` or Polygolem test double, preserve the data
+  Polygolem-backed `orderbook.Reader` or Polygolem test double, preserve the data
   source classification, and never construct a direct Polymarket CLOB client.
 - Follow-up issue observed after routing through Polygolem: paper mode now
   reports `clob_error=up=polygolem book`, but Polygolem receives
@@ -162,10 +162,10 @@ Observed paper-mode issues:
   strategy code depend on stale/default token IDs.
 - Follow-up issue observed on 2026-05-07: paper mode resolved the active
   market through Polygolem, but blocked with `spread_too_wide` because the
-  Polygolem `BookReader` returned raw CLOB levels in upstream order. CLOB book
+  Polygolem `orderbook.Reader` returned raw CLOB levels in upstream order. CLOB book
   snapshots may arrive with bids low-to-high and asks high-to-low, so Polygolem
   must normalize public book levels before exposing them to `go-bot`.
-- Resolved behavior required: `BookReader` returns bids best-first
+- Resolved behavior required: `orderbook.Reader` returns bids best-first
   high-to-low and asks best-first low-to-high, so bot risk checks see the true
   best spread instead of a synthetic `0.01`/`0.99` wide spread.
 
@@ -314,7 +314,7 @@ Acceptance criteria:
 > **Status:** Fulfilled. Implemented in `internal/clob` and re-exposed via
 > `pkg/orderbook`; surfaced through `polygolem clob book|market|tick-size|
 > price-history` and the `polygolem orderbook` group. Bid/ask normalization
-> (high-to-low / low-to-high) ships behind `BookReader`.
+> (high-to-low / low-to-high) ships behind `orderbook.Reader`.
 
 The SDK must provide typed public CLOB data clients.
 
@@ -641,8 +641,9 @@ Acceptance criteria:
 ### R12. Public SDK Boundary ⚠️
 
 > **Status:** Partial / drifted. The "keep everything in `internal/`"
-> stance shifted: `pkg/{bookreader,bridge,gamma,marketresolver,pagination}`
-> are now exposed as a small stable surface. The remaining requirements
+> stance shifted: `pkg/{bookreader,bridge,data,gamma,marketresolver,orderbook,pagination,relayer,types,universal}`
+> are now exposed as a small stable surface. `pkg/bookreader` is deprecated in
+> favor of `pkg/orderbook`. The remaining requirements
 > (thin Cobra handlers, application services above protocol clients) hold;
 > see `docs/ARCHITECTURE.md` for the current package map.
 
@@ -685,7 +686,7 @@ Required Polygolem-backed interfaces for `go-bot`:
   CLOB-enabled, sports, tagged, and slug-based markets.
 - `MarketResolver`: resolve by Gamma market ID, event ID, slug, condition ID,
   question ID, or CLOB token ID, and return all canonical identifiers.
-- `BookReader`: fetch single and batch order books, best bid/ask, midpoint,
+- `OrderBookReader`: fetch single and batch order books, best bid/ask, midpoint,
   spread, last trade price, tick size, fee rate, and negative-risk metadata.
 - `PriceHistoryReader`: fetch condition-ID or token-ID price history with
   stable timestamps and decimal-safe prices.
