@@ -3,7 +3,10 @@ title: Protocol Types (polytypes)
 description: The Polymarket V2 data types — Market, Event, OrderBook, EnrichedMarket, PriceHistory, and all query parameter structs.
 ---
 
-The `internal/polytypes` package defines the protocol-level types shared across all polygolem clients. These types form the data contract for every API response and query parameter.
+The `internal/polytypes` package defines the protocol-level types shared across
+polygolem clients. These types are part of the current method signatures in
+`pkg/gamma` and `pkg/universal`; promoting or re-exporting them under a public
+package path is a known SDK cleanup gap.
 
 ## Markets
 
@@ -74,7 +77,7 @@ type OrderBookLevel struct {
 type signedOrderPayload struct {
     Salt          uint64 `json:"salt"`
     Maker         string `json:"maker"`          // deposit wallet address
-    Signer        string `json:"signer"`          // EOA address
+    Signer        string `json:"signer"`          // deposit wallet for POLY_1271
     TokenID       string `json:"tokenId"`
     MakerAmount   string `json:"makerAmount"`
     TakerAmount   string `json:"takerAmount"`
@@ -84,9 +87,14 @@ type signedOrderPayload struct {
     Timestamp     string `json:"timestamp"`
     Metadata      string `json:"metadata"`        // V2: bytes32
     Builder       string `json:"builder"`          // V2: bytes32 builder code
-    Signature     string `json:"signature"`        // POLY_1271: 636-char wrapped
+    Signature     string `json:"signature"`        // POLY_1271: 0x + 634 hex chars
 }
 ```
+
+This payload is the posted order object. The V2 signed struct omits
+`expiration`; it signs `salt`, `maker`, `signer`, `tokenId`, `makerAmount`,
+`takerAmount`, `side`, `signatureType`, `timestamp`, `metadata`, and `builder`.
+Polygolem currently emits `builder = bytes32(0)`.
 
 ## CLOB — Market Data
 

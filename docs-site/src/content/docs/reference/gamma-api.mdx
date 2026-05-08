@@ -13,7 +13,8 @@ Polygolem wraps Gamma in two places:
 
 - **`internal/gamma`** — full typed HTTP client, used by every CLI command.
 - **`pkg/gamma`** — the public read-only surface that downstream Go consumers
-  can import. Strict subset of `internal/gamma` with stable types.
+  can import. Current signatures still expose shared protocol types from
+  `internal/polytypes`; see [Protocol Types](/reference/polytypes).
 
 The `polygolem discover` family is the CLI interface to Gamma:
 

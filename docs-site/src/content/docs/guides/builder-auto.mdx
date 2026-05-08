@@ -1,0 +1,116 @@
+---
+title: Builder Auto — Zero-Browser Onboarding
+description: Onboard to Polymarket without a browser — generate a fresh key, create builder credentials programmatically, deploy a deposit wallet, and start trading.
+---
+
+Polygolem's `builder auto` command eliminates the last manual step in Polymarket onboarding. A fresh EOA key, signed once locally, creates a builder profile, builder code, and HMAC credentials — no browser, no polymarket.com visit, no webview.
+
+## The One-Command Pipeline
+
+```bash
+# Step 1: Generate a fresh EOA
+openssl rand -hex 32 > key.txt
+
+# Step 2: Create builder profile + get HMAC credentials (programmatic, zero browser)
+POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
+  polygolem builder auto
+
+# Step 3: Deploy deposit wallet + approve + fund (all gas-sponsored)
+POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
+POLYMARKET_BUILDER_API_KEY="..." \
+POLYMARKET_BUILDER_SECRET="..." \
+POLYMARKET_BUILDER_PASSPHRASE="..." \
+  polygolem deposit-wallet onboard --fund-amount 10 --json
+
+# Step 4: Sync balance and trade
+POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
+  polygolem clob update-balance --asset-type collateral --signature-type deposit
+
+POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
+  polygolem clob create-order --token <id> --side buy --price 0.5 --size 10 --signature-type deposit
+```
+
+## How It Works
+
+`builder auto` signs a **ClobAuth EIP-712** typed data message locally and posts it to `clob.polymarket.com/auth/api-key`:
+
+```
+POST https://clob.polymarket.com/auth/api-key
+
+Headers:
+  POLY_ADDRESS    = EOA address
+  POLY_TIMESTAMP  = Unix seconds
+  POLY_NONCE      = "0"
+  POLY_SIGNATURE  = ECDSA over EIP-712 ClobAuth hash
+
+EIP-712 typed data:
+  domain:  { name: "ClobAuthDomain", version: "1", chainId: 137 }
+  type:    ClobAuth(address address, string timestamp, uint256 nonce, string message)
+  message: "This message attests that I control the given wallet"
+```
+
+The Polymarket backend **lazy-creates** on first contact:
+1. User account
+2. Builder profile (visible at `polymarket.com/settings?tab=builder`)
+3. `bytes32` builder code (for V2 order `builder` field attributes)
+4. HMAC triple: `{ apiKey, secret, passphrase }`
+
+## Idempotent
+
+Re-running `builder auto` for the same EOA returns the same credentials. The endpoint is idempotent — one EOA, one set of keys. Use `--force` to re-fetch and overwrite the local env file.
+
+## Validation
+
+The command validates by HMAC-signing a `GET /nonce` against `relayer-v2.polymarket.com` using the freshly-issued credentials. A successful response confirms the builder profile exists and the keys are valid.
+
+## The Same Credentials Work Everywhere
+
+The HMAC triple returned by `builder auto` authenticates against:
+- **CLOB v2 L2 endpoints** — order placement, cancellation, balance queries
+- **Relayer v2** — WALLET-CREATE, WALLET batch, nonce, deployment checks
+
+There is no separate "builder" vs "CLOB" credential type. One triple, both services.
+
+## Cost to the User
+
+| Item | Cost |
+|------|------|
+| Generate EOA | Free |
+| Builder profile + creds | Free |
+| Wallet deploy | Free (gas sponsored) |
+| Approvals (6 contracts) | Free (gas sponsored) |
+| All trading | Free (gas sponsored) |
+| **Fund wallet (one tx)** | **~$0.01 POL** |
+
+**Total: ~$0.01 POL + whatever pUSD you want to trade.** Everything else is free and automated.
+
+## With Reown/WalletConnect (Flutter/Arenaton)
+
+The same flow works through Reown in Flutter:
+
+```dart
+// Polydart SDK
+final client = await Polydart.live(
+  reownProvider: walletConnectProvider,
+  eoaAddress: '0x...',
+);
+
+// Builder profile created via ClobAuth
+await client.builder.auto();
+
+// Deploy wallet via server proxy → relayer
+await client.wallet.deploy();
+
+// Fund (EOA signs via Reown/MetaMask)
+await client.wallet.fund(amount: 10.0);
+
+// Trade (POLY_1271 signed via Reown)
+await client.orders.buy(tokenId: '...').atPrice(0.5).forSize(10).submit();
+```
+
+## See Also
+
+- [Deposit Wallet Lifecycle](/guides/deposit-wallet-lifecycle) — full deploy → approve → fund → trade walkthrough
+- [CLOB API](/reference/clob-api) — order creation and signing
+- [Secrets Management](/concepts/secrets-management) — credential handling
+- [Smart Contracts](/concepts/contracts) — factory addresses and relayer endpoints

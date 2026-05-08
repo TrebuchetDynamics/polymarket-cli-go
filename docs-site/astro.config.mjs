@@ -25,6 +25,7 @@ export default defineConfig({
         {
           label: "Guides",
           items: [
+            { label: "Builder Auto (Zero-Browser)", link: "/guides/builder-auto" },
             { label: "Market Discovery", link: "/guides/market-discovery" },
             { label: "Universal Client", link: "/guides/universal-client" },
             { label: "Deposit Wallet Lifecycle", link: "/guides/deposit-wallet-lifecycle" },
@@ -54,7 +55,7 @@ export default defineConfig({
             { label: "Protocol Types", link: "/reference/polytypes" },
             { label: "Internal Packages", link: "/reference/internal-packages" },
             { label: "Gamma API", link: "/reference/gamma-api" },
-            { label: "CLOB API", link: "/reference/clob-api" },
+            { label: "CLOB V2 API", link: "/reference/clob-api" },
             { label: "Data API", link: "/reference/data-api" },
             { label: "Stream API", link: "/reference/stream-api" },
             { label: "Coverage Matrix", link: "/reference/coverage-matrix" },

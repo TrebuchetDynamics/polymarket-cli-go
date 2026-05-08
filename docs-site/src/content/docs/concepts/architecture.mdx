@@ -11,10 +11,11 @@ Cobra-based CLI on top.
 | Layer | Packages | Role |
 |-------|----------|------|
 | **`cmd/polygolem`** | 1 | Binary entry point. Wires Cobra and exits. |
-| **`pkg/`** | 6 | Stable public Go SDK. Semver-stable contracts. |
+| **`pkg/`** | 7 | Public Go SDK contracts. Some type paths still need cleanup. |
 | **`internal/`** | 21 | Implementation. Not part of public API. |
 
-Dependencies flow **inward only**: `cmd → internal → pkg`.
+The CLI and public SDK both depend on the internal protocol implementation.
+The `internal/` packages do not depend on `cmd/`.
 
 ## Public SDK (`pkg/`)
 
@@ -25,6 +26,7 @@ Dependencies flow **inward only**: `cmd → internal → pkg`.
 | `pkg/bookreader` | Read-only CLOB order-book reader |
 | `pkg/marketresolver` | Market + token ID resolution |
 | `pkg/bridge` | Bridge API — supported assets, deposit addresses, quotes |
+| `pkg/relayer` | Builder relayer primitives — wallet create, wallet batch, nonce, polling |
 | `pkg/pagination` | Cursor and offset pagination with concurrent batching |
 
 ## Internal Packages (`internal/`)
@@ -79,8 +81,9 @@ internal/{gamma, clob, dataapi, stream, relayer, rpc}   ← protocol clients
 internal/{auth, transport, polytypes}                   ← cross-cutting
         |
 internal/{wallet, orders, execution, risk, paper, marketdiscovery}
+        ^
         |
-pkg/{universal, gamma, bookreader, marketresolver, bridge, pagination}
+pkg/{universal, gamma, bookreader, marketresolver, bridge, relayer, pagination}
 ```
 
 ## Mode System
