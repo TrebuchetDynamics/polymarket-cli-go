@@ -616,7 +616,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	cancelMarketCmd.Flags().StringVar(&cancelMarketAsset, "asset", "", "asset/token ID")
 	cmd.AddCommand(cancelMarketCmd)
 
-	var createOrderOutput, createOrderToken, createOrderSide, createOrderPrice, createOrderSize, createOrderType, createOrderSignatureType string
+	var createOrderOutput, createOrderToken, createOrderSide, createOrderPrice, createOrderSize, createOrderType, createOrderSignatureType, createOrderExpiration string
 	createOrderCmd := &cobra.Command{Use: "create-order", Short: "Create a signed CLOB limit order", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := checkOutput(createOrderOutput); err != nil {
@@ -637,6 +637,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 				Size:          createOrderSize,
 				OrderType:     createOrderType,
 				SignatureType: sig,
+				Expiration:    createOrderExpiration,
 			})
 			if err != nil {
 				return err
@@ -651,6 +652,7 @@ func clobCmd(jsonOut bool) *cobra.Command {
 	createOrderCmd.Flags().StringVar(&createOrderSize, "size", "", "order size")
 	createOrderCmd.Flags().StringVar(&createOrderType, "order-type", "GTC", "order type")
 	createOrderCmd.Flags().StringVar(&createOrderSignatureType, "signature-type", "deposit", "signature type: eoa, proxy, safe, deposit")
+	createOrderCmd.Flags().StringVar(&createOrderExpiration, "expiration", "0", "unix timestamp for GTD orders (0 = no expiration)")
 	cmd.AddCommand(createOrderCmd)
 
 	var marketOrderOutput, marketOrderToken, marketOrderSide, marketOrderAmount, marketOrderPrice, marketOrderType, marketOrderSignatureType string
@@ -786,7 +788,7 @@ func dataCmd(jsonOut bool) *cobra.Command {
 			if err := requireUser(); err != nil {
 				return err
 			}
-			rows, err := w.data.CurrentPositionsWithLimit(cmd.Context(), user, limit)
+			rows, err := w.data.CurrentPositions(cmd.Context(), user)
 			if err != nil {
 				return err
 			}
@@ -801,7 +803,7 @@ func dataCmd(jsonOut bool) *cobra.Command {
 			if err := requireUser(); err != nil {
 				return err
 			}
-			rows, err := w.data.ClosedPositionsWithLimit(cmd.Context(), user, limit)
+			rows, err := w.data.ClosedPositions(cmd.Context(), user)
 			if err != nil {
 				return err
 			}
