@@ -1,0 +1,14 @@
+{
+  "name": "polygolem-playwright-capture",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "One-shot HTTP traffic capture for Polymarket signup / API-key creation. Investigation tool, not part of the polygolem runtime.",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "install:browser": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
