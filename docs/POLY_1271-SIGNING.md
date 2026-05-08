@@ -2,7 +2,17 @@
 
 > **Status:** Implementation contract for polygolem's CLOB V2 deposit-wallet path.
 > **Last updated:** 2026-05-08
-> **Companion:** [DEPOSIT-WALLET-DEPLOYMENT.md](./DEPOSIT-WALLET-DEPLOYMENT.md), [CONTRACTS.md](./CONTRACTS.md)
+> **Companion:** [ONBOARDING.md](./ONBOARDING.md), [CONTRACTS.md](./CONTRACTS.md)
+>
+> **CRITICAL CORRECTION (2026-05-08):** Playwright capture of live browser signup proved that
+> L1 auth (`/auth/api-key`) uses **standard EOA ECDSA signature** (65 bytes) with `POLY_ADDRESS`
+> set to the **deposit wallet address**. The signature is **NOT** ERC-7739 wrapped for L1 auth.
+> ERC-7739 wrapping is **only** used for order signing (Step 3 below). Previous docs claiming
+> L1 auth used ERC-7739 were incorrect.
+>
+> **Evidence:** Fresh EOA `0x4c72...f84` → proxy profile created → deposit wallet deployed
+> (`0x8968...`) → `POST /auth/api-key` with `poly_address: 0x8968...` and 65-byte ECDSA sig
+> → `200 OK` with API key bound to deposit wallet. See `BLOCKERS.md` § "CORRECTION 2026-05-08".
 
 ---
 

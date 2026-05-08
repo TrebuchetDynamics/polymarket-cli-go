@@ -15,50 +15,29 @@ full CLI for the deposit wallet lifecycle.
 deposit wallet for new API users. Polygolem is built exclusively for type 3
 (POLY_1271) — the only mode that works on current production.
 
-## Headless V2 Onboarding
+## Quick Start
 
-`POLYMARKET_PRIVATE_KEY` is the root input. Polygolem can mint V2 relayer
-credentials via SIWE, derive and deploy the deposit wallet, approve and fund it,
-and attach a V2 builder code to orders.
+**Existing Polymarket users:** Fully headless — see [docs/ONBOARDING.md](docs/ONBOARDING.md).
+
+**New users:** One-time browser login required — see [docs/BROWSER-SETUP.md](docs/BROWSER-SETUP.md).
 
 ```bash
 export POLYMARKET_PRIVATE_KEY="0x..."
 
-# 1. CLOB L2 credentials for reads and same-address order auth.
-#    NOTE: For NEW deposit wallet users, this requires one browser login
-#    to create the deposit-wallet-owned API key. After that, fully headless.
-polygolem builder auto
-
-# 2. V2 relayer credentials for deposit-wallet deploy/approve.
-polygolem auth headless-onboard
-
-# 3. Optional builder fee key for V2 order attribution.
-polygolem clob create-builder-fee-key
-export POLYMARKET_BUILDER_CODE="0x..."
-
-# 4. Full deposit wallet onboarding.
-polygolem deposit-wallet onboard --fund-amount 0.71 --json
-
-# 5. Sync and trade.
+# Full onboarding (existing users: fully headless; new users: browser step required)
+polygolem auth headless-onboard                          # V2 relayer key
+polygolem deposit-wallet onboard --fund-amount 0.71      # deploy + approve + fund
 polygolem clob update-balance --asset-type collateral
-polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --builder-code "$POLYMARKET_BUILDER_CODE"
+polygolem clob create-order --token <ID> --side buy --price 0.5 --size 10
 ```
 
 **Total cost: ~$0.01 POL for one funding transfer. Everything else is sponsored.**
 
-> **New user limitation:** Pure headless onboarding for users without an existing
-> Polymarket account is currently impossible due to a server-side gate. Polymarket's
-> L1 auth endpoint does not support ERC-1271 validation for deposit wallets. New
-> users must complete one browser login to create their deposit-wallet-owned CLOB
-> API key. After that, all operations are fully headless. See
-> [`opensource-projects/INTEGRATION_PLAN.md`](opensource-projects/INTEGRATION_PLAN.md)
-> for the full technical analysis.
-
-Under the hood, `builder auto` signs a local EIP-712 ClobAuth message and posts
-it to the CLOB API. `auth headless-onboard` signs SIWE, mints
-`RELAYER_API_KEY` + `RELAYER_API_KEY_ADDRESS`, and persists them to a local env
-file. CLOB builder fee keys are separate from relayer credentials; use their
-`key` value as `POLYMARKET_BUILDER_CODE`.
+> **New user limitation:** Pure headless onboarding is impossible for new deposit
+> wallet users. Polymarket's L1 auth endpoint lacks ERC-1271 support. After one
+> browser login, all trading is fully headless. See
+> [docs/ONBOARDING.md](docs/ONBOARDING.md) for the full flow and
+> [docs/BROWSER-SETUP.md](docs/BROWSER-SETUP.md) for the browser signup guide.
 
 ## Install
 
@@ -194,15 +173,14 @@ go test ./...  # 27/28 packages pass (rpc intentionally untested)
 
 ## Docs
 
-| Document | What It Covers |
-|----------|---------------|
-| [Builder Auto](docs/BUILDER-AUTO.md) | Zero-browser onboarding — full sequence diagram, costs, Reown flow |
-| [Deposit Wallet Deployment](docs/DEPOSIT-WALLET-DEPLOYMENT.md) | Full pipeline — derive, deploy, approve, fund, requirements checklist |
-| [Contracts](docs/CONTRACTS.md) | All smart contract addresses, factory ABI, CREATE2, permission model |
-| [Deposit Wallet Migration](docs/DEPOSIT-WALLET-MIGRATION.md) | Bot killer survival guide, V1→V2 migration |
-| [Builder Credential Issuance](docs/BUILDER-CREDENTIAL-ISSUANCE.md) | Superseded by BUILDER-AUTO.md — builder auto is programmatic |
-| [Polydart PRD](PRD_POLYDART.md) | Companion Dart SDK for Flutter / Arenaton |
-| [Safety](docs/SAFETY.md) | Read-only default, deposit wallet safety rules |
-| [Commands](docs/COMMANDS.md) | Full command reference |
-| [Architecture](docs/ARCHITECTURE.md) | Package boundaries and dependency direction |
-| [Astro Docs](https://trebuchetdynamics.github.io/polygolem) | Full documentation site with guides, concepts, and API reference |
+| Document | What It Covers | Status |
+|----------|---------------|--------|
+| [Onboarding](docs/ONBOARDING.md) | **Single source of truth** — complete deposit wallet flow, headless vs. browser, troubleshooting | **Canonical** |
+| [Browser Setup](docs/BROWSER-SETUP.md) | One-time browser login for new users. Security guidance. Hardware wallet / WalletConnect support. | **Canonical** |
+| [Commands](docs/COMMANDS.md) | Auto-generated CLI reference — every command and flag. | **Auto-generated** |
+| [Safety](docs/SAFETY.md) | Read-only default, deposit wallet safety, risk breaker. | **Canonical** |
+| [Contracts](docs/CONTRACTS.md) | Smart contract addresses, factory ABI, CREATE2 derivation. | **Canonical** |
+| [Architecture](docs/ARCHITECTURE.md) | Package boundaries and dependency direction. | **Canonical** |
+| [Deposit Wallet Migration](docs/DEPOSIT-WALLET-MIGRATION.md) | Bot killer survival guide, V1→V2 migration. | **Canonical** |
+| [Polydart PRD](PRD_POLYDART.md) | Companion Dart SDK for Flutter / Arenaton. | **Canonical** |
+| [Astro Docs](https://trebuchetdynamics.github.io/polygolem) | Full documentation site with guides, concepts, and API reference. | **Canonical** |

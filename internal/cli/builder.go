@@ -84,7 +84,7 @@ They are NOT V2 Relayer API Keys: the relayer's POST /submit (used by
 deposit-wallet deploy and approve flows) requires a separate key minted
 by 'polygolem auth headless-onboard' or the settings-page Create button.
 A profiled EOA without that relayer key will see relayer-write 401s even
-with valid CLOB L2 creds. See docs/BUILDER-AUTO.md.
+with valid CLOB L2 creds. See docs/ONBOARDING.md.
 
 The endpoint is idempotent per EOA. Use 'builder onboard' for the
 manual browser-capture flow.`,

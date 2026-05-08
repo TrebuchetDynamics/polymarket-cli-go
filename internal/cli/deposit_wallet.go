@@ -28,6 +28,7 @@ func depositWalletCmd(jsonOut bool) *cobra.Command {
 	cmd.AddCommand(depositWalletBatchCmd(jsonOut))
 	cmd.AddCommand(depositWalletApproveCmd(jsonOut))
 	cmd.AddCommand(depositWalletFundCmd(jsonOut))
+	cmd.AddCommand(depositWalletSwapCmd(jsonOut))
 	cmd.AddCommand(depositWalletOnboardCmd(jsonOut))
 	return cmd
 }
@@ -459,6 +460,109 @@ Requires POL for gas on Polygon.`,
 	cmd.Flags().StringVar(&amountPUSD, "amount", "", "pUSD amount to transfer (e.g. 0.71)")
 	cmd.Flags().StringVar(&rpcURL, "rpc-url", "", "Polygon RPC URL (default: public node)")
 	return cmd
+}
+
+// depositWalletSwapCmd swaps native POL on the EOA into pUSD via Uniswap V3
+// (multihop WMATIC → USDC.e → pUSD, both legs at 0.05% fee tier). The pUSD
+// lands on the EOA; chain `polygolem deposit-wallet fund --amount X` after
+// to move it into the deposit wallet.
+func depositWalletSwapCmd(jsonOut bool) *cobra.Command {
+	var amountPUSDOut string
+	var maxPOLIn string
+	var rpcURL string
+	cmd := &cobra.Command{
+		Use:   "swap-pol-pusd",
+		Short: "Swap native POL into an exact amount of pUSD via Uniswap V3",
+		Long: `Swap native POL on the EOA into exactly --out-pusd of pUSD via Uniswap V3
+on Polygon (multihop WMATIC → USDC.e → pUSD, 0.05% fee per leg). Excess POL
+is refunded by the router via multicall(refundETH).
+
+The pUSD lands on the EOA. Use 'polygolem deposit-wallet fund --amount X'
+afterwards to move pUSD into the deposit wallet.
+
+--out-pusd is the exact pUSD amount to receive (e.g. "0.72" for 0.72 pUSD).
+--max-pol-in caps the POL the router may consume (e.g. "10" for 10 POL).`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			key, err := requirePrivateKey()
+			if err != nil {
+				return err
+			}
+			signer, err := auth.NewPrivateKeySigner(key, 137)
+			if err != nil {
+				return fmt.Errorf("init signer: %w", err)
+			}
+			if strings.TrimSpace(amountPUSDOut) == "" {
+				return fmt.Errorf("--out-pusd is required (pUSD to receive, e.g. 0.72)")
+			}
+			if strings.TrimSpace(maxPOLIn) == "" {
+				return fmt.Errorf("--max-pol-in is required (max POL to spend, e.g. 10)")
+			}
+			outPUSD, err := parsePUSDAmount(amountPUSDOut)
+			if err != nil {
+				return fmt.Errorf("invalid --out-pusd: %w", err)
+			}
+			if outPUSD.Sign() <= 0 {
+				return fmt.Errorf("--out-pusd must be positive")
+			}
+			maxPOLWei, err := parsePOLAmount(maxPOLIn)
+			if err != nil {
+				return fmt.Errorf("invalid --max-pol-in: %w", err)
+			}
+			if maxPOLWei.Sign() <= 0 {
+				return fmt.Errorf("--max-pol-in must be positive")
+			}
+			txHash, err := rpc.SwapPOLForExactPUSD(cmd.Context(), key, outPUSD, maxPOLWei, rpcURL)
+			if err != nil {
+				return fmt.Errorf("swap POL→pUSD: %w", err)
+			}
+			return printJSON(cmd, map[string]string{
+				"txHash":   txHash,
+				"recipient": signer.Address(),
+				"amountPUSDOut": amountPUSDOut,
+				"maxPOLIn":      maxPOLIn,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&amountPUSDOut, "out-pusd", "", "exact pUSD amount to receive (e.g. 0.72)")
+	cmd.Flags().StringVar(&maxPOLIn, "max-pol-in", "", "max POL the router may consume (e.g. 10)")
+	cmd.Flags().StringVar(&rpcURL, "rpc-url", "", "Polygon RPC URL (default: public node)")
+	return cmd
+}
+
+// parsePOLAmount converts a human POL string (e.g. "10", "0.5") to wei
+// (18-decimal *big.Int).
+func parsePOLAmount(s string) (*big.Int, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, fmt.Errorf("empty amount")
+	}
+	parts := strings.Split(s, ".")
+	if len(parts) > 2 {
+		return nil, fmt.Errorf("invalid POL amount %q", s)
+	}
+	whole, ok := new(big.Int).SetString(parts[0], 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid integer part: %s", parts[0])
+	}
+	weiPerPOL := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	result := new(big.Int).Mul(whole, weiPerPOL)
+	if len(parts) == 2 {
+		frac := parts[1]
+		if len(frac) > 18 {
+			frac = frac[:18]
+		}
+		// pad to 18 digits
+		for len(frac) < 18 {
+			frac += "0"
+		}
+		fracInt, ok := new(big.Int).SetString(frac, 10)
+		if !ok {
+			return nil, fmt.Errorf("invalid fractional part: %s", parts[1])
+		}
+		result.Add(result, fracInt)
+	}
+	return result, nil
 }
 
 func depositWalletOnboardCmd(jsonOut bool) *cobra.Command {

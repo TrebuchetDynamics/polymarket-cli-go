@@ -14,11 +14,9 @@ the May 2026 deposit-wallet migration and the documentation overhaul.
 
 ### Added
 
-- **Builder auto — zero-browser onboarding.** `polygolem builder auto` mints
-  CLOB L2 HMAC credentials programmatically via local ClobAuth EIP-712
-  signing. No browser, no polymarket.com visit, no manual copy-paste.
-  Single env var (`POLYMARKET_PRIVATE_KEY`) required — everything else
-  auto-generated. See `docs/BUILDER-AUTO.md`.
+- **Builder auto — programmatic CLOB L2 credentials.** `polygolem builder auto`
+  mints CLOB L2 HMAC credentials via local ClobAuth EIP-712 signing. Single
+  env var (`POLYMARKET_PRIVATE_KEY`) required. See `docs/ONBOARDING.md`.
 - **Universal market data client (`pkg/universal`).** Single client wrapping
   Gamma + CLOB + Data API + Discovery + Stream (70+ methods). Query all
   Polymarket public data through one typed surface.
@@ -38,7 +36,7 @@ the May 2026 deposit-wallet migration and the documentation overhaul.
 - **Polytypes reference.** V2 data types (`Market`, `Event`, `OrderBook`,
   `signedOrderPayload`, `EnrichedMarket`, `PriceHistory`, `OrderRecord`,
   `TradeRecord`, `CancelOrdersResponse`) documented with JSON field tags.
-- **Deposit wallet pipeline documentation.** `docs/DEPOSIT-WALLET-DEPLOYMENT.md`
+- **Deposit wallet pipeline documentation.** `docs/ONBOARDING.md`
   with full pipeline (derive → deploy → approve → fund → onboard),
   requirements checklist, gas sponsorship breakdown, replication steps.
   `docs/CONTRACTS.md` with all smart contract addresses, factory ABI,
@@ -70,9 +68,9 @@ the May 2026 deposit-wallet migration and the documentation overhaul.
   with dependency direction diagram.
 - **README rewritten.** One env var focus, accurate command inventory,
   builder auto front-and-center, SDK tables, docs links.
-- **BUILDER-AUTO.md.** Split three credential types: CLOB L2 Trading Key
-  (headless), Builder Fee Key (headless via L2 HMAC), Relayer API Key
-  (cookie-gated via /login/internal).
+- **Credential documentation.** Split three credential types: CLOB L2 Trading Key
+  (headless for existing users), Builder Fee Key (headless via L2 HMAC), Relayer API Key
+  (headless via SIWE). See `docs/ONBOARDING.md`.
 
 [Unreleased]: https://github.com/TrebuchetDynamics/polygolem/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/TrebuchetDynamics/polygolem/releases/tag/v0.1.0

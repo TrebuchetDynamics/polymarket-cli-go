@@ -4,7 +4,7 @@
 > **Date:** 2026-05-07
 > **Owner:** TrebuchetDynamics
 > **License:** MIT (public)
-> **Companion:** [polygolem docs/DEPOSIT-WALLET-DEPLOYMENT.md](./docs/DEPOSIT-WALLET-DEPLOYMENT.md) — reference pipeline
+> **Companion:** [polygolem docs/ONBOARDING.md](./docs/ONBOARDING.md) — reference pipeline
 > **Companion:** [polygolem docs/CONTRACTS.md](./docs/CONTRACTS.md) — contract research
 
 ---

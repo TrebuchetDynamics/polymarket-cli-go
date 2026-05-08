@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TrebuchetDynamics/polygolem/internal/auth"
+	"github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/gorilla/websocket"
 )
 
@@ -243,6 +245,77 @@ func TestAuthHeadlessOnboardHasProfileRegistrationFlags(t *testing.T) {
 	}
 	if got := cmd.Flags().Lookup("signature-type").DefValue; got != "3" {
 		t.Fatalf("signature-type default=%q, want 3", got)
+	}
+}
+
+func TestAuthCLOBProbeUsesConfiguredCredentialsForReadOnlyEndpoints(t *testing.T) {
+	var requests []string
+	var sawAPIKey string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.Method+" "+r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodGet {
+			http.Error(w, "mutation attempted", http.StatusMethodNotAllowed)
+			return
+		}
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			http.Error(w, "derive should not be called", http.StatusTeapot)
+		case "/data/orders":
+			sawAPIKey = r.Header.Get("POLY_API_KEY")
+			_, _ = w.Write([]byte(`[{"id":"0xorder","status":"ORDER_STATUS_LIVE"}]`))
+		case "/data/trades":
+			_, _ = w.Write([]byte(`[{"id":"trade-1","status":"MATCHED"}]`))
+		case "/balance-allowance":
+			if got := r.URL.Query().Get("asset_type"); got != "COLLATERAL" {
+				t.Errorf("asset_type=%q, want COLLATERAL", got)
+			}
+			if got := r.URL.Query().Get("signature_type"); got != "3" {
+				t.Errorf("signature_type=%q, want 3", got)
+			}
+			_, _ = w.Write([]byte(`{"balance":"1000000","allowance":"999"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := clob.NewClient(server.URL, nil)
+	result, err := runCLOBCredentialProbe(context.Background(), client, "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318", auth.APIKey{
+		Key:        "configured-key",
+		Secret:     "c2VjcmV0",
+		Passphrase: "pass",
+	})
+	if err != nil {
+		t.Fatalf("runCLOBCredentialProbe returned error: %v", err)
+	}
+	if sawAPIKey != "configured-key" {
+		t.Fatalf("POLY_API_KEY=%q, want configured-key", sawAPIKey)
+	}
+	if result.CredentialSource != "configured_clob_l2" || !result.ReadOnly || result.DeriveAPIKeyCalled {
+		t.Fatalf("unexpected result metadata: %+v", result)
+	}
+	if result.Orders.Count != 1 || result.Trades.Count != 1 || result.BalanceAllowance.Balance != "1000000" {
+		t.Fatalf("unexpected probe result: %+v", result)
+	}
+	for _, request := range requests {
+		if strings.Contains(request, "/auth/derive-api-key") {
+			t.Fatalf("probe called derive endpoint; requests=%v", requests)
+		}
+		if !strings.HasPrefix(request, "GET ") {
+			t.Fatalf("probe made non-read request; requests=%v", requests)
+		}
+	}
+}
+
+func TestAuthCLOBProbeCommandIsRegistered(t *testing.T) {
+	root := NewRootCommand(Options{Version: "test-version", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	cmd, _, err := root.Find([]string{"auth", "clob-probe"})
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	if cmd == nil {
+		t.Fatal("auth clob-probe command missing")
 	}
 }
 

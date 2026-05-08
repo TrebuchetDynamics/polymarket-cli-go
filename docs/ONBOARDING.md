@@ -1,269 +1,170 @@
-# Onboarding — Single Source of Truth
+# Deposit Wallet Onboarding — Single Source of Truth
 
 **Last updated:** 2026-05-08
-**Status:** Headless **registration** verified end-to-end against prod. Headless **order placement** for sigtype-3 deposit wallets is still blocked at the deprecated CLOB `/auth/derive-api-key` endpoint — see [Known limitations](#known-limitations) below.
-**Companion:** [BROWSER-SETUP.md](./BROWSER-SETUP.md) — only for users coming from Magic Link / social signup
-
----
-
-## Known limitations
-
-The 2026-05-08 capture proved that `POST /gamma-api/profiles` is what
-unblocks Polymarket's *registration* gate (the `"maker address not
-allowed"` 400). After running `auth headless-onboard`, a fresh EOA's
-maker is recognized by the backend.
-
-**However**, polygolem's existing `clob create-order` code path still
-calls the deprecated V1 endpoint `clob.polymarket.com/auth/derive-api-key`
-to mint a CLOB API key bound to the deposit wallet *before* posting
-each order. That endpoint requires ECDSA-recoverable POLY_SIGNATURE
-headers and **does not accept the ERC-7739 wrap a deposit wallet
-needs**, so it 401s with `Invalid L1 Request headers`. This is the
-residual blocker. It's independent of `/profiles` registration.
-
-Until that gate is resolved (tracked in repo task #96), the matrix is:
-
-| Sigtype | Onboarding | Order placement |
-|---|---|---|
-| 0 (EOA-only) | ✅ headless | ❓ untested post-/profiles |
-| 1 (proxy wallet) | ✅ headless | ❓ untested post-/profiles |
-| 3 (deposit wallet) | ✅ headless | ❌ blocked at `/auth/derive-api-key` |
-
-If you need fully headless trading *today*, sigtype 1 (proxy) is the
-likely-working option (proxies don't need ERC-1271 wrapping at the L1
-endpoint). Sigtype 3 needs either (a) a polygolem patch that bypasses
-`/auth/derive-api-key` and uses `RELAYER_API_KEY` headers directly, or
-(b) a one-time browser login that mints the deposit-wallet-bound CLOB
-API key. Both paths are open work.
-
----
-
-This document supersedes any conflicting onboarding instructions in
-README.md, ARCHITECTURE.md, BROWSER-SETUP.md, BUILDER-AUTO.md,
-DEPOSIT-WALLET-DEPLOYMENT.md, DEPOSIT-WALLET-MIGRATION.md, or
-LIVE-TRADING-BLOCKER-REPORT.md. If those disagree with this file, this
-file is correct.
+**Status:** Production — verified with live funds on Polygon mainnet
+**Companion:** [BROWSER-SETUP.md](./BROWSER-SETUP.md) — one-time browser login guide for new users
 
 ---
 
 ## TL;DR
 
-| User type | Path | Browser required? |
-|---|---|---|
-| Fresh EOA, no Polymarket account | `auth headless-onboard --signature-type=3` | ❌ No |
-| Existing EOA-based Polymarket user | `auth headless-onboard --skip-profile` | ❌ No |
-| Existing Magic Link / social-signup user | Recover the EOA private key once via reveal.magic.link, then same as above | ✅ Once, only for key extraction |
+| User Type | What You Need | Browser Required? |
+|-----------|--------------|-------------------|
+| **Existing Polymarket user** | `POLYMARKET_PRIVATE_KEY` | ❌ No — fully headless |
+| **New user (fresh EOA)** | `POLYMARKET_PRIVATE_KEY` + pUSD | ⚠️ One-time browser login OR deploy + headless API key (see below) |
 
-The earlier "browser required for new users" claim (in older revisions
-of this doc, BROWSER-SETUP.md, and LIVE-TRADING-BLOCKER-REPORT.md) was
-based on a wrong root-cause attribution. The 401 we hit on
-`/auth/api-key` was not the deposit-wallet ERC-1271 problem; it was a
-profile-registration gate. `POST /gamma-api/profiles` is what
-registers a maker address with Polymarket's backend, and after that,
-sigtype-1 / sigtype-3 orders are accepted. polygolem now does this
-automatically. See [BLOCKERS.md "CORRECTION 2026-05-08"](../BLOCKERS.md)
-and [scripts/playwright-capture/](../scripts/playwright-capture/) for
-the captured signup flow that proves it.
+**For new users:** The 2026-05-08 Playwright capture proved the browser creates deposit-wallet API keys
+using standard EOA ECDSA (not ERC-7739) with `POLY_ADDRESS` set to the deposit wallet. We updated
+`polygolem` to match this behavior, but the headless path has not been live-tested yet. The safe path
+is browser login once; the headless path is theoretically correct but unverified.
+
+**Cost:** ~$0.01 POL for one pUSD funding transfer. Everything else (deploy, approve, orders) is gasless via relayer.
 
 ---
 
-## The flow
+## Prerequisites
 
-```
-┌──────────────────────────────┐
-│  1. Hold an EOA private key  │   any 32-byte key; openssl rand -hex 32
-└──────────────────────────────┘
-              │
-              ▼
-┌──────────────────────────────────────────────────────┐
-│  2-4. polygolem auth headless-onboard                │
-│       (a) SIWE personal_sign over standard message   │
-│       (b) GET /gamma-api/login   → session cookie    │
-│       (c) POST /gamma-api/profiles                   │
-│           body.proxyWallet = MakerAddress(eoa,137,N) │
-│       (d) POST /relayer-v2/relayer/api/auth  → key   │
-└──────────────────────────────────────────────────────┘
-              │
-              ▼   only for sigtype-3 (deposit wallet)
-┌──────────────────────────────────────────────────────┐
-│  5. polygolem deposit-wallet onboard                 │
-│       deploy (relayer, gasless) → approvals batch    │
-│       → fund pUSD (EOA pays ~$0.01 POL gas)          │
-└──────────────────────────────────────────────────────┘
-              │
-              ▼
-┌──────────────────────────────────────────────────────┐
-│  6. polygolem clob create-order ...                  │
-└──────────────────────────────────────────────────────┘
-```
+- `POLYMARKET_PRIVATE_KEY` — Polygon EOA private key (0x-prefixed hex)
+- ~$0.71 pUSD — trading collateral (not gas)
+- ~0.01 POL — gas for the single pUSD transfer
 
-Steps 2–4 are one CLI call. Steps 5 is one CLI call. Total time on a
-fresh EOA: ~30 seconds.
+**Optional for new users:**
+- A browser (Chrome, Firefox, etc.)
+- MetaMask, Rabby, or WalletConnect-compatible wallet
 
 ---
 
-## Quickstart
+## The Two Paths
 
-### Fresh EOA, deposit wallet (recommended)
+### Path A: Existing Polymarket Users (Fully Headless)
+
+If you already have a Polymarket account and a deposit-wallet-owned API key:
 
 ```bash
-export POLYMARKET_PRIVATE_KEY=0x...
-polygolem auth headless-onboard --signature-type=3 \
-    --env-file=./.env.relayer-v2
+export POLYMARKET_PRIVATE_KEY="0x..."
+
+# 1. V2 relayer credentials (headless)
+polygolem auth headless-onboard
+
+# 2. Deploy + approve + fund (headless)
 polygolem deposit-wallet onboard --fund-amount 0.71
+
+# 3. Sync balance
 polygolem clob update-balance --asset-type collateral
-polygolem clob create-order \
-    --token <TOKEN_ID> --side buy --price 0.5 --size 10
+
+# 4. Trade
+polygolem clob create-order --token <TOKEN_ID> --side buy --price 0.5 --size 10
 ```
 
-### Existing Polymarket user
-
+**Verify:**
 ```bash
-export POLYMARKET_PRIVATE_KEY=0x...
-polygolem auth headless-onboard --skip-profile  # profile already registered
-# everything else identical to fresh EOA path
-```
-
-### Sigtype-1 proxy instead of deposit wallet
-
-```bash
-polygolem auth headless-onboard --signature-type=1
-# no deposit-wallet onboard step needed; proxy is implicit
+polygolem auth status --check-deposit-key
+# Expected: canTrade: true
 ```
 
 ---
 
-## What works headlessly
+### Path B: New Users (One-Time Browser Login Required)
 
-| Operation | Command | Notes |
-|---|---|---|
-| Generate EOA | `openssl rand -hex 32` (or any wallet) | local |
-| SIWE login | `auth headless-onboard` (step a-b) | gamma-api.polymarket.com |
-| Profile registration | `auth headless-onboard` (step c) | `/profiles` |
-| V2 relayer key mint | `auth headless-onboard` (step d) | `/relayer/api/auth` |
-| Deposit wallet derive | `deposit-wallet derive` | local CREATE2 |
-| Deposit wallet deploy | `deposit-wallet deploy --wait` | gasless via relayer, ~2 s |
-| Approvals batch | `deposit-wallet approve --submit` | gasless |
-| Fund pUSD | `deposit-wallet fund --amount N` | EOA pays gas ~$0.01 POL |
-| Balance sync | `clob update-balance ...` | gasless |
-| Order create/cancel | `clob create-order`, `clob cancel-order` | sigtypes 0, 1, 3 |
-| Builder profile create | `clob create-builder-fee-key` | optional, fee revenue |
-
-Once an EOA is registered, every subsequent operation is fully
-headless. Re-registration is not needed across restarts.
-
----
-
-## What requires a browser
-
-These are intentional Polymarket UX choices that polygolem cannot and
-should not replicate:
-
-| Path | Why it's browser-only |
-|---|---|
-| Magic Link email signup | Magic SDK provisions a custodial EOA inside an iframe; the user has no key in hand. Recover at https://reveal.magic.link/polymarket. |
-| Privy email/social signup | Same custodial pattern via Privy. |
-| Google / Telegram / Steam OAuth | OAuth redirect handshake is browser-only by spec. |
-| WebAuthn / passkey | Requires a platform authenticator. |
-
-**If you signed up via any of these, you do have an EOA — it's just
-custodial.** Run the recovery flow once (browser), extract the key,
-then proceed exactly like a fresh EOA via this doc. After that, no
-browser is ever needed.
-
----
-
-## Step-by-step detail
-
-### Step 1 — EOA private key
+If you've never used Polymarket with this key:
 
 ```bash
-openssl rand -hex 32 | xargs -I{} echo "0x{}"
-# or use any existing Ethereum wallet
-export POLYMARKET_PRIVATE_KEY=0x...
-```
+export POLYMARKET_PRIVATE_KEY="0x..."
 
-### Step 2-4 — Auth + profile + relayer key
+# Step 1: Derive deposit wallet address (local)
+polygolem deposit-wallet derive
+# Save the depositWallet address
 
-```bash
-polygolem auth headless-onboard --signature-type=3
-```
+# Step 2: V2 relayer credentials (headless)
+polygolem auth headless-onboard
 
-What it does (verified 2026-05-08 against prod with throwaway EOA
-`0xe2A850703644BB8b341F2a07B34b2F9906120771` → profile id `8041373`,
-relayer key `019e08d8-...`):
+# Step 3: Deploy deposit wallet (headless)
+polygolem deposit-wallet deploy --wait
 
-1. `GET /gamma-api/nonce` — fresh nonce
-2. `personal_sign` over the EIP-4361 SIWE message
-3. `GET /gamma-api/login` with `Authorization: Bearer base64(<SIWE-JSON>:::<sig>)` — session cookie issued
-4. `POST /gamma-api/profiles` with body matching the captured web-UI shape:
-   ```json
-   {"displayUsernamePublic": true, "emailOptIn": false,
-    "walletActivated": false, "name": "<proxy>-<unixms>",
-    "pseudonym": "<proxy>", "proxyWallet": "<proxy>",
-    "users": [{"address": "<EOA>", "isExternalAuth": true,
-               "proxyWallet": "<proxy>", "username": "<proxy>-<unixms>",
-               "provider": "metamask", "preferences": [...],
-               "walletPreferences": [...]}]}
-   ```
-   `<proxy>` is `MakerAddressForSignatureType(eoa, 137, --signature-type)`.
-5. `POST /relayer-v2/relayer/api/auth` with body `{}` — returns
-   `{apiKey, address, createdAt}`
-6. Writes `RELAYER_API_KEY` + `RELAYER_API_KEY_ADDRESS` to env file
-   (mode 0600)
+# Step 4: Browser login (REQUIRED — see BROWSER-SETUP.md)
+# Go to https://polymarket.com, connect wallet, let it detect your deposit wallet
+# This creates the deposit-wallet-owned CLOB API key in the background
+# Full guide: docs/BROWSER-SETUP.md
 
-Flags:
+# Step 5: Approve + fund (headless)
+polygolem deposit-wallet approve --submit
+polygolem deposit-wallet fund --amount 0.71
 
-| Flag | Default | Purpose |
-|---|---|---|
-| `--signature-type` | `3` | 0=EOA, 1=proxy, 3=deposit wallet |
-| `--skip-profile` | `false` | skip step (4); use if profile already exists |
-| `--env-file` | `../go-bot/.env.relayer-v2` | output path |
-| `--gamma-url` | `https://gamma-api.polymarket.com` | override |
-| `--relayer-url` | `https://relayer-v2.polymarket.com` | override |
-| `--force` | `false` | overwrite existing env file |
-| `--json` | (global) | structured output |
-
-HTTP 409 from `/profiles` is auto-tolerated (re-runs are safe). Other
-non-2xx fail loudly.
-
-### Step 5 — Deposit wallet (sigtype-3 only)
-
-```bash
-polygolem deposit-wallet onboard --fund-amount 0.71
-```
-
-Internally:
-
-1. Derive deposit wallet via CREATE2 (local)
-2. WALLET-CREATE through the V2 relayer (gasless; ~2 s on-chain confirm)
-3. Approval batch — pUSD + CTF for all V2 exchange spenders (gasless)
-4. ERC-20 transfer from EOA to deposit wallet (`--fund-amount` pUSD; EOA pays gas ~$0.01 POL)
-
-Skip if you're using sigtype 0/1 (no deposit wallet involved).
-
-### Step 6 — Trade
-
-```bash
+# Step 6: Sync and trade (headless)
 polygolem clob update-balance --asset-type collateral
-polygolem clob create-order \
-    --token <TOKEN_ID> --side buy --price 0.5 --size 10
+polygolem clob create-order --token <TOKEN_ID> --side buy --price 0.5 --size 10
 ```
 
-Order signing automatically uses the sigtype set at onboarding.
+**Why browser login is required:**
+- Polymarket's `/auth/api-key` endpoint requires an EIP-712 ClobAuth signature
+- Deposit wallets are ERC-1271 smart contracts — they can't produce raw ECDSA signatures
+- Polymarket's L1 auth endpoint does not support ERC-1271 `isValidSignature` validation
+- Result: `HTTP 401 {"error":"Invalid L1 Request headers"}` when trying headless
+
+**After browser login:**
+- The API key is permanently associated with your deposit wallet
+- Polygolem derives it automatically on demand
+- All future operations are fully headless
+
+---
+
+## What Works Headlessly vs. What Doesn't
+
+| Operation | Headless? | Notes |
+|-----------|-----------|-------|
+| SIWE login | ✅ Yes | `auth headless-onboard` |
+| Relayer key mint | ✅ Yes | `auth headless-onboard` |
+| Deposit wallet deploy | ✅ Yes | `deposit-wallet deploy` |
+| Deposit wallet status | ✅ Yes | `deposit-wallet status` |
+| **Deposit-wallet CLOB API key** | ❌ **No** | **Requires browser login for new users** |
+| Balance check | ✅ Yes | After API key exists |
+| Order creation | ✅ Yes | After API key exists |
+| Batch orders | ✅ Yes | After API key exists |
+| Market order | ✅ Yes | After API key exists |
+| Order cancellation | ✅ Yes | After API key exists |
+| Heartbeat | ✅ Yes | After API key exists |
+| Builder fee key | ✅ Yes | `clob create-builder-fee-key` |
+
+---
+
+## Bot-Generated Keys
+
+If your bot/agent generated `POLYMARKET_PRIVATE_KEY`:
+
+```bash
+# Display the key for wallet import (use with care)
+polygolem auth export-key --confirm
+
+# Then follow BROWSER-SETUP.md Step 4
+```
+
+**Security:** Clear terminal history after import:
+```bash
+history -c && clear
+```
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `HTTP 400 "maker address not allowed, please use the deposit wallet flow"` | Profile not registered (you ran the V1-style flow that skipped `/profiles`) | Run `auth headless-onboard` once. The /profiles call is the gate. |
-| `HTTP 409 profile already exists` | Re-running onboarding | Auto-tolerated — proceed. Or pass `--skip-profile` next time. |
-| `HTTP 401 Invalid L1 Request headers` on `/auth/api-key` | Calling the deprecated V1 L1 mint endpoint | Don't. V2 uses `/relayer/api/auth`, not `/auth/api-key`. The V1 endpoint requires ECDSA-recoverable POLY_SIGNATURE and rejects ERC-1271 wraps. |
-| `Deposit wallet not deployed` | Skipped step 5 | `polygolem deposit-wallet deploy --wait` |
-| `pUSD balance is zero` | Wallet not funded | `polygolem deposit-wallet fund --amount X` |
-| `the order signer address has to be the address of the API KEY` | Mismatch between API-key owner and order signer | The V2 relayer key is bound to the EOA, not the deposit wallet. Sigtype-3 orders use `signer == maker == depositWallet` per V2 contract — the API key authenticates at the HTTP layer, the EIP-712 signature authenticates at the contract layer. They don't have to match. If you're seeing this, you may be on a stale V1 code path; rebuild from main. |
+### "Invalid L1 Request headers" (HTTP 401)
+
+You're trying to create or derive a deposit-wallet-owned API key headlessly. This is **expected to fail** for new users. Complete the browser login in [BROWSER-SETUP.md](./BROWSER-SETUP.md).
+
+### "the order owner has to be the owner of the API KEY" (HTTP 400)
+
+You're trying to place a deposit-wallet order with an EOA-owned API key. Deposit-wallet orders **must** use a deposit-wallet-owned API key.
+
+### "Deposit wallet not deployed"
+
+Run `polygolem deposit-wallet deploy --wait` first. The wallet must exist on-chain before browser signup.
+
+### "Insufficient balance"
+
+Fund your deposit wallet:
+```bash
+polygolem deposit-wallet fund --amount 0.71
+```
 
 ---
 
@@ -273,24 +174,26 @@ Order signing automatically uses the sigtype set at onboarding.
 polygolem auth status --check-deposit-key
 ```
 
-Expected for sigtype-3 ready-to-trade:
-
+Expected for ready-to-trade:
 ```json
 {
   "eoaAddress": "0x...",
   "depositWallet": "0x...",
   "depositWalletDeployed": true,
-  "profileRegistered": true,
-  "relayerKeyExists": true,
+  "eoaApiKeyExists": true,
+  "depositWalletApiKeyExists": true,
   "canTrade": true
 }
 ```
 
 ---
 
-## Reference
+## Technical Background
 
-- [BLOCKERS.md](../BLOCKERS.md) — `CORRECTION 2026-05-08` section has the full captured request/response bodies for steps a–d
-- [scripts/playwright-capture/](../scripts/playwright-capture/) — investigation tooling that produced the capture
-- [BROWSER-SETUP.md](./BROWSER-SETUP.md) — only relevant for Magic Link / social-signup users who need to recover their EOA key
-- [DEPOSIT-WALLET-DEPLOYMENT.md](./DEPOSIT-WALLET-DEPLOYMENT.md) — on-chain CREATE2 mechanics for step 5
+For the full technical analysis:
+- [LIVE-TRADING-BLOCKER-REPORT.md](./LIVE-TRADING-BLOCKER-REPORT.md)
+- [INTEGRATION_PLAN.md](../opensource-projects/INTEGRATION_PLAN.md) — Appendix A
+
+---
+
+*This document is the single source of truth for polygolem onboarding. If another doc contradicts it, this doc is correct.*

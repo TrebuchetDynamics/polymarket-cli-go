@@ -126,6 +126,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 	authCmd := commandGroup("auth", "Inspect authentication readiness",
 		newAuthStatusCommand(jsonOutput),
 	)
+	authCmd.AddCommand(newAuthCLOBProbeCommand(jsonOutput))
 	authCmd.AddCommand(newAuthHeadlessOnboardCommand(jsonOutput))
 	authCmd.AddCommand(newAuthExportKeyCommand(jsonOutput))
 	root.AddCommand(authCmd)

@@ -406,6 +406,109 @@ try {
 
 console.log("[done] full flow captured");
 
+// Phase 3: drive an order placement to capture how the CLOB API key gets
+// minted for the user. We visit the homepage, click the first market card,
+// then try the buy panel. The point isn't to actually place an order —
+// it's to observe what authentication handshake the web UI performs
+// against clob.polymarket.com BEFORE the order POST.
+console.log("\n=== Phase 3: order-flow auth capture ===");
+await page.goto("https://polymarket.com/markets/all", {
+  waitUntil: "domcontentloaded",
+});
+await page.waitForTimeout(3000);
+await shot("14-markets-list");
+
+// Click the first market link.
+console.log("[click] first market card");
+try {
+  const cardLink = page
+    .locator('a[href*="/event/"]')
+    .first();
+  const href = await cardLink.getAttribute("href").catch(() => null);
+  console.log(`[click] target href=${href}`);
+  await cardLink.click({ timeout: 5000 });
+  await page.waitForTimeout(4000);
+} catch (e) {
+  console.log(`[click] market card failed: ${e.message}`);
+}
+await shot("15-market-page");
+
+// The market page surfaces an "Enable Trading" modal for users whose
+// proxy/deposit wallet hasn't been deployed yet. Two steps:
+//   1. Deploy Wallet  → button labeled "Deploy"
+//   2. Approve Tokens → button labeled "Sign"
+// These are the steps that mint the deposit-wallet-bound CLOB API key
+// (we hope). Drive both and capture every CLOB call that fires.
+
+console.log("[click] Enable Trading → Deploy");
+try {
+  await page
+    .getByRole("button", { name: /^deploy$/i })
+    .first()
+    .click({ timeout: 5000 });
+  console.log("[wait] post-Deploy (10 s for tx + key mint)");
+  await page.waitForTimeout(10000);
+} catch (e) {
+  console.log(`[click] Deploy failed: ${e.message}`);
+}
+await shot("16a-after-deploy");
+
+console.log("[click] Enable Trading → Sign (approvals)");
+try {
+  await page
+    .getByRole("button", { name: /^sign$/i })
+    .first()
+    .click({ timeout: 5000 });
+  console.log("[wait] post-Sign (10 s for tx + key mint)");
+  await page.waitForTimeout(10000);
+} catch (e) {
+  console.log(`[click] Sign failed: ${e.message}`);
+}
+await shot("16b-after-sign");
+
+// Type a small amount in the "shares" / amount input so the Buy button
+// becomes enabled. Try multiple selector variants.
+console.log("[fill] order amount");
+try {
+  for (const sel of [
+    page.getByPlaceholder(/^0/i).first(),
+    page.locator('input[type="text"]').first(),
+    page.locator('input[type="number"]').first(),
+  ]) {
+    if ((await sel.count()) > 0) {
+      await sel.fill("1");
+      await page.waitForTimeout(800);
+      break;
+    }
+  }
+} catch (e) {
+  console.log(`[fill] amount failed: ${e.message}`);
+}
+await shot("17-amount-filled");
+
+// Click the Buy button. This is where Polymarket's frontend will mint
+// or derive the CLOB API key if it hasn't already.
+console.log("[click] Buy button");
+try {
+  for (const cand of [
+    page.getByRole("button", { name: /^buy/i }),
+    page.getByRole("button", { name: /^login to trade/i }),
+    page.getByRole("button", { name: /^place buy/i }),
+    page.getByRole("button", { name: /^trade/i }),
+  ]) {
+    if ((await cand.count()) > 0) {
+      await cand.first().click({ timeout: 3000 });
+      console.log("[click] buy candidate matched");
+      break;
+    }
+  }
+  await page.waitForTimeout(8000);
+} catch (e) {
+  console.log(`[click] Buy failed: ${e.message}`);
+}
+await shot("18-after-buy-click");
+console.log("[done] order-flow capture complete");
+
 await context.close();
 await browser.close();
 console.log(`HAR saved: ${harPath}`);

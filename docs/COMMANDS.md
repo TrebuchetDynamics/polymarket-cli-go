@@ -44,6 +44,7 @@ polygolem --json version | jq .
 ```text
 polygolem - Safe Polymarket SDK and CLI for Go
   auth - Inspect authentication readiness
+    clob-probe - Probe configured CLOB L2 credentials with read-only calls
     export-key - Display private key for wallet import (use with care)
     headless-onboard - Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key)
     status - Check authentication readiness and API key status
@@ -98,6 +99,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
     nonce - Get the current WALLET nonce for the owner
     onboard - Full deposit wallet onboarding: deploy + approve + fund
     status - Check deposit wallet deployment status or transaction state
+    swap-pol-pusd - Swap native POL into an exact amount of pUSD via Uniswap V3
   discover - Market discovery via Polymarket Gamma API
     comments - List or fetch public Gamma comments
     enrich - Enrich market with CLOB data
@@ -183,6 +185,7 @@ polygolem auth [flags]
 
 | Command | Description |
 |---|---|
+| `polygolem auth clob-probe` | Probe configured CLOB L2 credentials with read-only calls |
 | `polygolem auth export-key` | Display private key for wallet import (use with care) |
 | `polygolem auth headless-onboard` | Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key) |
 | `polygolem auth status` | Check authentication readiness and API key status |
@@ -192,6 +195,27 @@ polygolem auth [flags]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-h, --help` | `bool` | `false` | help for auth |
+| `--json` | `bool` | `false` | emit JSON output |
+
+### polygolem auth clob-probe
+
+Probe configured CLOB L2 credentials with read-only calls
+
+Uses configured CLOB L2 HMAC credentials to run authenticated,
+read-only CLOB checks without creating or deriving an API key. The probe calls
+only GET /data/orders, GET /data/trades, and GET /balance-allowance.
+
+**Usage:**
+
+```bash
+polygolem auth clob-probe [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | `bool` | `false` | help for clob-probe |
 | `--json` | `bool` | `false` | emit JSON output |
 
 ### polygolem auth export-key
@@ -396,7 +420,7 @@ They are NOT V2 Relayer API Keys: the relayer's POST /submit (used by
 deposit-wallet deploy and approve flows) requires a separate key minted
 by 'polygolem auth headless-onboard' or the settings-page Create button.
 A profiled EOA without that relayer key will see relayer-write 401s even
-with valid CLOB L2 creds. See docs/BUILDER-AUTO.md.
+with valid CLOB L2 creds. See docs/ONBOARDING.md.
 
 The endpoint is idempotent per EOA. Use 'builder onboard' for the
 manual browser-capture flow.
@@ -1183,6 +1207,7 @@ polygolem deposit-wallet [flags]
 | `polygolem deposit-wallet nonce` | Get the current WALLET nonce for the owner |
 | `polygolem deposit-wallet onboard` | Full deposit wallet onboarding: deploy + approve + fund |
 | `polygolem deposit-wallet status` | Check deposit wallet deployment status or transaction state |
+| `polygolem deposit-wallet swap-pol-pusd` | Swap native POL into an exact amount of pUSD via Uniswap V3 |
 
 **Flags:**
 
@@ -1386,6 +1411,36 @@ polygolem deposit-wallet status [flags]
 | `-h, --help` | `bool` | `false` | help for status |
 | `--json` | `bool` | `false` | emit JSON output |
 | `--tx-id` | `string` | `""` | transaction ID to poll |
+
+### polygolem deposit-wallet swap-pol-pusd
+
+Swap native POL into an exact amount of pUSD via Uniswap V3
+
+Swap native POL on the EOA into exactly --out-pusd of pUSD via Uniswap V3
+on Polygon (multihop WMATIC → USDC.e → pUSD, 0.05% fee per leg). Excess POL
+is refunded by the router via multicall(refundETH).
+
+The pUSD lands on the EOA. Use 'polygolem deposit-wallet fund --amount X'
+afterwards to move pUSD into the deposit wallet.
+
+--out-pusd is the exact pUSD amount to receive (e.g. "0.72" for 0.72 pUSD).
+--max-pol-in caps the POL the router may consume (e.g. "10" for 10 POL).
+
+**Usage:**
+
+```bash
+polygolem deposit-wallet swap-pol-pusd [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | `bool` | `false` | help for swap-pol-pusd |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--max-pol-in` | `string` | `""` | max POL the router may consume (e.g. 10) |
+| `--out-pusd` | `string` | `""` | exact pUSD amount to receive (e.g. 0.72) |
+| `--rpc-url` | `string` | `""` | Polygon RPC URL (default: public node) |
 
 ### polygolem discover
 

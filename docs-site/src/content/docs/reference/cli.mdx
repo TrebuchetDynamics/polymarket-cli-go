@@ -10,6 +10,7 @@ description: Generated polygolem command tree for Gamma discovery, CLOB trading,
 ```text
 polygolem - Safe Polymarket SDK and CLI for Go
   auth - Inspect authentication readiness
+    clob-probe - Probe configured CLOB L2 credentials with read-only calls
     export-key - Display private key for wallet import (use with care)
     headless-onboard - Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key)
     status - Check authentication readiness and API key status
@@ -64,6 +65,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
     nonce - Get the current WALLET nonce for the owner
     onboard - Full deposit wallet onboarding: deploy + approve + fund
     status - Check deposit wallet deployment status or transaction state
+    swap-pol-pusd - Swap native POL into an exact amount of pUSD via Uniswap V3
   discover - Market discovery via Polymarket Gamma API
     comments - List or fetch public Gamma comments
     enrich - Enrich market with CLOB data

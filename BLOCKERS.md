@@ -3,7 +3,23 @@
 Account: EOA `0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C`
 Audit: 2026-05-07
 
-## CORRECTION 2026-05-08 — Web-UI EOA signup uses sigtype-1 proxy, not deposit wallet
+> **⚠️ CORRECTION 2026-05-08 — This document contains outdated conclusions.**
+> The proxy-wallet (sigtype-1) claims below were based on a Playwright capture of the
+> polymarket.com web UI. However, **polygolem only supports deposit wallets (sigtype-3)**.
+> Empirical live testing with real funds (see [LIVE-TRADING-BLOCKER-REPORT.md](docs/LIVE-TRADING-BLOCKER-REPORT.md))
+> proved that deposit-wallet onboarding for new users **requires a one-time browser login**
+> to create the deposit-wallet-owned CLOB API key. The `/profiles` registration described
+> below does NOT create a deposit-wallet API key — it only registers a proxy-wallet profile,
+> which polygolem does not use.
+>
+> **See instead:** [ONBOARDING.md](docs/ONBOARDING.md) — the single source of truth.
+
+## OBSOLETE 2026-05-08 — Web-UI EOA signup uses sigtype-1 proxy, not deposit wallet
+
+> **Note:** The following section documents a Playwright capture of the polymarket.com
+> web UI signup flow. It observed proxy-wallet (sigtype-1) behavior. Polygolem does not
+> support proxy wallets. The deposit-wallet (sigtype-3) path, which polygolem uses,
+> was empirically tested and found to require browser login for new users.
 
 The earlier framing (deposit wallet is the only supported mode) is
 incorrect for new EOA accounts. A Playwright capture of the actual
@@ -56,7 +72,11 @@ proxy address is computed by Polymarket's server from the EOA — it's
 the V1 CREATE2 proxy address polygolem already derives via
 `MakerAddressForSignatureType(eoa, 137, 1)`.
 
-### Implications for polygolem
+### Implications for polygolem (OBSOLETE)
+
+> **These implications were written based on the proxy-wallet capture below.
+> They do not apply to polygolem's deposit-wallet (sigtype-3) path, which
+> requires browser login for new users. See ONBOARDING.md for the current state.**
 
 - The `BuildL1HeadersForDepositWallet` / ERC-7739 wrap path is the
   *deposit wallet variant*, not the path new accounts take. Keep it
