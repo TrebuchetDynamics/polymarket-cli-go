@@ -368,7 +368,43 @@ try {
 }
 await page.waitForTimeout(10000); // give signing + minting time
 await shot("11-after-api-key");
-console.log("[done] api-key screenshot taken");
+
+// Dismiss the "API key created" modal and screenshot the docs panel
+console.log("[click] Done (dismiss modal)");
+try {
+  await page
+    .getByRole("button", { name: /^done$/i })
+    .first()
+    .click({ timeout: 3000 });
+  await page.waitForTimeout(1500);
+} catch (e) {
+  console.log(`[click] Done failed: ${e.message}`);
+}
+await shot("12-relayer-keys-list");
+
+// Visit Trading tab
+console.log("[click] Trading tab");
+try {
+  await page
+    .getByRole("link", { name: /^trading$/i })
+    .first()
+    .click({ timeout: 5000 });
+  await page.waitForTimeout(3000);
+} catch (e) {
+  console.log(`[click] Trading link failed: ${e.message}`);
+}
+await shot("13-trading-tab");
+
+// Dump full HTML of Trading tab body to find any CLOB / API key related controls
+try {
+  const trading = await page.evaluate(() => {
+    const main = document.querySelector("main") || document.body;
+    return main.innerText.slice(0, 4000);
+  });
+  console.log(`[trading-text] ${trading.replace(/\n+/g, " | ")}`);
+} catch {}
+
+console.log("[done] full flow captured");
 
 await context.close();
 await browser.close();
