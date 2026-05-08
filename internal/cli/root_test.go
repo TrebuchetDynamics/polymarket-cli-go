@@ -230,6 +230,22 @@ func TestAuthExportKeyRequiresConfirm(t *testing.T) {
 	}
 }
 
+func TestAuthHeadlessOnboardHasProfileRegistrationFlags(t *testing.T) {
+	root := NewRootCommand(Options{Version: "test-version", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	cmd, _, err := root.Find([]string{"auth", "headless-onboard"})
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	for _, name := range []string{"skip-profile", "signature-type"} {
+		if flag := cmd.Flags().Lookup(name); flag == nil {
+			t.Fatalf("%s flag missing", name)
+		}
+	}
+	if got := cmd.Flags().Lookup("signature-type").DefValue; got != "3" {
+		t.Fatalf("signature-type default=%q, want 3", got)
+	}
+}
+
 func TestJSONAuthExportKeyConfirmedOutputsWalletImportData(t *testing.T) {
 	const privateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
 	t.Setenv("POLYMARKET_PRIVATE_KEY", privateKey)
@@ -386,6 +402,7 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 		{"paper", "reset"},
 		{"auth", "status"},
 		{"auth", "export-key"},
+		{"auth", "headless-onboard"},
 		{"live", "status"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {

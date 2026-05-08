@@ -80,11 +80,11 @@ const DefaultAppNotificationPreferences = `{"eventApp":{"sendApp":true,"tagIds":
 // settings as JSON-in-string.
 func DefaultPreferencesBlock() json.RawMessage {
 	body, _ := json.Marshal(map[string]interface{}{
-		"preferencesStatus":             "New/Existing - Created Prefs",
-		"subscriptionStatus":            false,
-		"emailNotificationPreferences":  DefaultEmailNotificationPreferences,
-		"appNotificationPreferences":    DefaultAppNotificationPreferences,
-		"marketInterests":               "[]",
+		"preferencesStatus":            "New/Existing - Created Prefs",
+		"subscriptionStatus":           false,
+		"emailNotificationPreferences": DefaultEmailNotificationPreferences,
+		"appNotificationPreferences":   DefaultAppNotificationPreferences,
+		"marketInterests":              "[]",
 	})
 	return body
 }
@@ -93,10 +93,10 @@ func DefaultPreferencesBlock() json.RawMessage {
 // the web UI sends.
 func DefaultWalletPreferencesBlock() json.RawMessage {
 	body, _ := json.Marshal(map[string]interface{}{
-		"advancedMode":              false,
-		"customGasPrice":            "30",
-		"gasPreference":             "fast",
-		"walletPreferencesStatus":   "New/Existing - Created Wallet Prefs",
+		"advancedMode":            false,
+		"customGasPrice":          "30",
+		"gasPreference":           "fast",
+		"walletPreferencesStatus": "New/Existing - Created Wallet Prefs",
 	})
 	return body
 }

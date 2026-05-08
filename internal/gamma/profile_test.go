@@ -58,11 +58,11 @@ func TestCreateProfileSendsSIWECookieAndExpectedBody(t *testing.T) {
 		proxy = "0x21999a074344610057c9b2B362332388a44502D4" // sigtype-3 deposit wallet
 	)
 	var (
-		gotPath     string
-		gotMethod   string
-		gotCT       string
-		gotCookie   string
-		gotPayload  CreateProfileRequest
+		gotPath    string
+		gotMethod  string
+		gotCT      string
+		gotCookie  string
+		gotPayload CreateProfileRequest
 	)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -166,4 +166,3 @@ func TestCreateProfilePropagates409Error(t *testing.T) {
 		t.Errorf("expected response body in error, got: %v", err)
 	}
 }
-
