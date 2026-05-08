@@ -80,6 +80,23 @@ func (s *PrivateKeySigner) SignRaw(hash [32]byte) ([]byte, error) {
 	return sig, nil
 }
 
+// SignPersonalMessage signs an arbitrary-length byte slice using the
+// EIP-191 personal_sign scheme: keccak256("\x19Ethereum Signed Message:\n" +
+// len(msg) + msg). Returns the 65-byte signature with the recovery byte
+// canonicalized to 27/28. Used by SIWE / EIP-4361 login flows.
+func (s *PrivateKeySigner) SignPersonalMessage(msg []byte) ([]byte, error) {
+	prefix := []byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d", len(msg)))
+	hash := ethcrypto.Keccak256(prefix, msg)
+	sig, err := ethcrypto.Sign(hash, s.key)
+	if err != nil {
+		return nil, errors.Wrap(errors.CodeInvalidSignature, "personal sign", err)
+	}
+	if sig[64] < 27 {
+		sig[64] += 27
+	}
+	return sig, nil
+}
+
 // SignEIP712 signs canonical EIP-712 typed data and returns the full 65-byte
 // Ethereum signature with a 27/28 recovery byte.
 func (s *PrivateKeySigner) SignEIP712(typed apitypes.TypedData) ([]byte, error) {
