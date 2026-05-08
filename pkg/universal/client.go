@@ -28,10 +28,10 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
 	"github.com/TrebuchetDynamics/polygolem/internal/marketdiscovery"
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
-	"github.com/TrebuchetDynamics/polygolem/internal/stream"
 	"github.com/TrebuchetDynamics/polygolem/internal/transport"
 	sdkclob "github.com/TrebuchetDynamics/polygolem/pkg/clob"
 	sdkdata "github.com/TrebuchetDynamics/polygolem/pkg/data"
+	sdkstream "github.com/TrebuchetDynamics/polygolem/pkg/stream"
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 )
 
@@ -39,7 +39,7 @@ const (
 	defaultGammaBaseURL = "https://gamma-api.polymarket.com"
 	defaultCLOBBaseURL  = "https://clob.polymarket.com"
 	defaultDataBaseURL  = "https://data-api.polymarket.com"
-	defaultStreamURL    = "wss://ws-subscriptions-clob.polymarket.com/ws/"
+	defaultStreamURL    = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 )
 
 // Client queries all Polymarket public data APIs through one surface.
@@ -547,13 +547,13 @@ func (c *Client) EnrichMarket(ctx context.Context, market types.Market) (*polyty
 }
 
 // StreamClient returns a new WebSocket market stream client.
-func (c *Client) StreamClient() *stream.MarketClient {
-	return stream.NewMarketClient(stream.DefaultConfig(defaultStreamURL))
+func (c *Client) StreamClient() *sdkstream.MarketClient {
+	return sdkstream.NewMarketClient(sdkstream.DefaultConfig(defaultStreamURL))
 }
 
 // StreamClientWithConfig returns a WebSocket market stream client with custom config.
-func (c *Client) StreamClientWithConfig(cfg stream.Config) *stream.MarketClient {
-	return stream.NewMarketClient(cfg)
+func (c *Client) StreamClientWithConfig(cfg sdkstream.Config) *sdkstream.MarketClient {
+	return sdkstream.NewMarketClient(cfg)
 }
 
 // HealthCheck pings all three HTTP APIs and returns a summary.

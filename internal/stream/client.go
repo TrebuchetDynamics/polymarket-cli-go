@@ -67,18 +67,21 @@ type PriceChangeEntry struct {
 	Side    string `json:"side"`
 	Size    string `json:"size"`
 	Hash    string `json:"hash"`
+	BestBid string `json:"best_bid,omitempty"`
+	BestAsk string `json:"best_ask,omitempty"`
 }
 
 // LastTradeMessage is a WebSocket last trade event.
 type LastTradeMessage struct {
-	EventType  string `json:"event_type"`
-	AssetID    string `json:"asset_id"`
-	Market     string `json:"market"`
-	Price      string `json:"price"`
-	Side       string `json:"side"`
-	Size       string `json:"size"`
-	FeeRateBps string `json:"fee_rate_bps"`
-	Timestamp  string `json:"timestamp"`
+	EventType       string `json:"event_type"`
+	AssetID         string `json:"asset_id"`
+	Market          string `json:"market"`
+	Price           string `json:"price"`
+	Side            string `json:"side"`
+	Size            string `json:"size"`
+	FeeRateBps      string `json:"fee_rate_bps"`
+	Timestamp       string `json:"timestamp"`
+	TransactionHash string `json:"transaction_hash,omitempty"`
 }
 
 // MarketClient manages a public market WebSocket connection.
@@ -215,12 +218,17 @@ func (mc *MarketClient) SubscribeAssets(ctx context.Context, assetIDs []string) 
 	}
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
+	if mc.conn == nil {
+		return fmt.Errorf("ws subscribe: not connected")
+	}
 	return mc.conn.WriteJSON(msg)
 }
 
 // Close shuts down the WebSocket connection.
 func (mc *MarketClient) Close() {
-	mc.cancel()
+	if mc.cancel != nil {
+		mc.cancel()
+	}
 	mc.mu.Lock()
 	if mc.conn != nil {
 		mc.conn.Close()

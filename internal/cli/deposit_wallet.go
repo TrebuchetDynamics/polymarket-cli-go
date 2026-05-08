@@ -121,10 +121,6 @@ func depositWalletDeployCmd(jsonOut bool) *cobra.Command {
 		Short: "Deploy the deposit wallet via relayer WALLET-CREATE",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			bc, err := builderConfigFromEnv()
-			if err != nil {
-				return err
-			}
 			key, err := requirePrivateKey()
 			if err != nil {
 				return err
@@ -134,11 +130,7 @@ func depositWalletDeployCmd(jsonOut bool) *cobra.Command {
 				return fmt.Errorf("init signer: %w", err)
 			}
 			owner := signer.Address()
-			relayerURL := strings.TrimSpace(os.Getenv("POLYMARKET_RELAYER_URL"))
-			if relayerURL == "" {
-				relayerURL = defaultRelayerURL
-			}
-			rc, err := relayer.New(relayerURL, bc, 137)
+			rc, err := relayerClientFromEnv()
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -185,10 +177,6 @@ func depositWalletNonceCmd(jsonOut bool) *cobra.Command {
 		Short: "Get the current WALLET nonce for the owner",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			bc, err := builderConfigFromEnv()
-			if err != nil {
-				return err
-			}
 			key, err := requirePrivateKey()
 			if err != nil {
 				return err
@@ -198,11 +186,7 @@ func depositWalletNonceCmd(jsonOut bool) *cobra.Command {
 				return fmt.Errorf("init signer: %w", err)
 			}
 			owner := signer.Address()
-			relayerURL := strings.TrimSpace(os.Getenv("POLYMARKET_RELAYER_URL"))
-			if relayerURL == "" {
-				relayerURL = defaultRelayerURL
-			}
-			rc, err := relayer.New(relayerURL, bc, 137)
+			rc, err := relayerClientFromEnv()
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -227,15 +211,7 @@ func depositWalletStatusCmd(jsonOut bool) *cobra.Command {
 		Short: "Check deposit wallet deployment status or transaction state",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			bc, err := builderConfigFromEnv()
-			if err != nil {
-				return err
-			}
-			relayerURL := strings.TrimSpace(os.Getenv("POLYMARKET_RELAYER_URL"))
-			if relayerURL == "" {
-				relayerURL = defaultRelayerURL
-			}
-			rc, err := relayer.New(relayerURL, bc, 137)
+			rc, err := relayerClientFromEnv()
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -297,10 +273,6 @@ Use --auto-approve to build and submit the standard 6-call approval batch
 (pUSD + CTF for all 3 V2 exchange spenders).`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			bc, err := builderConfigFromEnv()
-			if err != nil {
-				return err
-			}
 			key, err := requirePrivateKey()
 			if err != nil {
 				return err
@@ -330,11 +302,7 @@ Use --auto-approve to build and submit the standard 6-call approval batch
 				}
 			}
 
-			relayerURL := strings.TrimSpace(os.Getenv("POLYMARKET_RELAYER_URL"))
-			if relayerURL == "" {
-				relayerURL = defaultRelayerURL
-			}
-			rc, err := relayer.New(relayerURL, bc, 137)
+			rc, err := relayerClientFromEnv()
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -395,10 +363,6 @@ With --submit, signs and submits the WALLET batch via the relayer.`,
 					"note":  "review calldata, then run with --submit to sign and send",
 				})
 			}
-			bc, err := builderConfigFromEnv()
-			if err != nil {
-				return err
-			}
 			key, err := requirePrivateKey()
 			if err != nil {
 				return err
@@ -412,11 +376,7 @@ With --submit, signs and submits the WALLET batch via the relayer.`,
 			if err != nil {
 				return fmt.Errorf("derive deposit wallet: %w", err)
 			}
-			relayerURL := strings.TrimSpace(os.Getenv("POLYMARKET_RELAYER_URL"))
-			if relayerURL == "" {
-				relayerURL = defaultRelayerURL
-			}
-			rc, err := relayer.New(relayerURL, bc, 137)
+			rc, err := relayerClientFromEnv()
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -519,10 +479,6 @@ After onboarding, sync CLOB:
   polygolem clob update-balance --asset-type collateral`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			bc, err := builderConfigFromEnv()
-			if err != nil {
-				return err
-			}
 			key, err := requirePrivateKey()
 			if err != nil {
 				return err
@@ -536,11 +492,7 @@ After onboarding, sync CLOB:
 			if err != nil {
 				return fmt.Errorf("derive deposit wallet: %w", err)
 			}
-			relayerURL := strings.TrimSpace(os.Getenv("POLYMARKET_RELAYER_URL"))
-			if relayerURL == "" {
-				relayerURL = defaultRelayerURL
-			}
-			rc, err := relayer.New(relayerURL, bc, 137)
+			rc, err := relayerClientFromEnv()
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -656,6 +608,30 @@ func builderConfigFromEnv() (auth.BuilderConfig, error) {
 		return auth.BuilderConfig{}, fmt.Errorf("builder credentials not configured: set POLYMARKET_BUILDER_API_KEY, POLYMARKET_BUILDER_SECRET, and POLYMARKET_BUILDER_PASSPHRASE (or BUILDER_API_KEY / BUILDER_SECRET / BUILDER_PASS_PHRASE)")
 	}
 	return bc, nil
+}
+
+// relayerClientFromEnv builds a relayer.Client from environment variables.
+// Prefers the V2 plain-header scheme (RELAYER_API_KEY +
+// RELAYER_API_KEY_ADDRESS, generated by `polygolem auth headless-onboard`)
+// when both are present; falls back to the legacy POLY_BUILDER_* HMAC
+// scheme otherwise.
+func relayerClientFromEnv() (*relayer.Client, error) {
+	relayerURL := strings.TrimSpace(os.Getenv("POLYMARKET_RELAYER_URL"))
+	if relayerURL == "" {
+		relayerURL = defaultRelayerURL
+	}
+
+	v2Key := strings.TrimSpace(os.Getenv("RELAYER_API_KEY"))
+	v2Addr := strings.TrimSpace(os.Getenv("RELAYER_API_KEY_ADDRESS"))
+	if v2Key != "" && v2Addr != "" {
+		return relayer.NewV2(relayerURL, relayer.V2APIKey{Key: v2Key, Address: v2Addr}, 137)
+	}
+
+	bc, err := builderConfigFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	return relayer.New(relayerURL, bc, 137)
 }
 
 func requirePrivateKey() (string, error) {

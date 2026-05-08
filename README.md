@@ -115,6 +115,7 @@ polygolem paper reset
 | `pkg/data` | Read-only Data API analytics client using public DTOs |
 | `pkg/types` | Shared public DTOs for SDK packages |
 | `pkg/clob` | Read-only CLOB market-data client returning public `pkg/types` DTOs |
+| `pkg/stream` | Read-only public CLOB WebSocket market stream client |
 | `pkg/orderbook` | Read-only CLOB order book reader |
 | `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook` |
 | `pkg/marketresolver` | Market + token ID resolution |
@@ -131,7 +132,7 @@ polygolem paper reset
 | `internal/dataapi` | Data API — positions, volume, leaderboards |
 | `internal/relayer` | Builder relayer — WALLET-CREATE, WALLET batch, nonce |
 | `internal/auth` | L0/L1/L2 auth, CREATE2 derivation, builder attribution |
-| `internal/stream` | WebSocket market client with reconnect + dedup |
+| `internal/stream` | WebSocket market stream implementation behind `pkg/stream` |
 | `internal/transport` | HTTP retry, rate limiter, circuit breaker, redaction |
 | `internal/orders` | OrderIntent, fluent builder, validation |
 | `internal/wallet` | Deposit wallet primitives — derive, deploy, status |

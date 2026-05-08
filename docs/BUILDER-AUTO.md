@@ -119,19 +119,24 @@ sequenceDiagram
     C-->>A: order accepted
 ```
 
-**User-facing total cost:** one private key + one Relayer API Key browser click + one funding tx. Everything else runs headlessly through the SDK.
+**User-facing total cost:** one private key + one funding tx. **Zero browser clicks** (resolved 2026-05-08; see § SIWE resolution below).
 
-## `/login/internal` sub-investigation
+## SIWE resolution (2026-05-08)
 
-The cookie that authenticates `/relayer/api/auth` (and therefore mints Relayer API Keys) is acquired from `/login/internal`. The frontend bundle characterizes it as "a browser-mediated wallet challenge" but did not deep-dive whether the challenge is SIWE-style (replicable headlessly with a wallet signer) or browser-fingerprint / CSRF / reCAPTCHA gated.
+The "browser-mediated wallet challenge" that earlier revisions of this doc treated as a real gate **was never a gate**. A focused frontend-bundle pass identified `/login/internal` as an SSR-only bootstrap function inside the bundled `@polymarket/relayer-client` SDK — not the user login flow. The actual user flow that mints the Polymarket session cookie is canonical EIP-4361 SIWE against `gamma-api.polymarket.com/login`, replicable from any HTTP client + EOA signer.
 
-A separate investigation tracks this question:
+Live-validated 2026-05-08 against production with a throwaway EOA: SIWE login → cookie → V2 Relayer API Key mint → real `WALLET-CREATE` accepted by `relayer-v2/submit` (transactionHash `0xeb820d76…62e45`). Cloudflare's `__cf_bm` cookie was set but did not challenge.
 
-- Source: a focused static-analysis pass on the same bundle chunks already in `/tmp`.
-- Verdict pending: `SIWE-REPLICABLE` (the gate dissolves with one more code change), `BROWSER-FINGERPRINT GATE` (we accept the manual click and document cleanly), or `INCONCLUSIVE` (need a different research angle).
-- Synthesized output: `polydart/docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md` plus an addendum landing once the sub-investigation reports.
+Polygolem ships this flow as `polygolem auth headless-onboard`. Polydart consumers get `SIWESession` + `mintV2APIKey` + `V2APIKey.v2Headers()`. See `polydart/docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md` for the full investigation including the addendum that pinned down the SIWE flow.
 
-Until that lands, the manual browser click in step 3 of the onboarding sequence is load-bearing. The other five steps run headlessly today.
+## V2 auth schemes (2026-05-08)
+
+Two relayer auth schemes coexist on V2 `relayer-v2/submit`:
+
+1. **POLY_BUILDER_* HMAC** (legacy, V1-era). Per-request HMAC-SHA256 over timestamp+method+path+body. Implemented in `internal/auth/l2.go::BuildBuilderHeaders` and surfaced via `relayer.New(...)`.
+2. **RELAYER_API_KEY plain headers** (V2). Two flat headers (`RELAYER_API_KEY`, `RELAYER_API_KEY_ADDRESS`); no HMAC, no clock skew, no body coupling. Implemented in `internal/relayer/auth_mint.go::V2APIKey` and surfaced via `relayer.NewV2(...)`.
+
+Static analysis of `@polymarket/builder-relayer-client@0.0.9` (the canonical V2 SDK) confirms it still emits POLY_BUILDER_* headers on `/submit`, so legacy creds remain wire-valid. Polygolem prefers V2 when both `RELAYER_API_KEY` and `RELAYER_API_KEY_ADDRESS` are in env (via `relayerClientFromEnv()` in `internal/cli/deposit_wallet.go`), falling back to POLY_BUILDER_* HMAC otherwise. See report at `/tmp/poly-builder-vs-relayer-key.md` for the SDK-level evidence.
 
 ## Wire format
 
