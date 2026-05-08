@@ -201,51 +201,41 @@ polygolem deposit-wallet status
 
 ---
 
-## Funding Flow — POL → pUSD → Deposit Wallet
+## Funding Flow — POL + pUSD → Deposit Wallet
 
-### The POL Requirement
+### The Only Two Things the User Needs
 
-The user needs ~0.01 POL for exactly ONE transaction — the ERC-20 pUSD transfer from EOA to deposit wallet. Every other operation is gas-sponsored.
+| Need | Amount | Purpose |
+|------|--------|---------|
+| POL (MATIC) | ~0.01 | Gas for ONE ERC-20 transfer (EOA → deposit wallet) |
+| pUSD | Whatever you want to trade | Trading collateral |
 
-### Path 1: Exchange → POL → pUSD (Recommended)
+Everything else is gas-sponsored by the Polymarket relayer. One transaction, paid in POL, gets you funded. After that, zero gas forever.
+
+### The pUSD Pipeline
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    FUNDING FLOW — FRESH EOA                      │
+│                    pUSD FUNDING FLOW                             │
 │                                                                 │
-│  Step 1: Get POL (for one transfer only, ~$0.01)                │
-│    Buy POL on any exchange → withdraw to EOA on Polygon          │
+│  Step 1: Get POL (~$0.01)                                       │
+│    Any exchange → withdraw POL to EOA on Polygon                 │
+│    This is the ONLY gas you'll ever pay.                        │
 │                                                                 │
-│  Step 2: Get USDC on Polygon                                    │
-│    Option A: Buy USDC on exchange → withdraw to EOA on Polygon  │
-│    Option B: Bridge from Ethereum/Arbitrum/Base via Across.to   │
-│    Option C: Use Polymarket Bridge API (auto-converts to pUSD)  │
+│  Step 2: Get pUSD on Polygon                                    │
+│    Option A: Polymarket Bridge API (auto-converts USDC → pUSD)  │
+│    Option B: Polymarket.com deposit (converts USDC → pUSD)      │
+│    Option C: Call CollateralOnramp.deposit(USDC) on-chain       │
 │                                                                 │
-│  Step 3: Convert USDC → pUSD                                    │
-│    Polymarket bridge does this automatically                    │
-│    Or call CollateralOnramp.deposit() manually                  │
-│                                                                 │
-│  Step 4: Transfer pUSD EOA → Deposit Wallet                     │
+│  Step 3: Transfer pUSD EOA → Deposit Wallet                     │
 │    polygolem deposit-wallet fund --amount X                     │
-│    (This is the one tx you pay gas for — ~$0.01 POL)            │
+│    One ERC-20 transfer. That's it. Gas: ~$0.01 POL.             │
+│                                                                 │
+│  After this: zero POL needed. All trading is gas-sponsored.     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Path 2: Bridge API (Programmatic)
-
-```bash
-# Get deposit addresses for your EOA
-curl -X POST https://bridge.polymarket.com/deposit \
-  -H "Content-Type: application/json" \
-  -d '{"address": "0xYOUR_EOA_ADDRESS"}'
-# Response: { "evm": "0x...", "svm": "...", "btc": "..." }
-
-# Bridge auto-converts to pUSD and credits your EOA
-polygolem bridge deposit <wallet-address>
-
-# Then transfer to deposit wallet
-polygolem deposit-wallet fund --amount X
-```
+> **pUSD homogeneity strategy:** We commit to pUSD as the settlement token for ALL markets — Polymarket's existing markets AND any future markets built on the Arenaton/Polydart stack. One token, one wallet, one funding pipeline. No bridging, no wrapping, no multi-chain fragmentation.
 
 ---
 
@@ -270,16 +260,18 @@ The deposit wallet is an ERC-1967 proxy smart contract on Polygon. It's NOT Poly
 
 The wallet implements `isValidSignature(bytes32 hash, bytes signature)` per EIP-1271. Any protocol that accepts ERC-1271 signatures can validate EOA-signed messages through this wallet. The wallet itself has no private key — the EOA signs, the wallet validates.
 
-### Potential Use Cases Beyond Polymarket
+### pUSD-Native Markets — Your Own Prediction Markets
 
-| Use Case | How |
-|----------|-----|
-| Other prediction markets | Settle in ERC-20 tokens on Polygon |
-| DeFi (Aave, Uniswap) | Approve + interact via proxy batch |
-| NFT marketplaces | Hold/trade ERC-721/ERC-1155 |
-| Multi-market aggregators | One wallet, multiple platforms, unified balance |
-| DAO voting | ERC-1271 signatures for snapshot |
-| Account abstraction | Extendable via factory upgrade |
+The deposit wallet + pUSD gives you a turnkey settlement layer:
+
+| Capability | Why It Matters |
+|-----------|---------------|
+| **Single collateral token** | All markets settle in pUSD. No per-market token fragmentation. |
+| **One wallet, all markets** | Users fund once, trade on Polymarket AND your custom markets. |
+| **ERC-1271 signatures** | EOA signs, deposit wallet validates. No per-market key management. |
+| **Batch execution** | Approve + trade in one `factory.proxy()` call. No per-market approval flow. |
+| **Same gas model** | Polymarket relayer sponsors gas. Your markets can use the same or similar relayer. |
+| **1:1 USDC backing** | pUSD is fully backed on-chain. No algorithmic risk. No peg to maintain. |
 
 ### Wallet Interface
 
@@ -289,22 +281,15 @@ interface IDepositWallet {
     // ERC-1271 — any protocol calls this to validate EOA signatures
     function isValidSignature(bytes32 hash, bytes calldata signature) 
         external view returns (bytes4 magicValue);
-    // Token receiver (ERC-1155 compatible)
-    function onERC1155Received(address, address, uint256, uint256, bytes calldata) 
-        external returns (bytes4);
-    // The wallet owner
     function owner() external view returns (address);
 }
 
 // Factory — deploy + execute
 interface IDepositWalletFactory {
-    function deploy(address[] owners, bytes32[] ids) external;
     function proxy(Batch[] batches, bytes[] signatures) external;  // UNGATED
     function predictWalletAddress(address impl, bytes32 id) external view returns (address);
 }
 ```
-
-**Key insight:** The deposit wallet is a standard ERC-1271 smart contract wallet. Polymarket uses it as the funder address. Any protocol that accepts smart contract wallet signatures can use it.
 
 ---
 
