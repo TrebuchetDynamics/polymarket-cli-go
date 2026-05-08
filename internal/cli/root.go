@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -758,6 +759,47 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 	createOrderCmd.Flags().BoolVar(&createOrderPostOnly, "post-only", false, "post-only order (maker-only, rejected if it would take)")
 	cmd.AddCommand(createOrderCmd)
 
+	var batchOrdersOutput, batchOrdersFile, batchOrdersBuilderCode string
+	batchOrdersCmd := &cobra.Command{Use: "batch-orders", Short: "Create multiple signed CLOB limit orders", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(batchOrdersOutput); err != nil {
+				return err
+			}
+			builderCode := builderCodeFromFlagOrEnv(batchOrdersBuilderCode)
+			if err := validateBuilderCodeForCLI(builderCode); err != nil {
+				return err
+			}
+			if strings.TrimSpace(batchOrdersFile) == "" {
+				return fmt.Errorf("--orders-file is required")
+			}
+			reader, closeReader, err := openBatchOrdersInput(cmd, batchOrdersFile)
+			if err != nil {
+				return err
+			}
+			if closeReader != nil {
+				defer closeReader()
+			}
+			orders, err := parseBatchOrderParams(reader)
+			if err != nil {
+				return err
+			}
+			w.clob.SetBuilderCode(builderCode)
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			res, err := w.clob.CreateBatchOrders(cmd.Context(), key, orders)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, res)
+		},
+	}
+	addOutput(batchOrdersCmd, &batchOrdersOutput)
+	batchOrdersCmd.Flags().StringVar(&batchOrdersFile, "orders-file", "", "JSON array of limit orders, or '-' for stdin")
+	batchOrdersCmd.Flags().StringVar(&batchOrdersBuilderCode, "builder-code", "", "0x-prefixed bytes32 builder attribution code")
+	cmd.AddCommand(batchOrdersCmd)
+
 	var marketOrderOutput, marketOrderToken, marketOrderSide, marketOrderAmount, marketOrderPrice, marketOrderType, marketOrderBuilderCode string
 	marketOrderCmd := &cobra.Command{Use: "market-order", Short: "Create a signed CLOB market/FOK order", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -794,6 +836,29 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 	marketOrderCmd.Flags().StringVar(&marketOrderType, "order-type", "FOK", "order type")
 	marketOrderCmd.Flags().StringVar(&marketOrderBuilderCode, "builder-code", "", "0x-prefixed bytes32 builder attribution code")
 	cmd.AddCommand(marketOrderCmd)
+
+	var heartbeatOutput, heartbeatID string
+	heartbeatCmd := &cobra.Command{Use: "heartbeat", Short: "Send one CLOB heartbeat ping", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(heartbeatOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			if err := w.clob.Heartbeat(cmd.Context(), key, heartbeatID); err != nil {
+				return err
+			}
+			return w.printJSON(cmd, map[string]interface{}{
+				"ok":           true,
+				"heartbeat_id": heartbeatID,
+			})
+		},
+	}
+	addOutput(heartbeatCmd, &heartbeatOutput)
+	heartbeatCmd.Flags().StringVar(&heartbeatID, "id", "", "optional heartbeat id")
+	cmd.AddCommand(heartbeatCmd)
 
 	var priceHistoryOutput, priceHistoryInterval string
 	priceHistoryCmd := &cobra.Command{Use: "price-history <token-id>", Short: "Get CLOB token price history", Args: cobra.ExactArgs(1),
@@ -1102,6 +1167,74 @@ func splitCSV(value string) []string {
 		}
 	}
 	return out
+}
+
+type batchOrderJSON struct {
+	Token          string `json:"token"`
+	TokenID        string `json:"tokenID"`
+	TokenIDSnake   string `json:"token_id"`
+	Side           string `json:"side"`
+	Price          string `json:"price"`
+	Size           string `json:"size"`
+	OrderType      string `json:"orderType"`
+	OrderTypeSnake string `json:"order_type"`
+	Expiration     string `json:"expiration"`
+	PostOnly       bool   `json:"postOnly"`
+	PostOnlySnake  bool   `json:"post_only"`
+}
+
+func openBatchOrdersInput(cmd *cobra.Command, path string) (io.Reader, func(), error) {
+	if strings.TrimSpace(path) == "-" {
+		return cmd.InOrStdin(), nil, nil
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return file, func() { _ = file.Close() }, nil
+}
+
+func parseBatchOrderParams(r io.Reader) ([]clob.CreateOrderParams, error) {
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	var inputs []batchOrderJSON
+	if err := json.Unmarshal(raw, &inputs); err != nil {
+		var wrapped struct {
+			Orders []batchOrderJSON `json:"orders"`
+		}
+		if wrappedErr := json.Unmarshal(raw, &wrapped); wrappedErr != nil {
+			return nil, err
+		}
+		inputs = wrapped.Orders
+	}
+	if len(inputs) == 0 {
+		return nil, fmt.Errorf("orders file must contain at least one order")
+	}
+	out := make([]clob.CreateOrderParams, len(inputs))
+	for i, in := range inputs {
+		out[i] = clob.CreateOrderParams{
+			TokenID:    firstNonEmptyCLI(in.TokenID, in.TokenIDSnake, in.Token),
+			Side:       in.Side,
+			Price:      in.Price,
+			Size:       in.Size,
+			OrderType:  firstNonEmptyCLI(in.OrderType, in.OrderTypeSnake),
+			Expiration: in.Expiration,
+			PostOnly:   in.PostOnly || in.PostOnlySnake,
+		}
+	}
+	return out, nil
+}
+
+func firstNonEmptyCLI(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func builderCodeFromFlagOrEnv(flagValue string) string {

@@ -285,7 +285,9 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 		{"clob", "cancel-all"},
 		{"clob", "cancel-market"},
 		{"clob", "create-order"},
+		{"clob", "batch-orders"},
 		{"clob", "market-order"},
+		{"clob", "heartbeat"},
 		{"clob", "price-history"},
 		{"clob", "market"},
 		{"clob", "markets"},
@@ -344,6 +346,7 @@ func TestCLOBCreateAPIKeyForAddressHasOwnerFlag(t *testing.T) {
 func TestCLOBOrderCommandsHaveBuilderCodeFlag(t *testing.T) {
 	for _, args := range [][]string{
 		{"clob", "create-order"},
+		{"clob", "batch-orders"},
 		{"clob", "market-order"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
@@ -360,6 +363,56 @@ func TestCLOBOrderCommandsHaveBuilderCodeFlag(t *testing.T) {
 				t.Fatalf("default builder-code=%q, want empty", flag.DefValue)
 			}
 		})
+	}
+}
+
+func TestCLOBBatchOrdersHasOrdersFileFlag(t *testing.T) {
+	root := NewRootCommand(Options{Version: "test-version", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	cmd, _, err := root.Find([]string{"clob", "batch-orders"})
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	flag := cmd.Flags().Lookup("orders-file")
+	if flag == nil {
+		t.Fatal("orders-file flag missing")
+	}
+	if flag.DefValue != "" {
+		t.Fatalf("default orders-file=%q, want empty", flag.DefValue)
+	}
+}
+
+func TestCLOBHeartbeatHasIDFlag(t *testing.T) {
+	root := NewRootCommand(Options{Version: "test-version", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	cmd, _, err := root.Find([]string{"clob", "heartbeat"})
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	flag := cmd.Flags().Lookup("id")
+	if flag == nil {
+		t.Fatal("id flag missing")
+	}
+	if flag.DefValue != "" {
+		t.Fatalf("default id=%q, want empty", flag.DefValue)
+	}
+}
+
+func TestParseBatchOrderParamsAcceptsTokenAliasAndPostOnly(t *testing.T) {
+	body := strings.NewReader(`[
+		{"token":"12345","side":"buy","price":"0.5","size":"10","orderType":"GTC","postOnly":true},
+		{"tokenID":"12346","side":"sell","price":"0.6","size":"5","orderType":"GTD","expiration":"1778125000"}
+	]`)
+	got, err := parseBatchOrderParams(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len=%d want 2", len(got))
+	}
+	if got[0].TokenID != "12345" || !got[0].PostOnly {
+		t.Fatalf("first order=%+v", got[0])
+	}
+	if got[1].TokenID != "12346" || got[1].Expiration != "1778125000" {
+		t.Fatalf("second order=%+v", got[1])
 	}
 }
 
