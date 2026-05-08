@@ -286,7 +286,7 @@ func (c *Client) CancelMarket(ctx context.Context, privateKey string, params sdk
 // privateKey, posts it to /auth/api-key, and falls back to the deterministic
 // /auth/derive-api-key on conflict. First call for a new EOA lazy-creates
 // the account, builder profile, and bytes32 builder code — see
-// docs/BUILDER-AUTO.md for the empirical flow.
+// docs/ONBOARDING.md for the empirical flow.
 func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (sdkclob.APIKey, error) {
 	return c.clobRead.CreateOrDeriveAPIKey(ctx, privateKey)
 }
