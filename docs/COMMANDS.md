@@ -729,6 +729,41 @@ polygolem --json clob create-order \
   --post-only
 ```
 
+### clob batch-orders
+
+Create multiple signed CLOB limit orders from a JSON file.
+
+**Usage:**
+
+```
+polygolem clob batch-orders [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--builder-code` | string | `""` | 0x-prefixed bytes32 builder attribution code. |
+| `-h, --help` | bool | `false` | Help for `batch-orders`. |
+| `--orders-file` | string | `""` | JSON array of limit orders, or `-` for stdin. |
+| `--output` | string | `json` | Output format (json). |
+| `--json` | bool | `false` | Emit JSON output (global). |
+
+**Example:**
+
+```bash
+cat > orders.json <<'JSON'
+[
+  {"token":"<token-id-1>","side":"buy","price":"0.51","size":"10","orderType":"GTC","postOnly":true},
+  {"tokenID":"<token-id-2>","side":"sell","price":"0.62","size":"5","orderType":"GTD","expiration":"1778125000"}
+]
+JSON
+
+polygolem --json clob batch-orders \
+  --orders-file orders.json \
+  --builder-code "$POLYMARKET_BUILDER_CODE"
+```
+
 ### clob market
 
 Get CLOB market by condition ID.
@@ -807,6 +842,31 @@ polygolem clob market-order [flags]
 ```bash
 polygolem --json clob market-order \
   --token <token-id> --side buy --amount 5
+```
+
+### clob heartbeat
+
+Send one CLOB heartbeat ping.
+
+**Usage:**
+
+```
+polygolem clob heartbeat [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | bool | `false` | Help for `heartbeat`. |
+| `--id` | string | `""` | Optional heartbeat id. |
+| `--output` | string | `json` | Output format (json). |
+| `--json` | bool | `false` | Emit JSON output (global). |
+
+**Example:**
+
+```bash
+polygolem --json clob heartbeat --id keepalive-1
 ```
 
 ### clob list-builder-fee-keys

@@ -85,9 +85,15 @@ polygolem clob create-order \
   --token <token-id> --side buy --price 0.5 --size 10 \
   --post-only
 
+polygolem clob batch-orders \
+  --orders-file orders.json \
+  --builder-code "$POLYMARKET_BUILDER_CODE"
+
 polygolem clob market-order \
   --token <token-id> --side buy --amount 5 \
   --builder-code "$POLYMARKET_BUILDER_CODE"
+
+polygolem clob heartbeat --id keepalive-1
 ```
 
 `cancel-market` requires at least one filter in polygolem. Use `cancel-all` for
@@ -216,8 +222,6 @@ live CLOB order and balance command to `deposit`.
 These upstream V2 capabilities are not yet exposed as stable polygolem SDK/CLI
 contracts:
 
-- CLI wrapper for batch order placement (`POST /orders`). The SDK exposes
-  `CreateBatchOrders`; the CLI still posts one order per command.
 - Authenticated user WebSocket stream. Authenticated REST account/order/trading
   DTOs are public through `pkg/clob`.
 - Sell-side market orders in `CreateMarketOrder`; the current implementation

@@ -12,10 +12,11 @@ description: Polygolem coverage across Gamma, CLOB, Data API, Bridge, WebSocket,
 | CLOB public data | `internal/clob`, `pkg/clob`, `pkg/orderbook`, `pkg/types`, `pkg/universal` | `orderbook *`, `clob book`, `clob market`, `clob markets`, `clob price-history` | Covered |
 | CLOB account reads | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob create-api-key`, `clob create-api-key-for-address`, `clob balance`, `clob update-balance`, `clob orders`, `clob order`, `clob trades` | Covered |
 | CLOB cancellation | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob cancel`, `clob cancel-orders`, `clob cancel-market`, `clob cancel-all` | Covered |
-| CLOB placement | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob create-order`, `clob market-order`, `--builder-code` | Deposit wallet only |
+| CLOB placement | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob create-order`, `clob batch-orders`, `clob market-order`, `--builder-code` | Deposit wallet only |
 | CLOB V2 builder attribution | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob create-builder-fee-key`, `clob list-builder-fee-keys`, `clob revoke-builder-fee-key`, `--builder-code` | Covered |
 | Builder header signing | `internal/auth`, `pkg/builder` | `builder auto`, relayer fallback auth | Covered |
-| CLOB batch placement | `internal/clob`, `pkg/clob`, `pkg/universal` | Not exposed | SDK covered; CLI gap |
+| CLOB batch placement | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob batch-orders` | Covered |
+| CLOB heartbeat | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob heartbeat` | Covered |
 | Data API | `internal/dataapi`, `pkg/data`, `pkg/types`, `pkg/universal` | `data *` | Covered |
 | Bridge | `pkg/bridge` | `bridge assets`, `bridge deposit` | Covered |
 | Conditional Tokens helpers | `pkg/ctf` | Not exposed | SDK calldata helpers only |
@@ -29,8 +30,6 @@ The repository copy with test and documentation columns lives in
 ## Gaps
 
 - Authenticated user WebSocket streams wait for L2 WebSocket auth tests.
-- Batch order placement is exposed through the SDK; a CLI wrapper is still a
-  gap.
 - Data API all-market open interest is not exposed by the CLI yet; the current
   command requires `--token-id`.
 - The command reference is manually aligned with the CLI tree. A checked-in

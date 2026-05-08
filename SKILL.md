@@ -1118,6 +1118,8 @@ Use these when reconciling or reducing live exposure:
 
 ```bash
 ./polygolem clob order <order-id> --json
+./polygolem clob batch-orders --orders-file orders.json --json
+./polygolem clob heartbeat --id keepalive-1 --json
 ./polygolem clob cancel <order-id> --json
 ./polygolem clob cancel-orders <order-id-1>,<order-id-2> --json
 ./polygolem clob cancel-market --market <condition-id> --json
@@ -1128,9 +1130,13 @@ Use these when reconciling or reducing live exposure:
 Agent rules:
 
 - `balance`, `update-balance`, `order`, `orders`, `trades`, order placement,
-  and all cancel commands consume `POLYMARKET_PRIVATE_KEY` to derive the
-  deposit-wallet address and authenticate with deposit-wallet-owned CLOB L2
-  credentials.
+  batch order placement, heartbeats, and all cancel commands consume
+  `POLYMARKET_PRIVATE_KEY` to derive the deposit-wallet address and
+  authenticate with deposit-wallet-owned CLOB L2 credentials.
+- `batch-orders` reads a JSON array from `--orders-file` or stdin via
+  `--orders-file -`. Each item accepts `token` or `tokenID`, plus `side`,
+  `price`, `size`, `orderType`, optional `expiration`, and optional
+  `postOnly`.
 - `cancel`, `cancel-orders`, `cancel-market`, and `cancel-all` mutate
   upstream order state. Prefer the narrowest cancel command that matches the
   user's request.

@@ -250,18 +250,16 @@ DepositWalletImplementation: 0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB
 4. **Headless V2 onboarding CLI** — `polygolem builder auto` + `auth headless-onboard` + `deposit-wallet onboard` is a complete zero-browser flow. Official SDKs require browser-based SIWE or Reown.
 5. **Paper trading built-in** — `polygolem paper buy/positions/reset` for local simulation without API keys.
 6. **Circuit breaker & risk management** — Per-trade caps, daily loss limits, and transport-level circuit breaker.
-7. **V2-only deposit-wallet order signing** — Internal `orders` package signs POLY_1271 orders with deposit-wallet maker/signer, deposit-wallet-owned L2 headers, optional builder attribution, and post-only support.
+7. **V2-only deposit-wallet order signing** — Internal `orders` package signs POLY_1271 orders with deposit-wallet maker/signer, deposit-wallet-owned L2 headers, optional builder attribution, post-only support, batch posting, and heartbeats.
 8. **Verified against official test vectors** — CREATE2 derivation verified against official Python SDK test vector.
 
 ### Where polygolem has gaps vs. the ecosystem
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| **Batch order posting** | Medium | Official SDKs support `post_orders()`. Polygolem supports batch cancellation but not multi-order POST yet. |
 | **RFQ API** | Low | Request-for-quote is a specialized feature. Most bots don't need it. |
 | **CTF on-chain operations** | Medium | Split/merge/redeem positions. 0xNetuser's Go SDK has full Web3 clients for this. |
 | **Remote builder signing** | Low | For client-side apps that can't expose builder secrets. GoPolymarket SDK has a signer-server pattern. |
-| **Heartbeats** | Medium | Auto-cancel orders on disconnect. Official Rust SDK and GoPolymarket SDK have this. |
 | **AWS KMS / Turnkey signers** | Low | Institutional custody. GoPolymarket SDK and ybina SDK support this. |
 | **Streaming pagination** | Low | `StreamData()` helper in GoPolymarket SDK and official Rust SDK. Polygolem has `pkg/pagination` but not streaming. |
 | **Web3 / on-chain transfers** | Low | Direct USDC/conditional token transfers. Polygolem only has bridge deposit + relayer batch. |

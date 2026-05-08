@@ -100,7 +100,9 @@ polygolem clob create-api-key-for-address --owner 0xDepositWallet
 polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --builder-code "$POLYMARKET_BUILDER_CODE"
 polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --post-only
 polygolem clob create-order --token ID --side buy --price 0.5 --size 10 --order-type GTD --expiration 1778125000
+polygolem clob batch-orders --orders-file orders.json --builder-code "$POLYMARKET_BUILDER_CODE"
 polygolem clob market-order --token ID --side buy --amount 5 --builder-code "$POLYMARKET_BUILDER_CODE"
+polygolem clob heartbeat --id keepalive-1
 polygolem clob orders                                      # list open orders
 polygolem clob trades                                      # trade history
 polygolem clob cancel <order-id>                           # cancel single order
