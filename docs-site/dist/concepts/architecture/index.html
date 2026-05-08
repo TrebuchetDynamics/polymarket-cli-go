@@ -105,7 +105,7 @@ Cobra-based CLI on top.</p>
 
 
 
-<table><thead><tr><th>Layer</th><th>Packages</th><th>Role</th></tr></thead><tbody><tr><td><strong><code dir="auto">cmd/polygolem</code></strong></td><td>1</td><td>Binary entry point. Wires Cobra and exits.</td></tr><tr><td><strong><code dir="auto">pkg/</code></strong></td><td>7</td><td>Public Go SDK contracts. Some type paths still need cleanup.</td></tr><tr><td><strong><code dir="auto">internal/</code></strong></td><td>21</td><td>Implementation. Not part of public API.</td></tr></tbody></table>
+<table><thead><tr><th>Layer</th><th>Packages</th><th>Role</th></tr></thead><tbody><tr><td><strong><code dir="auto">cmd/polygolem</code></strong></td><td>1</td><td>Binary entry point. Wires Cobra and exits.</td></tr><tr><td><strong><code dir="auto">pkg/</code></strong></td><td>9</td><td>Public Go SDK contracts. Data API DTOs use public <code dir="auto">pkg/types</code>; other type paths still need cleanup.</td></tr><tr><td><strong><code dir="auto">internal/</code></strong></td><td>21</td><td>Implementation. Not part of public API.</td></tr></tbody></table>
 <p>The CLI and public SDK both depend on the internal protocol implementation.
 The <code dir="auto">internal/</code> packages do not depend on <code dir="auto">cmd/</code>.</p>
 <h2 id="public-sdk-pkg">Public SDK (<code dir="auto">pkg/</code>)</h2>
@@ -146,7 +146,15 @@ The <code dir="auto">internal/</code> packages do not depend on <code dir="auto"
 
 
 
-<table><thead><tr><th>Package</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">pkg/universal</code></td><td>Single client for Gamma + CLOB + Data API + Discovery + Stream</td></tr><tr><td><code dir="auto">pkg/gamma</code></td><td>Full Gamma API surface — 26 methods (markets, events, tags, comments, profiles)</td></tr><tr><td><code dir="auto">pkg/bookreader</code></td><td>Read-only CLOB order-book reader</td></tr><tr><td><code dir="auto">pkg/marketresolver</code></td><td>Market + token ID resolution</td></tr><tr><td><code dir="auto">pkg/bridge</code></td><td>Bridge API — supported assets, deposit addresses, quotes</td></tr><tr><td><code dir="auto">pkg/relayer</code></td><td>Builder relayer primitives — wallet create, wallet batch, nonce, polling</td></tr><tr><td><code dir="auto">pkg/pagination</code></td><td>Cursor and offset pagination with concurrent batching</td></tr></tbody></table>
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Package</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">pkg/universal</code></td><td>Single client for Gamma + CLOB + Data API + Discovery + Stream</td></tr><tr><td><code dir="auto">pkg/gamma</code></td><td>Full Gamma API surface — 26 methods (markets, events, tags, comments, profiles)</td></tr><tr><td><code dir="auto">pkg/data</code></td><td>Read-only Data API analytics client returning <code dir="auto">pkg/types</code> DTOs</td></tr><tr><td><code dir="auto">pkg/types</code></td><td>Public DTOs shared by SDK packages</td></tr><tr><td><code dir="auto">pkg/bookreader</code></td><td>Read-only CLOB order-book reader</td></tr><tr><td><code dir="auto">pkg/marketresolver</code></td><td>Market + token ID resolution</td></tr><tr><td><code dir="auto">pkg/bridge</code></td><td>Bridge API — supported assets, deposit addresses, quotes</td></tr><tr><td><code dir="auto">pkg/relayer</code></td><td>Builder relayer primitives — wallet create, wallet batch, nonce, polling</td></tr><tr><td><code dir="auto">pkg/pagination</code></td><td>Cursor and offset pagination with concurrent batching</td></tr></tbody></table>
 <h2 id="internal-packages-internal">Internal Packages (<code dir="auto">internal/</code>)</h2>
 <h3 id="protocol-clients">Protocol Clients</h3>
 
