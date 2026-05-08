@@ -507,6 +507,67 @@ func TestListOrdersAcceptsPaginatedObjectResponse(t *testing.T) {
 	}
 }
 
+func TestListOrdersAcceptsNumericCreatedAtAndExpiration(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/data/orders":
+			_, _ = w.Write([]byte(`{"orders":[{"id":"0xabc","status":"LIVE","created_at":1746729600,"expiration":0}],"next_cursor":"LTE=","count":1}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	orders, err := client.ListOrders(context.Background(), testOrderPrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(orders) != 1 || orders[0].ID != "0xabc" {
+		t.Fatalf("orders=%+v", orders)
+	}
+	if orders[0].CreatedAt != "1746729600" {
+		t.Fatalf("CreatedAt=%q want %q", orders[0].CreatedAt, "1746729600")
+	}
+	if orders[0].Expiration != "0" {
+		t.Fatalf("Expiration=%q want %q", orders[0].Expiration, "0")
+	}
+}
+
+func TestListTradesAcceptsNumericTimestamps(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/data/trades":
+			_, _ = w.Write([]byte(`{"trades":[{"id":"trade-1","status":"MATCHED","created_at":1746729600,"last_updated":1746729700}],"next_cursor":"LTE=","count":1}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	trades, err := client.ListTrades(context.Background(), testOrderPrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(trades) != 1 || trades[0].ID != "trade-1" {
+		t.Fatalf("trades=%+v", trades)
+	}
+	if trades[0].CreatedAt != "1746729600" || trades[0].LastUpdated != "1746729700" {
+		t.Fatalf("CreatedAt=%q LastUpdated=%q", trades[0].CreatedAt, trades[0].LastUpdated)
+	}
+}
+
 func TestListTradesAcceptsPaginatedObjectResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

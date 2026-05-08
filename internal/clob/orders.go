@@ -106,6 +106,24 @@ type OrderRecord struct {
 	AssociateTrades []string `json:"associate_trades,omitempty"`
 }
 
+// UnmarshalJSON accepts created_at and expiration as either JSON string or
+// number — the V2 backend has been observed returning unix timestamps as raw
+// numbers in some endpoints and as strings in others.
+func (o *OrderRecord) UnmarshalJSON(data []byte) error {
+	type alias OrderRecord
+	aux := struct {
+		*alias
+		CreatedAt  json.RawMessage `json:"created_at"`
+		Expiration json.RawMessage `json:"expiration"`
+	}{alias: (*alias)(o)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	o.CreatedAt = jsonStringOrNumber(aux.CreatedAt)
+	o.Expiration = jsonStringOrNumber(aux.Expiration)
+	return nil
+}
+
 // TradeRecord is a single trade as returned by ListTrades.
 type TradeRecord struct {
 	ID              string `json:"id"`
@@ -123,6 +141,40 @@ type TradeRecord struct {
 	TransactionHash string `json:"transaction_hash"`
 	CreatedAt       string `json:"created_at"`
 	LastUpdated     string `json:"last_updated"`
+}
+
+// UnmarshalJSON accepts created_at and last_updated as either JSON string or
+// number; see [OrderRecord.UnmarshalJSON] for rationale.
+func (t *TradeRecord) UnmarshalJSON(data []byte) error {
+	type alias TradeRecord
+	aux := struct {
+		*alias
+		CreatedAt   json.RawMessage `json:"created_at"`
+		LastUpdated json.RawMessage `json:"last_updated"`
+	}{alias: (*alias)(t)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	t.CreatedAt = jsonStringOrNumber(aux.CreatedAt)
+	t.LastUpdated = jsonStringOrNumber(aux.LastUpdated)
+	return nil
+}
+
+// jsonStringOrNumber unwraps a JSON value that may be a string or a number,
+// returning the underlying lexical text without quotes. Used for fields the
+// CLOB serves inconsistently as either type.
+func jsonStringOrNumber(raw json.RawMessage) string {
+	s := strings.TrimSpace(string(raw))
+	if s == "" || s == "null" {
+		return ""
+	}
+	if s[0] == '"' {
+		var v string
+		if err := json.Unmarshal(raw, &v); err == nil {
+			return v
+		}
+	}
+	return s
 }
 
 // signedOrderPayload is the CLOB V2 order wire format.
