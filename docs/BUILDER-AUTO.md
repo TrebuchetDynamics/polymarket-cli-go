@@ -44,7 +44,7 @@ sequenceDiagram
     U->>A: provide EOA private key<br/>(or app generates fresh)
     A->>A: sign ClobAuth EIP-712 locally
     A->>C: POST /auth/api-key<br/>(POLY_ADDRESS, POLY_SIGNATURE,<br/>POLY_TIMESTAMP, POLY_NONCE)
-    C->>C: lazy-create account +<br/>builder profile + bytes32 code
+    C->>C: provision account record<br/>(read-only — write needs<br/>browser-issued profile)
     C-->>A: { apiKey, secret, passphrase }
     A->>R: GET /nonce (HMAC-signed)
     R-->>A: 200 → creds verified
@@ -116,14 +116,38 @@ The endpoint also has a `GET /auth/derive-api-key` companion that returns the sa
 
 ## What the backend does on first contact
 
-A new EOA's first signed `POST /auth/api-key` lazy-creates:
+A new EOA's first signed `POST /auth/api-key` issues an HMAC triple
+(`apiKey` / `secret` / `passphrase`). The endpoint is idempotent per EOA.
 
-1. The user account
-2. The builder profile row (visible at `polymarket.com/settings?tab=builder` if you log in with that key)
-3. The bytes32 `builderCode` (used in V2 `Order.builder` for fee attribution)
-4. The HMAC triple returned in the response
+**Read access** — those creds authenticate against the relayer for read
+endpoints (`GET /nonce`, `GET /deployed`). HMAC verifies on the server
+side; the EOA can poll its own nonce and deployment status.
 
-The `polymarket.com/settings?tab=builder` UI exposes state; it does not create it. There is no separate "register as builder" endpoint or transaction.
+**Write access — gated.** The relayer's `POST /submit` endpoint (used
+for `WALLET-CREATE`, `WALLET` batches) returns
+`HTTP 401 invalid authorization` for fresh EOAs that have only the
+auto-minted creds. Empirically verified 2026-05-07 with throwaway EOA
+`0xf76Ca737f9c768fc3562fbFbF8A748A4718f2a61`: builder-auto succeeded,
+`/nonce` and `/deployed` returned 200, `/submit` rejected. To unlock
+relayer writes the EOA also needs a builder profile created via
+`polymarket.com/settings?tab=builder` — the browser-side flow that
+issues the bytes32 `builderCode` and registers the address as a
+write-capable builder.
+
+So the canonical headless onboarding **today** is:
+
+| Step | Mechanism | Coverage from polygolem |
+| --- | --- | --- |
+| Mint HMAC creds for L2 reads | `polygolem builder auto` | ✅ headless |
+| Authenticate relayer reads (nonce, deployed) | same creds | ✅ headless |
+| Register as a write-capable builder | manual at `polymarket.com/settings?tab=builder` | ❌ browser only |
+| Deploy / approve / trade via relayer | requires builder-profile creds | ✅ headless after step 3 |
+
+Earlier revisions of this doc claimed the first `/auth/api-key` POST
+lazy-created the full builder profile end-to-end. That was over-stated
+based on a single observation against an EOA that already had a
+manually-created profile. The corrected behaviour above is what the
+production relayer actually enforces.
 
 ## Validation
 
