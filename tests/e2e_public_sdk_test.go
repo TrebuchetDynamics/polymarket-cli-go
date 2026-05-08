@@ -74,6 +74,9 @@ func TestPolygolemPublicSDKE2EAgainstLocalPolymarket(t *testing.T) {
 	if len(markets) != 1 || markets[0].ClobTokenIDs == "" {
 		t.Fatalf("markets = %+v", markets)
 	}
+	if markets[0].Category != "Crypto" || len(markets[0].Categories) != 1 || markets[0].Categories[0].Slug != "crypto" {
+		t.Fatalf("market categories = category:%q categories:%+v", markets[0].Category, markets[0].Categories)
+	}
 	activeMarkets, err := client.ActiveMarkets(ctx)
 	if err != nil {
 		t.Fatalf("ActiveMarkets: %v", err)
@@ -102,6 +105,9 @@ func TestPolygolemPublicSDKE2EAgainstLocalPolymarket(t *testing.T) {
 	if len(events) != 1 || len(events[0].Markets) != 1 {
 		t.Fatalf("events = %+v", events)
 	}
+	if len(events[0].Categories) != 1 || events[0].Categories[0].Slug != "crypto" || len(events[0].Markets[0].Categories) != 1 {
+		t.Fatalf("event categories = event:%+v market:%+v", events[0].Categories, events[0].Markets[0].Categories)
+	}
 	eventByID, err := client.EventByID(ctx, "event-1")
 	if err != nil {
 		t.Fatalf("EventByID: %v", err)
@@ -129,6 +135,9 @@ func TestPolygolemPublicSDKE2EAgainstLocalPolymarket(t *testing.T) {
 	}
 	if len(series) != 1 || series[0].Slug != "crypto" {
 		t.Fatalf("series = %+v", series)
+	}
+	if len(series[0].Categories) != 1 || series[0].Categories[0].Slug != "crypto" {
+		t.Fatalf("series categories = %+v", series[0].Categories)
 	}
 	seriesByID, err := client.SeriesByID(ctx, "series-1")
 	if err != nil {
@@ -805,11 +814,16 @@ func (r *e2eRecorder) count(route string) int {
 
 func newE2EGammaServer(t *testing.T, rec *e2eRecorder) *httptest.Server {
 	t.Helper()
+	category := map[string]interface{}{"id": "cat-1", "label": "Crypto", "slug": "crypto"}
+	tag := map[string]interface{}{"id": "1", "label": "Crypto", "slug": "crypto"}
 	market := map[string]interface{}{
 		"id":                    "market-1",
 		"question":              "Will BTC hit 100k?",
 		"conditionId":           "condition-1",
 		"slug":                  "will-btc-hit-100k",
+		"category":              "Crypto",
+		"categories":            []map[string]interface{}{category},
+		"tags":                  []map[string]interface{}{tag},
 		"active":                true,
 		"closed":                false,
 		"enableOrderBook":       true,
@@ -819,14 +833,22 @@ func newE2EGammaServer(t *testing.T, rec *e2eRecorder) *httptest.Server {
 		"acceptingOrders":       true,
 	}
 	event := map[string]interface{}{
-		"id":      "event-1",
-		"slug":    "btc-event",
-		"title":   "BTC event",
-		"active":  true,
-		"markets": []map[string]interface{}{market},
+		"id":         "event-1",
+		"slug":       "btc-event",
+		"title":      "BTC event",
+		"active":     true,
+		"categories": []map[string]interface{}{category},
+		"tags":       []map[string]interface{}{tag},
+		"markets":    []map[string]interface{}{market},
 	}
-	tag := map[string]interface{}{"id": "1", "label": "Crypto", "slug": "crypto"}
-	series := map[string]interface{}{"id": "series-1", "ticker": "CRYPTO", "slug": "crypto", "title": "Crypto"}
+	series := map[string]interface{}{
+		"id":         "series-1",
+		"ticker":     "CRYPTO",
+		"slug":       "crypto",
+		"title":      "Crypto",
+		"categories": []map[string]interface{}{category},
+		"tags":       []map[string]interface{}{tag},
+	}
 	comment := map[string]interface{}{
 		"id":   "comment-1",
 		"body": "local sentiment",
