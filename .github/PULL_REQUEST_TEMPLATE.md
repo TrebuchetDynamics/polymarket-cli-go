@@ -10,7 +10,8 @@ One or two sentences describing what this PR does and why.
 
 - [ ] Tests pass locally (`go test ./...`).
 - [ ] `go vet ./...` is clean.
-- [ ] `gofmt -l .` produces no output.
+- [ ] `git ls-files -z '*.go' ':!:opensource-projects/**' | xargs -0 gofmt -l`
+      produces no output.
 - [ ] Godoc updated if the exported surface changed (`pkg/` or exported
       identifiers in `internal/`).
 - [ ] `CHANGELOG.md` `## [Unreleased]` section updated with a one-line

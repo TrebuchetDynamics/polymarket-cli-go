@@ -16,7 +16,14 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - run: gofmt -w .
+      - name: Format Go files
+        run: |
+          tmp="$(mktemp)"
+          git ls-files -z '*.go' ':!:opensource-projects/**' > "$tmp"
+          if [ -s "$tmp" ]; then
+            xargs -0 gofmt -w < "$tmp"
+          fi
+          rm "$tmp"
       - run: git diff --exit-code
       - run: go vet ./...
       - run: go test ./...

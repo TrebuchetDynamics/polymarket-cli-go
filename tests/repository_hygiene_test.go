@@ -21,9 +21,10 @@ func TestRepositoryHygiene(t *testing.T) {
 	for _, required := range []string{
 		"actions/setup-go@",
 		"go-version-file: go.mod",
+		"git ls-files -z '*.go' ':!:opensource-projects/**'",
+		"xargs -0 gofmt -w",
 		"go vet ./...",
 		"go test ./...",
-		"gofmt -w .",
 		"git diff --exit-code",
 	} {
 		if !strings.Contains(ciContent, required) {
