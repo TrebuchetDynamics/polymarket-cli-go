@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/TrebuchetDynamics/polygolem/internal/auth"
 	internalclob "github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
 	"github.com/TrebuchetDynamics/polygolem/internal/marketdiscovery"
@@ -234,38 +233,38 @@ func (c *Client) MarketsKeyset(ctx context.Context, params *types.KeysetParams) 
 // --- CLOB: Authenticated Orders & Cancellation ---
 
 // ListOrders returns the authenticated user's open orders.
-func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]internalclob.OrderRecord, error) {
-	return c.clob.ListOrders(ctx, privateKey)
+func (c *Client) ListOrders(ctx context.Context, privateKey string) ([]sdkclob.OrderRecord, error) {
+	return c.clobRead.ListOrders(ctx, privateKey)
 }
 
 // Order returns one authenticated order by order ID.
-func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*internalclob.OrderRecord, error) {
-	return c.clob.Order(ctx, privateKey, orderID)
+func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*sdkclob.OrderRecord, error) {
+	return c.clobRead.Order(ctx, privateKey, orderID)
 }
 
 // ListTrades returns the authenticated user's trade history.
-func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]internalclob.TradeRecord, error) {
-	return c.clob.ListTrades(ctx, privateKey)
+func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]sdkclob.TradeRecord, error) {
+	return c.clobRead.ListTrades(ctx, privateKey)
 }
 
 // CancelOrder cancels a single open CLOB order.
-func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*internalclob.CancelOrdersResponse, error) {
-	return c.clob.CancelOrder(ctx, privateKey, orderID)
+func (c *Client) CancelOrder(ctx context.Context, privateKey, orderID string) (*sdkclob.CancelOrdersResponse, error) {
+	return c.clobRead.CancelOrder(ctx, privateKey, orderID)
 }
 
 // CancelOrders cancels multiple open CLOB orders by order ID.
-func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs []string) (*internalclob.CancelOrdersResponse, error) {
-	return c.clob.CancelOrders(ctx, privateKey, orderIDs)
+func (c *Client) CancelOrders(ctx context.Context, privateKey string, orderIDs []string) (*sdkclob.CancelOrdersResponse, error) {
+	return c.clobRead.CancelOrders(ctx, privateKey, orderIDs)
 }
 
 // CancelAll cancels all open CLOB orders for the authenticated user.
-func (c *Client) CancelAll(ctx context.Context, privateKey string) (*internalclob.CancelOrdersResponse, error) {
-	return c.clob.CancelAll(ctx, privateKey)
+func (c *Client) CancelAll(ctx context.Context, privateKey string) (*sdkclob.CancelOrdersResponse, error) {
+	return c.clobRead.CancelAll(ctx, privateKey)
 }
 
 // CancelMarket cancels open CLOB orders matching a market or asset filter.
-func (c *Client) CancelMarket(ctx context.Context, privateKey string, params internalclob.CancelMarketParams) (*internalclob.CancelOrdersResponse, error) {
-	return c.clob.CancelMarket(ctx, privateKey, params)
+func (c *Client) CancelMarket(ctx context.Context, privateKey string, params sdkclob.CancelMarketParams) (*sdkclob.CancelOrdersResponse, error) {
+	return c.clobRead.CancelMarket(ctx, privateKey, params)
 }
 
 // --- CLOB: Headless Onboarding & Trading (L1/L2 auth) ---
@@ -275,47 +274,47 @@ func (c *Client) CancelMarket(ctx context.Context, privateKey string, params int
 // /auth/derive-api-key on conflict. First call for a new EOA lazy-creates
 // the account, builder profile, and bytes32 builder code — see
 // docs/BUILDER-AUTO.md for the empirical flow.
-func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (auth.APIKey, error) {
-	return c.clob.CreateOrDeriveAPIKey(ctx, privateKey)
+func (c *Client) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (sdkclob.APIKey, error) {
+	return c.clobRead.CreateOrDeriveAPIKey(ctx, privateKey)
 }
 
 // CreateBuilderFeeKey mints a builder fee key via L2 auth.
 // Used for V2 order builder field attribution. Requires existing L2 credentials.
 // Fully headless — no cookie, no browser, no relayer.
-func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (auth.APIKey, error) {
-	return c.clob.CreateBuilderFeeKey(ctx, privateKey)
+func (c *Client) CreateBuilderFeeKey(ctx context.Context, privateKey string) (sdkclob.APIKey, error) {
+	return c.clobRead.CreateBuilderFeeKey(ctx, privateKey)
 }
 
 // DeriveAPIKey returns the deterministic L2 credentials for an existing
 // account via GET /auth/derive-api-key. Use CreateOrDeriveAPIKey when the
 // caller is unsure whether an account has been provisioned yet.
-func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (auth.APIKey, error) {
-	return c.clob.DeriveAPIKey(ctx, privateKey)
+func (c *Client) DeriveAPIKey(ctx context.Context, privateKey string) (sdkclob.APIKey, error) {
+	return c.clobRead.DeriveAPIKey(ctx, privateKey)
 }
 
 // BalanceAllowance returns the authenticated CLOB collateral or conditional
 // token balance plus allowances against the V2 exchange spenders.
-func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params internalclob.BalanceAllowanceParams) (*internalclob.BalanceAllowanceResponse, error) {
-	return c.clob.BalanceAllowance(ctx, privateKey, params)
+func (c *Client) BalanceAllowance(ctx context.Context, privateKey string, params sdkclob.BalanceAllowanceParams) (*sdkclob.BalanceAllowanceResponse, error) {
+	return c.clobRead.BalanceAllowance(ctx, privateKey, params)
 }
 
 // UpdateBalanceAllowance forces the CLOB to refresh its on-chain
 // balance/allowance cache for the authenticated user.
-func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, params internalclob.BalanceAllowanceParams) (*internalclob.BalanceAllowanceResponse, error) {
-	return c.clob.UpdateBalanceAllowance(ctx, privateKey, params)
+func (c *Client) UpdateBalanceAllowance(ctx context.Context, privateKey string, params sdkclob.BalanceAllowanceParams) (*sdkclob.BalanceAllowanceResponse, error) {
+	return c.clobRead.UpdateBalanceAllowance(ctx, privateKey, params)
 }
 
 // CreateLimitOrder signs and submits a V2 limit order. The privateKey signs
 // both the ClobAuth (for the API-key derivation) and the EIP-712 order
 // itself. Returns the placement response with order id and matched amounts.
-func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params internalclob.CreateOrderParams) (*internalclob.OrderPlacementResponse, error) {
-	return c.clob.CreateLimitOrder(ctx, privateKey, params)
+func (c *Client) CreateLimitOrder(ctx context.Context, privateKey string, params sdkclob.CreateOrderParams) (*sdkclob.OrderPlacementResponse, error) {
+	return c.clobRead.CreateLimitOrder(ctx, privateKey, params)
 }
 
 // CreateMarketOrder signs and submits a V2 market order. Use Amount instead
 // of Size on the params to express a fill-this-much budget.
-func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params internalclob.MarketOrderParams) (*internalclob.OrderPlacementResponse, error) {
-	return c.clob.CreateMarketOrder(ctx, privateKey, params)
+func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, params sdkclob.MarketOrderParams) (*sdkclob.OrderPlacementResponse, error) {
+	return c.clobRead.CreateMarketOrder(ctx, privateKey, params)
 }
 
 // --- CLOB: Metadata & Scoring ---

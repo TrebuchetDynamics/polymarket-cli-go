@@ -48,6 +48,20 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var clobOrderBooks func(*sdkclob.Client, context.Context, []types.CLOBBookParams) ([]types.CLOBOrderBook, error) = (*sdkclob.Client).OrderBooks
 	var clobTickSize func(*sdkclob.Client, context.Context, string) (*types.CLOBTickSize, error) = (*sdkclob.Client).TickSize
 	var clobPriceHistory func(*sdkclob.Client, context.Context, *types.CLOBPriceHistoryParams) (*types.CLOBPriceHistory, error) = (*sdkclob.Client).PricesHistory
+	var clobAPIKey sdkclob.APIKey
+	var clobDeriveAPIKey func(*sdkclob.Client, context.Context, string) (sdkclob.APIKey, error) = (*sdkclob.Client).DeriveAPIKey
+	var clobBalanceParams sdkclob.BalanceAllowanceParams
+	var clobBalance func(*sdkclob.Client, context.Context, string, sdkclob.BalanceAllowanceParams) (*sdkclob.BalanceAllowanceResponse, error) = (*sdkclob.Client).BalanceAllowance
+	var clobOrders func(*sdkclob.Client, context.Context, string) ([]sdkclob.OrderRecord, error) = (*sdkclob.Client).ListOrders
+	var clobOrder func(*sdkclob.Client, context.Context, string, string) (*sdkclob.OrderRecord, error) = (*sdkclob.Client).Order
+	var clobTrades func(*sdkclob.Client, context.Context, string) ([]sdkclob.TradeRecord, error) = (*sdkclob.Client).ListTrades
+	var clobCancel func(*sdkclob.Client, context.Context, string, string) (*sdkclob.CancelOrdersResponse, error) = (*sdkclob.Client).CancelOrder
+	var clobCancelMarketParams sdkclob.CancelMarketParams
+	var clobCancelMarket func(*sdkclob.Client, context.Context, string, sdkclob.CancelMarketParams) (*sdkclob.CancelOrdersResponse, error) = (*sdkclob.Client).CancelMarket
+	var clobCreateParams sdkclob.CreateOrderParams
+	var clobCreate func(*sdkclob.Client, context.Context, string, sdkclob.CreateOrderParams) (*sdkclob.OrderPlacementResponse, error) = (*sdkclob.Client).CreateLimitOrder
+	var clobMarketOrderParams sdkclob.MarketOrderParams
+	var clobMarketOrder func(*sdkclob.Client, context.Context, string, sdkclob.MarketOrderParams) (*sdkclob.OrderPlacementResponse, error) = (*sdkclob.Client).CreateMarketOrder
 	var streamClient *sdkstream.MarketClient = sdkstream.NewMarketClient(sdkstream.Config{})
 	var streamConfig sdkstream.Config = sdkstream.DefaultConfig("")
 	var streamConnect func(*sdkstream.MarketClient, context.Context) error = (*sdkstream.MarketClient).Connect
@@ -78,15 +92,27 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var universalOrderBooks func(*universal.Client, context.Context, []types.CLOBBookParams) ([]types.CLOBOrderBook, error) = (*universal.Client).OrderBooks
 	var universalTickSize func(*universal.Client, context.Context, string) (*types.CLOBTickSize, error) = (*universal.Client).TickSize
 	var universalPriceHistory func(*universal.Client, context.Context, *types.CLOBPriceHistoryParams) (*types.CLOBPriceHistory, error) = (*universal.Client).PricesHistory
+	var universalDeriveAPIKey func(*universal.Client, context.Context, string) (sdkclob.APIKey, error) = (*universal.Client).DeriveAPIKey
+	var universalBalance func(*universal.Client, context.Context, string, sdkclob.BalanceAllowanceParams) (*sdkclob.BalanceAllowanceResponse, error) = (*universal.Client).BalanceAllowance
+	var universalOrders func(*universal.Client, context.Context, string) ([]sdkclob.OrderRecord, error) = (*universal.Client).ListOrders
+	var universalOrder func(*universal.Client, context.Context, string, string) (*sdkclob.OrderRecord, error) = (*universal.Client).Order
+	var universalTrades func(*universal.Client, context.Context, string) ([]sdkclob.TradeRecord, error) = (*universal.Client).ListTrades
+	var universalCancel func(*universal.Client, context.Context, string, string) (*sdkclob.CancelOrdersResponse, error) = (*universal.Client).CancelOrder
+	var universalCancelMarket func(*universal.Client, context.Context, string, sdkclob.CancelMarketParams) (*sdkclob.CancelOrdersResponse, error) = (*universal.Client).CancelMarket
+	var universalCreate func(*universal.Client, context.Context, string, sdkclob.CreateOrderParams) (*sdkclob.OrderPlacementResponse, error) = (*universal.Client).CreateLimitOrder
+	var universalMarketOrder func(*universal.Client, context.Context, string, sdkclob.MarketOrderParams) (*sdkclob.OrderPlacementResponse, error) = (*universal.Client).CreateMarketOrder
 	var universalStream func(*universal.Client) *sdkstream.MarketClient = (*universal.Client).StreamClient
 	var universalStreamWithConfig func(*universal.Client, sdkstream.Config) *sdkstream.MarketClient = (*universal.Client).StreamClientWithConfig
 
 	_, _, _, _, _, _, _ = clobClient, clobMarkets, clobMarket, clobOrderBook, clobOrderBooks, clobTickSize, clobPriceHistory
+	_, _, _, _, _, _, _, _, _, _ = clobAPIKey, clobDeriveAPIKey, clobBalanceParams, clobBalance, clobOrders, clobOrder, clobTrades, clobCancel, clobCancelMarketParams, clobCancelMarket
+	_, _, _, _ = clobCreateParams, clobCreate, clobMarketOrderParams, clobMarketOrder
 	_, _, _, _, _, _, _, _, _, _ = streamClient, streamConfig, streamConnect, streamSubscribe, streamClose, streamConnected, streamBook, streamPriceChange, streamLastTrade, streamDeduplicator
 	_, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, legacyReader
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
 	_, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments
 	_, _, _, _, _, _ = universalCLOBMarkets, universalCLOBMarket, universalOrderBook, universalOrderBooks, universalTickSize, universalPriceHistory
+	_, _, _, _, _, _, _, _, _ = universalDeriveAPIKey, universalBalance, universalOrders, universalOrder, universalTrades, universalCancel, universalCancelMarket, universalCreate, universalMarketOrder
 	_, _ = universalStream, universalStreamWithConfig
 }
 `)

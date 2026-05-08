@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TrebuchetDynamics/polygolem/internal/clob"
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
+	sdkclob "github.com/TrebuchetDynamics/polygolem/pkg/clob"
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 )
 
@@ -326,7 +326,7 @@ func TestCancelMarketRoutes(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(Config{CLOBBaseURL: srv.URL})
-	resp, err := c.CancelMarket(context.Background(), testPrivateKey, clob.CancelMarketParams{Market: "0xmarket"})
+	resp, err := c.CancelMarket(context.Background(), testPrivateKey, sdkclob.CancelMarketParams{Market: "0xmarket"})
 	if err != nil {
 		t.Fatalf("CancelMarket error: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestBalanceAllowance(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(Config{CLOBBaseURL: srv.URL})
-	resp, err := c.BalanceAllowance(context.Background(), testPrivateKey, clob.BalanceAllowanceParams{
+	resp, err := c.BalanceAllowance(context.Background(), testPrivateKey, sdkclob.BalanceAllowanceParams{
 		AssetType: "COLLATERAL",
 	})
 	if err != nil {
@@ -385,7 +385,7 @@ func TestUpdateBalanceAllowance(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(Config{CLOBBaseURL: srv.URL})
-	resp, err := c.UpdateBalanceAllowance(context.Background(), testPrivateKey, clob.BalanceAllowanceParams{
+	resp, err := c.UpdateBalanceAllowance(context.Background(), testPrivateKey, sdkclob.BalanceAllowanceParams{
 		AssetType: "COLLATERAL",
 	})
 	if err != nil {
@@ -423,7 +423,7 @@ func TestCreateLimitOrderRoutes(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(Config{CLOBBaseURL: srv.URL})
-	resp, err := c.CreateLimitOrder(context.Background(), testPrivateKey, clob.CreateOrderParams{
+	resp, err := c.CreateLimitOrder(context.Background(), testPrivateKey, sdkclob.CreateOrderParams{
 		TokenID:   "1234567890",
 		Side:      "BUY",
 		Price:     "0.50",
@@ -470,7 +470,7 @@ func TestCreateMarketOrderRoutes(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(Config{CLOBBaseURL: srv.URL})
-	resp, err := c.CreateMarketOrder(context.Background(), testPrivateKey, clob.MarketOrderParams{
+	resp, err := c.CreateMarketOrder(context.Background(), testPrivateKey, sdkclob.MarketOrderParams{
 		TokenID:   "1234567890",
 		Side:      "BUY",
 		Amount:    "5",

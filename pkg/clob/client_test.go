@@ -9,6 +9,8 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 )
 
+const testPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+
 func TestClientOrderBookReturnsPublicDTO(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/book" || r.URL.Query().Get("token_id") != "token-1" {
@@ -184,5 +186,112 @@ func TestClientBatchMarketDataParsesCurrentDTOs(t *testing.T) {
 	}
 	if lastTrades["token-1"] != "0.44" || lastTrades["token-2"] != "0.53" {
 		t.Fatalf("unexpected last trades: %+v", lastTrades)
+	}
+}
+
+func TestClientAuthenticatedMethodsReturnPublicDTOs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"api-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"pass"}`))
+		case "/data/orders":
+			_, _ = w.Write([]byte(`[{
+				"id":"0xorder",
+				"status":"ORDER_STATUS_LIVE",
+				"market":"0xmarket",
+				"asset_id":"token-1",
+				"side":"BUY",
+				"original_size":"10",
+				"size_matched":"2",
+				"price":"0.45",
+				"outcome":"Yes",
+				"order_type":"GTC",
+				"maker_address":"0xmaker",
+				"owner":"api-key",
+				"associate_trades":["trade-1"],
+				"expiration":"0",
+				"created_at":"1710000000"
+			}]`))
+		case "/data/trades":
+			_, _ = w.Write([]byte(`[{
+				"id":"trade-1",
+				"status":"MATCHED",
+				"market":"0xmarket",
+				"asset_id":"token-1",
+				"side":"BUY",
+				"price":"0.45",
+				"size":"2",
+				"fee_rate_bps":"0",
+				"outcome":"Yes",
+				"owner":"api-key",
+				"builder":"builder",
+				"matched_amount":"2",
+				"transaction_hash":"0xtx",
+				"created_at":"1710000000",
+				"last_updated":"1710000001"
+			}]`))
+		case "/order/0xorder":
+			_, _ = w.Write([]byte(`{"id":"0xorder","status":"ORDER_STATUS_LIVE","order_type":"GTC"}`))
+		case "/balance-allowance":
+			if got := r.URL.Query().Get("signature_type"); got != "3" {
+				t.Fatalf("signature_type = %q, want 3", got)
+			}
+			_, _ = w.Write([]byte(`{"balance":"1000000","allowance":"999"}`))
+		case "/order":
+			if r.Method != http.MethodDelete {
+				t.Fatalf("method = %s, want DELETE", r.Method)
+			}
+			_, _ = w.Write([]byte(`{"canceled":["0xorder"],"not_canceled":{"0xother":"not found"}}`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{BaseURL: server.URL})
+	orders, err := client.ListOrders(context.Background(), testPrivateKey)
+	if err != nil {
+		t.Fatalf("ListOrders returned error: %v", err)
+	}
+	var publicOrders []OrderRecord = orders
+	if len(publicOrders) != 1 || publicOrders[0].OrderType != "GTC" || publicOrders[0].AssetID != "token-1" {
+		t.Fatalf("unexpected public orders: %+v", publicOrders)
+	}
+
+	trades, err := client.ListTrades(context.Background(), testPrivateKey)
+	if err != nil {
+		t.Fatalf("ListTrades returned error: %v", err)
+	}
+	var publicTrades []TradeRecord = trades
+	if len(publicTrades) != 1 || publicTrades[0].TransactionHash != "0xtx" {
+		t.Fatalf("unexpected public trades: %+v", publicTrades)
+	}
+
+	order, err := client.Order(context.Background(), testPrivateKey, "0xorder")
+	if err != nil {
+		t.Fatalf("Order returned error: %v", err)
+	}
+	var publicOrder *OrderRecord = order
+	if publicOrder.ID != "0xorder" || publicOrder.OrderType != "GTC" {
+		t.Fatalf("unexpected public order: %+v", publicOrder)
+	}
+
+	balance, err := client.BalanceAllowance(context.Background(), testPrivateKey, BalanceAllowanceParams{AssetType: "COLLATERAL"})
+	if err != nil {
+		t.Fatalf("BalanceAllowance returned error: %v", err)
+	}
+	var publicBalance *BalanceAllowanceResponse = balance
+	if publicBalance.Balance != "1000000" || publicBalance.Allowance != "999" {
+		t.Fatalf("unexpected public balance: %+v", publicBalance)
+	}
+
+	cancel, err := client.CancelOrder(context.Background(), testPrivateKey, "0xorder")
+	if err != nil {
+		t.Fatalf("CancelOrder returned error: %v", err)
+	}
+	var publicCancel *CancelOrdersResponse = cancel
+	if len(publicCancel.Canceled) != 1 || publicCancel.NotCanceled["0xother"] != "not found" {
+		t.Fatalf("unexpected public cancel response: %+v", publicCancel)
 	}
 }

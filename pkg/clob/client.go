@@ -1,9 +1,11 @@
-// Package clob exposes the public, read-only Polymarket CLOB SDK surface.
+// Package clob exposes the public Polymarket CLOB SDK surface.
 //
 // Use clob when you need typed access to CLOB market data: market lists,
 // order books, prices, spreads, tick sizes, negative-risk metadata, last trade
-// prices, and price history. This package performs no signing and intentionally
-// excludes account reads, order placement, and cancellation.
+// prices, and price history. Authenticated methods also expose CLOB L2 API-key
+// derivation, balance/allowance reads, order reads, order placement, and
+// cancellation. They require an explicit private key argument; callers must
+// enforce live-mode gates before invoking mutating methods.
 package clob
 
 import (
@@ -26,7 +28,7 @@ func DefaultConfig() Config {
 	return Config{BaseURL: defaultBaseURL}
 }
 
-// Client is a read-only Polymarket CLOB client.
+// Client is a Polymarket CLOB client.
 type Client struct {
 	inner *internalclob.Client
 }

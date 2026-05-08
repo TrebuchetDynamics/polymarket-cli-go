@@ -92,6 +92,7 @@ type OrderRecord struct {
 	Price           string   `json:"price"`
 	Outcome         string   `json:"outcome"`
 	Type            string   `json:"type"`
+	OrderType       string   `json:"order_type"`
 	SignatureType   int      `json:"signature_type"`
 	CreatedAt       string   `json:"created_at"`
 	Expiration      string   `json:"expiration"`
