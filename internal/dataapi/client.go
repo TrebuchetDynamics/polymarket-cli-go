@@ -116,7 +116,15 @@ func (c *Client) Health(ctx context.Context) error {
 }
 
 func (c *Client) CurrentPositions(ctx context.Context, user string) ([]Position, error) {
-	path := buildPath("/positions", map[string]string{"user": user})
+	return c.CurrentPositionsWithLimit(ctx, user, 0)
+}
+
+func (c *Client) CurrentPositionsWithLimit(ctx context.Context, user string, limit int) ([]Position, error) {
+	params := map[string]string{"user": user}
+	if limit > 0 {
+		params["limit"] = strconv.Itoa(limit)
+	}
+	path := buildPath("/positions", params)
 	var result []Position
 	if err := c.transport.Get(ctx, path, &result); err != nil {
 		return nil, err
@@ -125,7 +133,15 @@ func (c *Client) CurrentPositions(ctx context.Context, user string) ([]Position,
 }
 
 func (c *Client) ClosedPositions(ctx context.Context, user string) ([]ClosedPosition, error) {
-	path := buildPath("/closed-positions", map[string]string{"user": user})
+	return c.ClosedPositionsWithLimit(ctx, user, 0)
+}
+
+func (c *Client) ClosedPositionsWithLimit(ctx context.Context, user string, limit int) ([]ClosedPosition, error) {
+	params := map[string]string{"user": user}
+	if limit > 0 {
+		params["limit"] = strconv.Itoa(limit)
+	}
+	path := buildPath("/closed-positions", params)
 	var result []ClosedPosition
 	if err := c.transport.Get(ctx, path, &result); err != nil {
 		return nil, err

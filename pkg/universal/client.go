@@ -13,7 +13,10 @@
 //     surface is gated to builder credentials and lives in internal/relayer.
 //
 // Stability: Client, NewClient, DefaultConfig, and every method on Client
-// are part of the polygolem public SDK and follow semver.
+// are part of the polygolem public SDK and follow semver. Some method
+// signatures still expose shared protocol types from internal packages;
+// those types should be promoted or re-exported before the SDK is considered
+// clean for external modules.
 package universal
 
 import (
@@ -386,6 +389,11 @@ func (c *Client) ClosedPositions(ctx context.Context, user string) ([]dataapi.Cl
 	return c.data.ClosedPositions(ctx, user)
 }
 
+// ClosedPositionsWithLimit returns closed positions for a user with a row limit.
+func (c *Client) ClosedPositionsWithLimit(ctx context.Context, user string, limit int) ([]dataapi.ClosedPosition, error) {
+	return c.data.ClosedPositionsWithLimit(ctx, user, limit)
+}
+
 // MarketsTraded returns the count of markets traded by a user.
 func (c *Client) MarketsTraded(ctx context.Context, user string) (*dataapi.TotalMarketsTraded, error) {
 	return c.data.MarketsTraded(ctx, user)
@@ -469,6 +477,11 @@ func (c *Client) CLOBMarket(ctx context.Context, conditionID string) (*polytypes
 // CurrentPositions returns current open positions for a user.
 func (c *Client) CurrentPositions(ctx context.Context, user string) ([]dataapi.Position, error) {
 	return c.data.CurrentPositions(ctx, user)
+}
+
+// CurrentPositionsWithLimit returns current open positions for a user with a row limit.
+func (c *Client) CurrentPositionsWithLimit(ctx context.Context, user string, limit int) ([]dataapi.Position, error) {
+	return c.data.CurrentPositionsWithLimit(ctx, user, limit)
 }
 
 // Trades returns trades for a user.

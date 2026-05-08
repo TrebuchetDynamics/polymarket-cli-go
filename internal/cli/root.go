@@ -756,6 +756,9 @@ func dataCmd(jsonOut bool) *cobra.Command {
 
 	addUser := func(c *cobra.Command) {
 		c.Flags().StringVar(&user, "user", "", "user wallet address")
+	}
+	addUserLimit := func(c *cobra.Command) {
+		addUser(c)
 		c.Flags().IntVar(&limit, "limit", 20, "max rows")
 	}
 	requireUser := func() error {
@@ -766,6 +769,9 @@ func dataCmd(jsonOut bool) *cobra.Command {
 	}
 	addToken := func(c *cobra.Command) {
 		c.Flags().StringVar(&tokenID, "token-id", "", "CLOB token ID")
+	}
+	addTokenLimit := func(c *cobra.Command) {
+		addToken(c)
 		c.Flags().IntVar(&limit, "limit", 20, "max rows")
 	}
 	requireToken := func() error {
@@ -780,14 +786,14 @@ func dataCmd(jsonOut bool) *cobra.Command {
 			if err := requireUser(); err != nil {
 				return err
 			}
-			rows, err := w.data.CurrentPositions(cmd.Context(), user)
+			rows, err := w.data.CurrentPositionsWithLimit(cmd.Context(), user, limit)
 			if err != nil {
 				return err
 			}
 			return w.printJSON(cmd, rows)
 		},
 	}
-	addUser(positionsCmd)
+	addUserLimit(positionsCmd)
 	cmd.AddCommand(positionsCmd)
 
 	closedPositionsCmd := &cobra.Command{Use: "closed-positions", Short: "List closed positions for a user", Args: cobra.NoArgs,
@@ -795,14 +801,14 @@ func dataCmd(jsonOut bool) *cobra.Command {
 			if err := requireUser(); err != nil {
 				return err
 			}
-			rows, err := w.data.ClosedPositions(cmd.Context(), user)
+			rows, err := w.data.ClosedPositionsWithLimit(cmd.Context(), user, limit)
 			if err != nil {
 				return err
 			}
 			return w.printJSON(cmd, rows)
 		},
 	}
-	addUser(closedPositionsCmd)
+	addUserLimit(closedPositionsCmd)
 	cmd.AddCommand(closedPositionsCmd)
 
 	tradesCmd := &cobra.Command{Use: "trades", Short: "List public Data API trades for a user", Args: cobra.NoArgs,
@@ -817,7 +823,7 @@ func dataCmd(jsonOut bool) *cobra.Command {
 			return w.printJSON(cmd, rows)
 		},
 	}
-	addUser(tradesCmd)
+	addUserLimit(tradesCmd)
 	cmd.AddCommand(tradesCmd)
 
 	activityCmd := &cobra.Command{Use: "activity", Short: "List public activity for a user", Args: cobra.NoArgs,
@@ -832,7 +838,7 @@ func dataCmd(jsonOut bool) *cobra.Command {
 			return w.printJSON(cmd, rows)
 		},
 	}
-	addUser(activityCmd)
+	addUserLimit(activityCmd)
 	cmd.AddCommand(activityCmd)
 
 	holdersCmd := &cobra.Command{Use: "holders", Short: "List top holders for a token", Args: cobra.NoArgs,
@@ -847,7 +853,7 @@ func dataCmd(jsonOut bool) *cobra.Command {
 			return w.printJSON(cmd, rows)
 		},
 	}
-	addToken(holdersCmd)
+	addTokenLimit(holdersCmd)
 	cmd.AddCommand(holdersCmd)
 
 	valueCmd := &cobra.Command{Use: "value", Short: "Get total portfolio value for a user", Args: cobra.NoArgs,

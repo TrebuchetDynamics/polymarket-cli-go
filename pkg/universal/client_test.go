@@ -114,6 +114,28 @@ func TestLiveVolume(t *testing.T) {
 	}
 }
 
+func TestCurrentPositionsWithLimitRoutes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/positions" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("user") != "0xuser" || r.URL.Query().Get("limit") != "5" {
+			t.Errorf("unexpected query: %s", r.URL.RawQuery)
+		}
+		json.NewEncoder(w).Encode([]map[string]string{{"token_id": "token-1"}})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{DataBaseURL: srv.URL})
+	rows, err := c.CurrentPositionsWithLimit(context.Background(), "0xuser", 5)
+	if err != nil {
+		t.Fatalf("CurrentPositionsWithLimit error: %v", err)
+	}
+	if len(rows) != 1 || rows[0].TokenID != "token-1" {
+		t.Errorf("unexpected rows: %+v", rows)
+	}
+}
+
 func TestHealthCheckPartial(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
