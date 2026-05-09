@@ -7,9 +7,10 @@
 
 **Production-safe Polymarket infrastructure for the deposit-wallet era.**
 
-A single Go binary and SDK for trading on Polymarket V2. Built specifically
-for Polymarket's current production deposit-wallet model. No external SDKs.
-No Python runtime. No opaque signing wrappers.
+A single Go binary and SDK for trading on Polymarket V2.
+
+Built specifically for Polymarket's current production deposit-wallet model.
+No external SDKs. No Python runtime. No opaque signing wrappers.
 
 *For operators who want verifiable trading infrastructure instead of opaque
 wrappers — validated against live Polygon mainnet flows, not mocks or paper
@@ -70,20 +71,22 @@ for the full lifecycle with real txes.
 
 Verified end-to-end against Polygon mainnet on the 2026-05-08 reference run:
 
-- Headless V2 relayer onboarding + deposit-wallet deploy and funding
-- CLOB V2 limit and market orders, with cancels (single, batch, all)
-- Advanced order types — post-only, GTC, GTD, FOK
-- Builder-code attribution (V2 bytes32 model)
-- Public market discovery + streaming (Gamma, CLOB, Data API, WebSocket)
-- Local risk controls — per-trade caps, daily loss limits, circuit breaker
+- Headless relayer onboarding
+- Deposit-wallet deploy + funding
+- CLOB V2 trading + cancels
+- Advanced order types
+- Market discovery + streaming
+- Local risk controls
 
-→ [Full walkthrough — every tx hash, gas figure, and pUSD movement](docs/LIVE-TRADE-WALKTHROUGH.md)
+Validated walkthrough →
+[every tx hash, gas figure, and pUSD movement](docs/LIVE-TRADE-WALKTHROUGH.md)
 
 ---
 
 ## Safety Model
 
 polygolem is trading infrastructure. Trust matters more than features.
+The SDK defaults toward preventing irreversible mistakes.
 
 | | |
 |---|---|
@@ -120,23 +123,21 @@ That's polygolem talking to live Polymarket — no key, no credentials, no
 sign-up. Read-only is the default for everything until you set
 `POLYMARKET_PRIVATE_KEY`.
 
+All example outputs in this README come from live Polygon mainnet responses.
+
 ---
 
 ## Demo Pipeline (Planned)
 
-A guided read-only walkthrough across Gamma, CLOB, Data API, and the public
-market stream — designed to show how Polymarket identifiers, markets, books,
-and analytics connect without requiring funding or order placement.
+A guided read-only walkthrough across Gamma, CLOB, Data API, and market streams:
 
 ```bash
-polygolem demo              # public API tour (no credentials)
-polygolem demo --layer l2   # add authenticated CLOB read-only account context
+polygolem demo
+polygolem demo --layer l2
 ```
 
-`--layer l1` uses only public APIs (Gamma → CLOB → Data API → no signing).
-`--layer l2` adds authenticated read-only CLOB context (open orders, trade
-history, balance/allowance) and is enforced to be read-only — no `POST /order`,
-cancels, wallet deployment, approvals, or funding.
+Designed to explain how Polymarket identifiers, books, markets, and analytics
+connect without requiring funding or order placement.
 
 ---
 
@@ -266,12 +267,9 @@ call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
 `v0.1.0` — production-validated against Polygon mainnet on **2026-05-08**
 ([reference run](docs/LIVE-TRADE-WALKTHROUGH.md)).
 
-**Core trading flows are operational today:** deposit-wallet lifecycle
-(derive, deploy, approve, fund), CLOB V2 trading (limit, market, post-only,
-GTC / GTD / FOK, cancels), builder-code attribution, and the universal SDK
-client over Gamma + CLOB + Data + Stream.
+Core trading flows are production-validated today.
 
-**Still hardening:** release signing, broader exchange abstractions, and
-extended automation surfaces.
+Release signing, broader exchange abstractions, and extended automation
+surfaces are still hardening.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for per-version detail.
