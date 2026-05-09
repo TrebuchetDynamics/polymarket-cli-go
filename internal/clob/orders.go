@@ -913,7 +913,7 @@ func truncateRat(value *big.Rat, decimals int) *big.Rat {
 
 func validateMinimumOrderSize(size *big.Rat, tick *polytypes.TickSize) error {
 	minRaw := strings.TrimSpace(tick.MinimumOrderSize)
-	if minRaw == "" {
+	if minRaw == "" || minRaw == "<nil>" {
 		return nil
 	}
 	min, err := parseRat(minRaw, "minimum order size")

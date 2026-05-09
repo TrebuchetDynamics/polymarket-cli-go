@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
+	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 	"github.com/TrebuchetDynamics/polygolem/internal/transport"
 )
 
@@ -1058,5 +1059,13 @@ func TestSignCLOBOrderUsesNegRiskExchangeAddressWhenFlagged(t *testing.T) {
 	}
 	if sigRegular == sigNegRisk {
 		t.Fatalf("regular and neg-risk signatures must differ; both = %q", sigRegular)
+	}
+}
+
+func TestValidateMinimumOrderSizeIgnoresNilSentinel(t *testing.T) {
+	size := big.NewRat(1, 1)
+	tick := &polytypes.TickSize{MinimumOrderSize: "<nil>"}
+	if err := validateMinimumOrderSize(size, tick); err != nil {
+		t.Fatalf("validateMinimumOrderSize returned error: %v", err)
 	}
 }
