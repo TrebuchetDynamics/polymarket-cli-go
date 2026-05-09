@@ -11,29 +11,31 @@ deposit-wallet redeem flow. Use it before changing redeem code or docs.
 | Aspect | State |
 |---|---|
 | Via-EOA path / factory bypass | Removed. Verified impossible at the EVM level: `DepositWalletFactory.proxy(Batch[],bytes[])` is `onlyOperator`; `cast call --from 0x000000000000000000000000000000000000dEaD` reverts with `OnlyOperator()` (`0x27e1f1e5`). |
-| Via-CTF path / raw `ConditionalTokens.redeemPositions` | Rejected. Raw CTF redeem is not the V2 pUSD-native redeem flow and must not be used as a fallback when relayer adapter calls are blocked. |
+| Via-CTF path / raw `ConditionalTokens.redeemPositions` | Rejected for deposit-wallet positions. Raw CTF redeem is not the V2 pUSD-native deposit-wallet flow and must not be used as a fallback when relayer adapter calls are blocked. |
 | Adapter-via-relayer path | Kept. Polygolem can build and sign adapter approval/redeem WALLET batches, but the production relayer currently rejects adapter calls with HTTP 400 `"not in the allowed list"`. |
 | Live recovery | Blocked by relayer policy. The live SOL position had about 2.86 USDC.e of redeemable value; ETH resolved as a loss. There is no code-side workaround while `proxy()` remains operator-gated and adapter calls remain off the relayer allowlist. |
 | New artifact | This file is the canonical validation ladder: official docs, deployed ABIs, contract source, RPC assertions, stale-doc inventory, and guardrails. |
 
 ## Conclusion
 
-The V2 redeem action is adapter-based:
+The V2 deposit-wallet redeem action is adapter-based and non-negotiable:
 
 1. Find deposit-wallet positions where the Data API reports `redeemable=true`.
 2. Build `redeemPositions(address,bytes32,bytes32,uint256[])` calldata.
 3. Target `CtfCollateralAdapter` for standard markets or
    `NegRiskCtfCollateralAdapter` for negative-risk markets.
-4. Submit the calls as a deposit-wallet WALLET batch through Polymarket's
-   relayer/operator path.
+4. Sign the call set as an EIP-712 WALLET batch.
+5. Submit the WALLET batch through Polymarket's relayer/operator path.
 
-There is no safe direct EOA fallback:
+There is no safe fallback path for deposit-wallet positions:
 
 - `DepositWalletFactory.deploy(...)` is `onlyOperator`.
 - `DepositWalletFactory.proxy(...)` is also `onlyOperator`.
 - The wallet implementation execution path is factory-mediated.
 - Raw `ConditionalTokens.redeemPositions(...)` is not the pUSD-native V2
-  redeem path.
+  deposit-wallet redeem path.
+- SAFE/PROXY relayer examples are different wallet-type flows and do not apply
+  to deposit-wallet positions.
 
 If Polymarket's relayer rejects adapter approval or redeem calls as "not in
 the allowed list", treat that as an upstream relayer allowlist blocker. Do not
@@ -222,7 +224,8 @@ cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
 |---|---|---|
 | Factory `proxy(Batch[],bytes[])` is ungated or permissionless. | `docs/CONTRACTS.md`, docs-site contract page, older planning notes. | `proxy(...)` is `onlyOperator`; direct EOA submission reverts with `OnlyOperator()`. |
 | A direct EOA factory `proxy(...)` path can recover adapter approvals or redeem. | Earlier local design notes. | No direct factory fallback exists; the relayer/operator path is required. |
-| Raw CTF redeem is the fallback when relayer adapter calls are rejected. | CLI/docs wording before this validation pass. | Raw `ConditionalTokens.redeemPositions` is not the V2 pUSD-native flow; relayer rejection is an upstream blocker. |
+| Raw CTF redeem is the fallback when relayer adapter calls are rejected. | CLI/docs wording before this validation pass. | Raw `ConditionalTokens.redeemPositions` is not the V2 pUSD-native deposit-wallet flow; relayer rejection is an upstream blocker. |
+| `builder-relayer-client/examples/redeem.ts` proves raw CTF is a deposit-wallet route. | Official example source, if read without `src/client.ts`. | The example calls `RelayClient.execute(...)`, which switches only between SAFE and PROXY. Deposit wallets use `executeDepositWalletBatch(...)` and the WALLET path. |
 | "All redeem code has landed, only runbook remains." | `BLOCKERS.md` B-12. | Code can build adapter batches, but live recovery still depends on relayer allowlist acceptance or an official Polymarket route. |
 
 ## Implementation Guardrails
@@ -232,7 +235,10 @@ cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
 - Do not add `--via-eoa` for factory `proxy(...)` unless verified deployed
   source changes and RPC role-gate proof changes.
 - Do not submit raw `ConditionalTokens.redeemPositions(...)` as a V2 pUSD
-  redeem fallback.
+  deposit-wallet redeem fallback.
+- Do not add `adapter-pusd`, `ctf-usdce`, or `auto` route switches. The only
+  supported deposit-wallet route is the adapter-targeted WALLET batch.
+- Do not adapt SAFE/PROXY examples to deposit-wallet positions.
 - If relayer allowlist rejects adapter calls, surface a structured upstream
   blocker and stop.
 

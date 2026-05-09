@@ -5,9 +5,11 @@ description: How Polygolem detects, plans, and submits V2 redemption transaction
 
 import { Aside } from "@astrojs/starlight/components";
 
-Polymarket V2 deposit wallets do not redeem pUSD-native positions by calling
-`ConditionalTokens` directly. Split, merge, and redeem actions route through
-thin collateral adapters that bridge between pUSD and CTF positions.
+Polymarket V2 deposit-wallet redeem has one supported production path: the
+owner signs an EIP-712 WALLET batch, the relayer submits it through the
+deposit-wallet factory, and the wallet call targets a collateral adapter.
+Deposit wallets do not redeem pUSD-native positions by calling
+`ConditionalTokens` directly.
 
 <Aside type="caution">
 Live-money safety: every signing path requires both `--submit` and a typed
@@ -116,7 +118,8 @@ the pre-check fails.
 If the relayer rejects adapter approval or redeem calls as "not in the allowed
 list", stop. The production factory `proxy()` entrypoint is `onlyOperator`, so
 the owner EOA cannot bypass the relayer, and raw `ConditionalTokens`
-redemption is not the V2 pUSD-native redeem path.
+redemption is not a deposit-wallet fallback. SAFE/PROXY relayer examples use
+different wallet types and do not apply to deposit-wallet positions.
 
 ## SDK Flow
 

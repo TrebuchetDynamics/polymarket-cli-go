@@ -1257,12 +1257,14 @@ Without --submit, prints the calldata JSON for review.
 With --submit, the operator must also pass --confirm APPROVE_ADAPTERS to
 authorize the live-money WALLET batch.
 
-NOTE: If Polymarket's relayer allowlist rejects these calls with HTTP 400
-"not in the allowed list", the wallet implementation gates execute() behind
-onlyFactory and the factory gates proxy() behind onlyOperator, so a direct EOA
-bypass is not possible. Do not fall back to raw ConditionalTokens.redeemPositions;
-V2 redeem must route through the collateral adapters. Treat relayer allowlist
-rejection as an upstream execution blocker until Polymarket allows adapter calls.
+NOTE: The V2 deposit-wallet path is non-negotiable: the owner signs an EIP-712
+WALLET batch, the relayer submits it through the deposit-wallet factory, and
+the wallet call targets the V2 collateral adapters. If Polymarket's relayer
+allowlist rejects these calls with HTTP 400 "not in the allowed list", stop.
+The wallet implementation gates execute() behind onlyFactory and the factory
+gates proxy() behind onlyOperator, so a direct EOA bypass is not possible.
+Do not fall back to raw ConditionalTokens.redeemPositions, SAFE, or PROXY;
+V2 deposit-wallet redeem must route through the collateral adapters.
 
 **Usage:**
 
@@ -1453,10 +1455,13 @@ Pre-check: requires CTF.setApprovalForAll(wallet, adapter) = true for
 every adapter targeted by the redeem set. If any approval is missing,
 fails closed with a pointer to 'deposit-wallet approve-adapters'.
 
-NOTE: If Polymarket's relayer rejects adapter approval or redeem calls
-with "not in the allowed list", there is no safe direct EOA bypass. The
-factory proxy() entrypoint is onlyOperator, and raw ConditionalTokens
-redeem is not the V2 pUSD-native redeem path.
+NOTE: The V2 deposit-wallet redeem path is non-negotiable: the owner signs an
+EIP-712 WALLET batch, the relayer submits it through the deposit-wallet
+factory, and the wallet call targets CtfCollateralAdapter or
+NegRiskCtfCollateralAdapter. If Polymarket's relayer rejects adapter approval
+or redeem calls with "not in the allowed list", stop and surface an upstream
+blocker. There is no direct EOA bypass, no raw ConditionalTokens fallback, and
+no SAFE/PROXY shortcut for deposit-wallet positions.
 
 **Usage:**
 

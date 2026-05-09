@@ -64,6 +64,16 @@ const (
 	StateFailed    = internalrelayer.StateFailed
 )
 
+// ErrRelayerAllowlistBlocked is the sentinel returned when Polymarket's
+// relayer rejects a WALLET batch because a targeted contract is not on
+// its allowlist. Submission methods wrap their underlying error with
+// errors.Join, so callers should detect with errors.Is and stop —
+// there is no safe workaround for the V2 deposit wallet redeem path.
+//
+// Filed upstream as Polymarket/builder-relayer-client#29 (closed
+// without response on 2026-05-06). Surface as an upstream block.
+var ErrRelayerAllowlistBlocked = internalrelayer.ErrRelayerAllowlistBlocked
+
 // New constructs a relayer Client. baseURL defaults to the production
 // relayer when empty; chainID defaults to 137 (Polygon mainnet) when 0.
 // Returns an error when [BuilderConfig] is incomplete.

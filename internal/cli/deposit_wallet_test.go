@@ -340,9 +340,11 @@ func TestDepositWalletRedeemHelpRejectsDirectCTFFallback(t *testing.T) {
 		t.Fatalf("redeem help must not advertise a raw CTF fallback:\n%s", stdout)
 	}
 	for _, want := range []string{
-		"no safe direct EOA bypass",
+		"EIP-712 WALLET batch",
+		"no direct EOA bypass",
 		"raw ConditionalTokens",
-		"not the V2 pUSD-native redeem path",
+		"no SAFE/PROXY shortcut",
+		"CtfCollateralAdapter",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("redeem help missing %q:\n%s", want, stdout)
@@ -575,5 +577,77 @@ func TestDepositWalletRedeemHappyPathSubmits(t *testing.T) {
 	}
 	if data["path"] != "relayer-adapter" || data["proceedsToken"] != "pUSD" {
 		t.Fatalf("redeem path/proceeds=%v/%v want relayer-adapter/pUSD", data["path"], data["proceedsToken"])
+	}
+}
+
+// TestDepositWalletRedeemSurfacesUpstreamAllowlistBlock asserts that when
+// the relayer rejects the WALLET batch with an allowlist error, the CLI
+// emits a structured RELAYER_ALLOWLIST_BLOCKED response and stops — not
+// a generic submit error and not any kind of fallback path.
+func TestDepositWalletRedeemSurfacesUpstreamAllowlistBlock(t *testing.T) {
+	dataSrv := dataAPIWithOnePosition(t)
+	defer dataSrv.Close()
+	rpcSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Method string `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Method == "eth_chainId" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": 1, "result": "0x89"})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0", "id": 1,
+			"result": "0x0000000000000000000000000000000000000000000000000000000000000001",
+		})
+	}))
+	defer rpcSrv.Close()
+
+	relaySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/nonce":
+			_ = json.NewEncoder(w).Encode(map[string]any{"nonce": "9"})
+		case "/submit":
+			http.Error(w, `{"error":"call blocked: calls to 0xADa100874d00e3331D00F2007a9c336a65009718 are not permitted"}`, http.StatusBadRequest)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer relaySrv.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", redeemTestPrivateKey)
+	t.Setenv("POLYMARKET_DATA_API_URL", dataSrv.URL)
+	t.Setenv("POLYMARKET_RELAYER_URL", relaySrv.URL)
+	t.Setenv("RELAYER_API_KEY", "v2-uuid")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "0xabc")
+	t.Setenv("POLYGON_RPC_URL", rpcSrv.URL)
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "redeem", "--submit", "--confirm", "REDEEM_WINNERS", "--rpc-url", rpcSrv.URL)
+	if err != nil {
+		t.Fatalf("Execute error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if data["ok"] != false {
+		t.Fatalf("ok=%v want false; stdout=%s", data["ok"], stdout)
+	}
+	if data["command"] != "redeem" {
+		t.Fatalf("command=%v want redeem", data["command"])
+	}
+	innerErr, ok := data["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("error=%T want map", data["error"])
+	}
+	if innerErr["code"] != "RELAYER_ALLOWLIST_BLOCKED" {
+		t.Fatalf("error.code=%v want RELAYER_ALLOWLIST_BLOCKED", innerErr["code"])
+	}
+	if innerErr["action"] != "stop" {
+		t.Fatalf("error.action=%v want stop", innerErr["action"])
+	}
+	if upstream, ok := innerErr["upstream"].(map[string]any); !ok || upstream["tracker"] != "Polymarket/builder-relayer-client#29" {
+		t.Fatalf("error.upstream missing tracker; got %v", innerErr["upstream"])
 	}
 }

@@ -423,7 +423,8 @@ polygolem deposit-wallet redeem --submit --confirm REDEEM_WINNERS --json
 ```
 
 If step 1 or step 4 fails with a relayer allowlist rejection, stop. Do not use
-raw `ConditionalTokens.redeemPositions` as a V2 pUSD redeem workaround.
+raw `ConditionalTokens.redeemPositions`, direct EOA calls, or SAFE/PROXY
+relayer examples as a V2 deposit-wallet redeem workaround.
 
 ### B-9 — Builder credentials configured
 

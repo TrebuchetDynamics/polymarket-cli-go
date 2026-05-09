@@ -35,9 +35,11 @@ address is `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB`; local V2 source
 names it `Polymarket USD`, symbol `pUSD`, with 6 decimals.
 
 Deposit wallets should not call `ConditionalTokens.redeemPositions` directly
-for V2 pUSD-native flows. Standard binary-market split, merge, and redeem
-calls route through `CtfCollateralAdapter`; negative-risk calls route through
-`NegRiskCtfCollateralAdapter`.
+for V2 pUSD-native flows. The supported deposit-wallet path is an EIP-712
+WALLET batch submitted by the relayer through the deposit-wallet factory, with
+the wallet call targeting a collateral adapter. Standard binary-market split,
+merge, and redeem calls route through `CtfCollateralAdapter`; negative-risk
+calls route through `NegRiskCtfCollateralAdapter`.
 
 The adapter intentionally keeps the legacy redeem ABI shape:
 
@@ -62,6 +64,11 @@ Trading approvals and adapter approvals are separate:
 The existing six-call approval batch covers trading. V2 redeem readiness
 requires an additional four-call adapter batch: pUSD `approve` and CTF
 `setApprovalForAll` for both collateral adapters.
+
+SAFE/PROXY relayer examples are separate wallet-type flows. They do not create
+a deposit-wallet shortcut around the V2 adapter path, and raw
+`ConditionalTokens.redeemPositions` must not be used as a deposit-wallet
+fallback when the relayer rejects adapter calls.
 
 ### Wallet Factories
 
@@ -290,7 +297,7 @@ The only transaction you pay gas for is the initial pUSD transfer from EOA to de
 | Direct EOA call to `deploy()` | ❌ Reverts — role-gated |
 | Direct EOA call to factory `proxy()` | ❌ Reverts with `OnlyOperator()` unless caller has operator role |
 | Direct EOA call to wallet `execute()` | ❌ Wallet execution is factory-mediated |
-| Raw `ConditionalTokens.redeemPositions` fallback | ❌ Not the pUSD-native V2 redeem path |
+| Raw `ConditionalTokens.redeemPositions` fallback | ❌ Not a deposit-wallet fallback; SAFE/PROXY examples do not apply |
 | Old ProxyFactory `proxy()` | ❌ Creates type 1 wallets, not type 3 |
 | Self-deploy on implementation | ❌ No such function |
 | Separate permissionless factory | ❌ Only one DepositWalletFactory |

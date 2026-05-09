@@ -119,9 +119,11 @@ only ran the six-call trading approval batch need a one-shot adapter approval
 batch before their first V2 redeem.
 
 If relayer submission rejects the adapter approval or redeem call as "not in
-the allowed list", stop. The production factory `proxy()` entrypoint is
-`onlyOperator`, so there is no direct owner-EOA fallback, and raw
-`ConditionalTokens.redeemPositions` is not the V2 pUSD-native redeem path.
+the allowed list", stop. The V2 deposit-wallet path is non-negotiable: the
+owner signs an EIP-712 WALLET batch, the relayer submits it through the
+deposit-wallet factory, and the wallet call targets the collateral adapter.
+There is no direct owner-EOA fallback, no raw CTF fallback, and no SAFE/PROXY
+shortcut for deposit-wallet positions.
 
 ### Relayer Auth vs Trading Auth
 

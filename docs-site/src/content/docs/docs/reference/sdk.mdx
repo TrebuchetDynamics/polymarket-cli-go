@@ -386,6 +386,8 @@ import "github.com/TrebuchetDynamics/polygolem/pkg/settlement"
 go-bot must consume settlement through this SDK package, not by shelling out to
 the CLI. The package turns Data API `redeemable=true` positions into
 deposit-wallet WALLET calls that target the V2 collateral adapters.
+It does not expose raw CTF, direct EOA, SAFE, or PROXY redeem routes for
+deposit-wallet positions.
 
 ### Contract: Types
 
@@ -412,6 +414,8 @@ func SubmitRedeem(ctx context.Context, rc *relayer.Client, privateKey string, po
 calldata shape but targets `CtfCollateralAdapter` or
 `NegRiskCtfCollateralAdapter`. The adapter uses `conditionId` and ignores the
 caller-supplied collateral address, parent collection, and `indexSets`.
+The relayer submission remains a deposit-wallet `WALLET` batch; SAFE/PROXY
+examples from other wallet types are not interchangeable.
 
 ## `pkg/universal` — All Market Data, One Client
 

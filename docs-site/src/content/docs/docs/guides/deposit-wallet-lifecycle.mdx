@@ -100,7 +100,8 @@ look for `redeemable=true`. That is the readiness signal; there is no separate
 `resolved` boolean in the current Data API position schema.
 
 V2 redeem routes through collateral adapters, not `ConditionalTokens`
-directly:
+directly. The owner signs an EIP-712 WALLET batch, and the relayer submits
+that batch through the deposit-wallet factory:
 
 | Market Type | Adapter |
 |---|---|
@@ -110,6 +111,10 @@ directly:
 The adapter uses `conditionId`, detects the wallet's CTF balances, redeems the
 winning side, wraps proceeds back into pUSD, and returns pUSD to the deposit
 wallet.
+
+Do not use direct EOA calls, raw CTF calls, or SAFE/PROXY relayer examples as
+fallbacks for deposit-wallet positions. If the relayer rejects the
+adapter-targeted WALLET batch, surface the upstream blocker and stop.
 
 The operator surface is `polygolem deposit-wallet approve-adapters`,
 `redeemable`, and `redeem`. Every signing path is dry-run by default;

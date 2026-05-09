@@ -112,7 +112,7 @@ func (c *Client) SubmitWalletCreate(ctx context.Context, ownerAddress string) (*
 	}
 	var tx RelayerTransaction
 	if err := c.post(ctx, "/submit", req, &tx); err != nil {
-		return nil, fmt.Errorf("relayer: WALLET-CREATE: %w", err)
+		return nil, classifyAllowlistError(fmt.Errorf("relayer: WALLET-CREATE: %w", err))
 	}
 	return &tx, nil
 }
@@ -141,7 +141,7 @@ func (c *Client) SubmitWalletBatch(ctx context.Context, ownerAddress, walletAddr
 	}
 	var tx RelayerTransaction
 	if err := c.post(ctx, "/submit", req, &tx); err != nil {
-		return nil, fmt.Errorf("relayer: WALLET batch: %w", err)
+		return nil, classifyAllowlistError(fmt.Errorf("relayer: WALLET batch: %w", err))
 	}
 	return &tx, nil
 }

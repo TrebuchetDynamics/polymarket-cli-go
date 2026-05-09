@@ -178,17 +178,23 @@ separate `resolved` boolean.
 ## V2 Redeem Readiness
 
 Polymarket V2 uses collateral adapter contracts for pUSD-native CTF actions.
-Deposit wallets must route split, merge, and redeem through:
+For deposit-wallet positions this path is non-negotiable: the owner signs an
+EIP-712 WALLET batch, the relayer submits it through the deposit-wallet
+factory, and the wallet call targets:
 
 - `CtfCollateralAdapter` for standard binary markets:
   `0xADa100874d00e3331D00F2007a9c336a65009718`
 - `NegRiskCtfCollateralAdapter` for negative-risk markets:
   `0xAdA200001000ef00D07553cEE7006808F895c6F1`
 
-Do not call `ConditionalTokens.redeemPositions` directly from a V2 deposit
-wallet flow. The adapter reads `conditionId`, detects the wallet's current CTF
-balances, redeems through the underlying CTF path, wraps proceeds back into
-pUSD, and returns pUSD to the deposit wallet.
+Do not call `ConditionalTokens.redeemPositions` directly from a V2
+deposit-wallet flow. The adapter reads `conditionId`, detects the wallet's
+current CTF balances, redeems through the underlying CTF path, wraps proceeds
+back into pUSD, and returns pUSD to the deposit wallet.
+
+SAFE and PROXY examples in upstream relayer clients are not deposit-wallet
+precedent. Deposit wallets use `executeDepositWalletBatch(...)` / relayer
+`WALLET` transactions, not the SAFE/PROXY `execute(...)` shortcut.
 
 Adapter readiness is distinct from trading readiness. The existing trading
 approval batch covers CLOB exchange spenders. V2 redeem requires the deposit
@@ -210,4 +216,4 @@ If the relayer rejects adapter approval or redeem calls as "not in the allowed
 list", stop and treat it as an upstream relayer allowlist blocker. The
 production `DepositWalletFactory.proxy()` entrypoint is `onlyOperator`, so the
 owner EOA cannot bypass the relayer, and raw `ConditionalTokens.redeemPositions`
-is not the V2 pUSD-native redeem path.
+is not a V2 deposit-wallet fallback.

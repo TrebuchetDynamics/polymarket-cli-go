@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -690,12 +691,11 @@ func TestPolygolemSettlementE2EStopsAtRelayerAllowlistBlocker(t *testing.T) {
 	if result != nil {
 		t.Fatalf("SubmitRedeem result=%+v want nil on rejected relay submit", result)
 	}
-	errText := err.Error()
-	if !strings.Contains(errText, "upstream relayer allowlist blocker") {
-		t.Fatalf("SubmitRedeem error=%q, want upstream blocker classification", errText)
+	if !errors.Is(err, relayer.ErrRelayerAllowlistBlocked) {
+		t.Fatalf("SubmitRedeem error=%q, want errors.Is(relayer.ErrRelayerAllowlistBlocked)", err.Error())
 	}
-	if !strings.Contains(errText, "not in the allowed list") {
-		t.Fatalf("SubmitRedeem error=%q, want relayer allowlist body preserved", errText)
+	if !strings.Contains(err.Error(), "not in the allowed list") {
+		t.Fatalf("SubmitRedeem error=%q, want relayer allowlist body preserved", err.Error())
 	}
 	if rec.count("GET /positions") != 1 {
 		t.Fatalf("positions route count=%d want 1", rec.count("GET /positions"))

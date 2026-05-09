@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -17,6 +18,33 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/pkg/settlement"
 	"github.com/spf13/cobra"
 )
+
+// upstreamRelayerBlockJSON is the structured response surfaced when
+// Polymarket's relayer rejects a WALLET batch with an allowlist
+// rejection (HTTP 400 "not in the allowed list" / "are not permitted"
+// / "call blocked"). The V2 deposit wallet redeem path is
+// non-negotiable — no fallback is attempted; the operator stops here.
+//
+// Tracking: Polymarket/builder-relayer-client#29 (closed without
+// response on 2026-05-06). Do not work around.
+func upstreamRelayerBlockJSON(wallet, command string, err error) map[string]interface{} {
+	return map[string]interface{}{
+		"ok":            false,
+		"depositWallet": wallet,
+		"command":       command,
+		"error": map[string]interface{}{
+			"code":    "RELAYER_ALLOWLIST_BLOCKED",
+			"message": err.Error(),
+			"action":  "stop",
+			"reason":  "Polymarket relayer rejected the WALLET batch via its allowlist policy. The V2 deposit wallet redeem path is non-negotiable: no EOA bypass, no raw CTF, no SAFE/PROXY shortcut.",
+			"upstream": map[string]string{
+				"tracker": "Polymarket/builder-relayer-client#29",
+				"state":   "closed-without-response",
+				"date":    "2026-05-06",
+			},
+		},
+	}
+}
 
 const defaultDataAPIURL = "https://data-api.polymarket.com"
 
@@ -467,12 +495,14 @@ Without --submit, prints the calldata JSON for review.
 With --submit, the operator must also pass --confirm APPROVE_ADAPTERS to
 authorize the live-money WALLET batch.
 
-NOTE: If Polymarket's relayer allowlist rejects these calls with HTTP 400
-"not in the allowed list", the wallet implementation gates execute() behind
-onlyFactory and the factory gates proxy() behind onlyOperator, so a direct EOA
-bypass is not possible. Do not fall back to raw ConditionalTokens.redeemPositions;
-V2 redeem must route through the collateral adapters. Treat relayer allowlist
-rejection as an upstream execution blocker until Polymarket allows adapter calls.`,
+NOTE: The V2 deposit-wallet path is non-negotiable: the owner signs an EIP-712
+WALLET batch, the relayer submits it through the deposit-wallet factory, and
+the wallet call targets the V2 collateral adapters. If Polymarket's relayer
+allowlist rejects these calls with HTTP 400 "not in the allowed list", stop.
+The wallet implementation gates execute() behind onlyFactory and the factory
+gates proxy() behind onlyOperator, so a direct EOA bypass is not possible.
+Do not fall back to raw ConditionalTokens.redeemPositions, SAFE, or PROXY;
+V2 deposit-wallet redeem must route through the collateral adapters.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			callsJSON, err := relayer.BuildAdapterApprovalCallsJSON()
@@ -523,6 +553,9 @@ rejection as an upstream execution blocker until Polymarket allows adapter calls
 			}
 			tx, err := rc.SubmitWalletBatch(cmd.Context(), owner, walletAddress, nonce, sig, dl, calls)
 			if err != nil {
+				if errors.Is(err, relayer.ErrRelayerAllowlistBlocked) {
+					return printJSON(cmd, upstreamRelayerBlockJSON(walletAddress, "approve-adapters", err))
+				}
 				return fmt.Errorf("submit adapter approval batch: %w", err)
 			}
 			return printJSON(cmd, map[string]interface{}{
@@ -995,10 +1028,13 @@ Pre-check: requires CTF.setApprovalForAll(wallet, adapter) = true for
 every adapter targeted by the redeem set. If any approval is missing,
 fails closed with a pointer to 'deposit-wallet approve-adapters'.
 
-NOTE: If Polymarket's relayer rejects adapter approval or redeem calls
-with "not in the allowed list", there is no safe direct EOA bypass. The
-factory proxy() entrypoint is onlyOperator, and raw ConditionalTokens
-redeem is not the V2 pUSD-native redeem path.`,
+NOTE: The V2 deposit-wallet redeem path is non-negotiable: the owner signs an
+EIP-712 WALLET batch, the relayer submits it through the deposit-wallet
+factory, and the wallet call targets CtfCollateralAdapter or
+NegRiskCtfCollateralAdapter. If Polymarket's relayer rejects adapter approval
+or redeem calls with "not in the allowed list", stop and surface an upstream
+blocker. There is no direct EOA bypass, no raw ConditionalTokens fallback, and
+no SAFE/PROXY shortcut for deposit-wallet positions.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, err := requirePrivateKey()
@@ -1082,6 +1118,9 @@ redeem is not the V2 pUSD-native redeem path.`,
 			}
 			result, err := settlement.SubmitRedeem(cmd.Context(), rc, key, rows, limit)
 			if err != nil {
+				if errors.Is(err, relayer.ErrRelayerAllowlistBlocked) {
+					return printJSON(cmd, upstreamRelayerBlockJSON(wallet, "redeem", err))
+				}
 				return fmt.Errorf("submit redeem: %w", err)
 			}
 			return printJSON(cmd, map[string]interface{}{

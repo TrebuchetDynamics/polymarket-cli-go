@@ -117,7 +117,7 @@ Redemption has its own lifecycle:
 2. Treat `redeemable=true` as the readiness signal.
 3. Route standard markets through `CtfCollateralAdapter`.
 4. Route negative-risk markets through `NegRiskCtfCollateralAdapter`.
-5. Submit the redeem call as an EOA-signed deposit-wallet WALLET batch.
+5. Submit the redeem call as an EOA-signed EIP-712 deposit-wallet WALLET batch.
 
 The adapter uses `conditionId`, detects the wallet's current winning CTF
 balance, performs the underlying CTF redemption, wraps proceeds back into
@@ -126,6 +126,10 @@ pUSD, and sends pUSD to the deposit wallet.
 Existing wallets that only ran the six-call trading approval batch must run a
 one-time adapter approval batch before first redeem. New wallet onboarding
 should include both trading approvals and adapter-readiness approvals.
+
+There is no raw CTF fallback, direct EOA bypass, or SAFE/PROXY shortcut for
+deposit-wallet positions. If the relayer rejects the adapter-targeted WALLET
+batch as not allowlisted, the correct state is upstream blocked.
 
 ## See Also
 

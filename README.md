@@ -191,18 +191,21 @@ won. Polygolem treats post-trade state as three separate checks:
 - `winning`: the market resolved in favor of the held outcome.
 - `redeemable`: the Data API reports the held winning position can be redeemed.
 
-For V2, redeem must route through the pUSD collateral adapters, not
-`ConditionalTokens` directly. Standard markets use `CtfCollateralAdapter`;
-negative-risk markets use `NegRiskCtfCollateralAdapter`. Existing deposit
-wallets that only ran the six-call trading approval batch need a separate
-adapter-approval migration before their first V2 redeem.
+For V2 deposit wallets, redeem has one supported production path: the owner
+signs an EIP-712 WALLET batch, Polymarket's relayer submits it through the
+deposit-wallet factory, and the wallet call targets a pUSD collateral adapter.
+Standard markets use `CtfCollateralAdapter`; negative-risk markets use
+`NegRiskCtfCollateralAdapter`. Existing deposit wallets that only ran the
+six-call trading approval batch need a separate adapter-approval migration
+before their first V2 redeem.
 
 The first-class SDK/CLI settlement surface is `pkg/settlement` plus
 `deposit-wallet redeemable` / `deposit-wallet redeem`. These commands build
 the V2 adapter path and fail closed on missing adapter approvals. If the
 relayer rejects adapter calls as not allowlisted, stop; the production factory
 does not expose a direct EOA fallback and raw `ConditionalTokens` redeem is
-not the pUSD-native V2 path. See [docs/SAFETY.md](docs/SAFETY.md),
+not a deposit-wallet fallback. SAFE/PROXY relayer examples do not apply to
+deposit-wallet positions. See [docs/SAFETY.md](docs/SAFETY.md),
 [docs/CONTRACTS.md](docs/CONTRACTS.md), and
 [docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md](docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md).
 

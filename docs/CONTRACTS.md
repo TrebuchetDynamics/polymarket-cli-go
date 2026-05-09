@@ -34,9 +34,11 @@ pUSD is Polymarket's V2 collateral wrapper on Polygon. The proxy address is
 `Polymarket USD`, symbol `pUSD`, with 6 decimals.
 
 Deposit wallets must not call `ConditionalTokens.redeemPositions` directly for
-V2 pUSD-native flows. Standard binary-market split, merge, and redeem calls
-route through `CtfCollateralAdapter`; negative-risk calls route through
-`NegRiskCtfCollateralAdapter`.
+V2 pUSD-native flows. The supported deposit-wallet path is an EIP-712 WALLET
+batch submitted by the relayer through the deposit-wallet factory, with the
+wallet call targeting a collateral adapter. Standard binary-market split,
+merge, and redeem calls route through `CtfCollateralAdapter`; negative-risk
+calls route through `NegRiskCtfCollateralAdapter`.
 
 For redeem, the adapter exposes the same function shape as the legacy CTF
 interface:
@@ -65,6 +67,11 @@ additional four-call WALLET batch: pUSD `approve` plus CTF
 `setApprovalForAll` for each collateral adapter. Redeem itself needs the CTF
 approval leg; the pUSD approval leg is included so the same one-time adapter
 batch also covers split flows.
+
+SAFE/PROXY relayer examples are separate wallet-type flows. They do not create
+a deposit-wallet shortcut around the V2 adapter path, and raw
+`ConditionalTokens.redeemPositions` must not be used as a deposit-wallet
+fallback when the relayer rejects adapter calls.
 
 ### 1.3 Which Wallet Type Wins
 
@@ -360,7 +367,7 @@ POLYMARKET_BUILDER_PASSPHRASE="..." \
 | Direct EOA call to `deploy()` | Live on-chain test | ❌ Reverts (role-gated) |
 | Direct EOA call to `proxy()` | Polygonscan verified source + live `eth_call` | ❌ Reverts with `OnlyOperator()` unless caller has operator role |
 | Direct EOA call to wallet `execute()` | Verified call context | ❌ Wallet execution is factory-mediated |
-| Raw `ConditionalTokens.redeemPositions` fallback | V2 adapter source review | ❌ Not the pUSD-native V2 redeem path |
+| Raw `ConditionalTokens.redeemPositions` fallback | V2 adapter source review + official relayer client wallet-type split | ❌ Not a deposit-wallet fallback; SAFE/PROXY examples do not apply |
 | Old ProxyFactory `proxy()` | Source code review | ❌ Creates type 1 wallets, not type 3 |
 | Self-deploy on implementation | Polygonscan source check | ❌ No such function; implementation unverified |
 | Separate permissionless factory | Full contract search | ❌ Only one DepositWalletFactory exists |
