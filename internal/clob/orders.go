@@ -638,15 +638,16 @@ func (c *Client) CreateMarketOrder(ctx context.Context, privateKey string, param
 		return nil, fmt.Errorf("price must be positive")
 	}
 
-	taker := new(big.Rat).Quo(amount, price)
-	taker = truncateRat(taker, tickScale+2)
-	if err := validateMinimumOrderSize(taker, tick); err != nil {
-		return nil, err
+	maker := truncateRat(amount, 2)
+	if maker.Sign() <= 0 {
+		return nil, fmt.Errorf("amount must be at least 0.01 for market buy orders")
 	}
+	taker := new(big.Rat).Quo(maker, price)
+	taker = truncateRat(taker, tickScale+2)
 	draft := orderDraft{
 		tokenID:     tokenID,
 		side:        side,
-		makerAmount: fixedDecimal(amount, 6),
+		makerAmount: fixedDecimal(maker, 6),
 		takerAmount: fixedDecimal(taker, 6),
 		orderType:   normalizeOrderType(params.OrderType, "FOK"),
 	}

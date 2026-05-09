@@ -539,4 +539,3 @@ func TestDepositWalletRedeemHappyPathSubmits(t *testing.T) {
 		t.Fatalf("transactionID=%v", data["transactionID"])
 	}
 }
-

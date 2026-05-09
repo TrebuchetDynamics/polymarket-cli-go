@@ -177,7 +177,7 @@ func TestResolveTokenIDsForWindow_HappyPath(t *testing.T) {
 
 func TestResolveTokenIDsForWindow_RejectsWrongWindow(t *testing.T) {
 	wantWindow := time.Unix(1778114700, 0).UTC() // 2026-05-07T00:45:00Z
-	gotWindow := wantWindow.Add(5 * time.Minute)  // 2026-05-07T00:50:00Z
+	gotWindow := wantWindow.Add(5 * time.Minute) // 2026-05-07T00:50:00Z
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

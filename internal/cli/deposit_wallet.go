@@ -475,9 +475,9 @@ authorize the live-money WALLET batch.`,
 			if !submit {
 				raw := json.RawMessage(callsJSON)
 				return printJSON(cmd, map[string]interface{}{
-					"calls":   raw,
+					"calls":    raw,
 					"adapters": []string{contracts.CtfCollateralAdapter, contracts.NegRiskCtfCollateralAdapter},
-					"note":    "review calldata, then run with --submit --confirm APPROVE_ADAPTERS to sign and send",
+					"note":     "review calldata, then run with --submit --confirm APPROVE_ADAPTERS to sign and send",
 				})
 			}
 			if confirm != "APPROVE_ADAPTERS" {
