@@ -25,8 +25,43 @@ Polygolem interacts with Polymarket's on-chain infrastructure on Polygon (chain 
 | **CollateralOnramp** | `0x93070a847efEf7F70739046A929D47a521F5B8ee` | Wrap/onramp collateral |
 | **CollateralOfframp** | `0x2957922Eb93258b93368531d39fAcCA3B4dC5854` | Offramp collateral |
 | **PermissionedRamp** | `0xebC2459Ec962869ca4c0bd1E06368272732BCb08` | Permissioned ramp |
-| **CtfCollateralAdapter** | `0xAdA100Db00Ca00073811820692005400218FcE1f` | CTF collateral adapter |
-| **NegRiskCtfCollateralAdapter** | `0xadA2005600Dec949baf300f4C6120000bDB6eAab` | Neg-risk CTF collateral adapter |
+| **CtfCollateralAdapter** | `0xADa100874d00e3331D00F2007a9c336a65009718` | V2 split/merge/redeem adapter for standard CTF markets |
+| **NegRiskCtfCollateralAdapter** | `0xAdA200001000ef00D07553cEE7006808F895c6F1` | V2 split/merge/redeem adapter for negative-risk markets |
+
+### V2 Collateral Layer
+
+pUSD is Polymarket's V2 wrapped collateral token on Polygon. The proxy
+address is `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB`; local V2 source
+names it `Polymarket USD`, symbol `pUSD`, with 6 decimals.
+
+Deposit wallets should not call `ConditionalTokens.redeemPositions` directly
+for V2 pUSD-native flows. Standard binary-market split, merge, and redeem
+calls route through `CtfCollateralAdapter`; negative-risk calls route through
+`NegRiskCtfCollateralAdapter`.
+
+The adapter intentionally keeps the legacy redeem ABI shape:
+
+```solidity
+redeemPositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId, uint256[] indexSets)
+```
+
+It uses `conditionId`, reads the deposit wallet's current YES/NO CTF balances,
+pulls those ERC-1155 positions into the adapter, redeems through the
+underlying CTF path, wraps the USDC.e proceeds back into pUSD, and sends pUSD
+to the deposit wallet. The caller-supplied collateral address, parent
+collection, and `indexSets` are accepted for compatibility but ignored by the
+adapter.
+
+Trading approvals and adapter approvals are separate:
+
+| Approval Set | Spenders | Purpose |
+|---|---|---|
+| Trading approvals | `CTFExchangeV2`, `NegRiskExchangeV2`, `NegRiskAdapterV2` | CLOB order matching and settlement |
+| Adapter approvals | `CtfCollateralAdapter`, `NegRiskCtfCollateralAdapter` | V2 split, merge, and redeem |
+
+The existing six-call approval batch covers trading. V2 redeem readiness
+requires an additional four-call adapter batch: pUSD `approve` and CTF
+`setApprovalForAll` for both collateral adapters.
 
 ### Wallet Factories
 
@@ -41,6 +76,53 @@ Polygolem interacts with Polymarket's on-chain infrastructure on Polygon (chain 
 **New API users (post-May 2026):** Deposit wallet (type 3 / POLY_1271) only. EOA orders blocked by CLOB V2.
 
 **Grandfathered users:** Proxy (type 1) or Safe (type 2) still work.
+
+### Deployment Status Source of Truth
+
+There are two deployment signals, and they answer different questions:
+
+| Signal | Source | Meaning |
+|---|---|---|
+| Relayer deployed flag | `GET /deployed?address=<owner>` | Relayer/indexer view used by Polymarket's wallet lifecycle API |
+| Contract bytecode | Polygon `eth_getCode(<depositWallet>)` | Chain truth: whether the deposit wallet has deployed code |
+
+For trading safety, **on-chain bytecode wins**. The CTF Exchange V2 POLY_1271
+path checks `maker.code.length > 0` before validating the ERC-1271 signature.
+If bytecode exists at the derived deposit wallet address, the wallet is deployed
+for order-signing purposes even when `/deployed` returns a false negative.
+
+2026-05-09 live evidence:
+
+```text
+owner:         0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C
+depositWallet: 0x21999a074344610057c9b2B362332388a44502D4
+relayer:       deployed=false
+polygon code:  0x363d3d373d3d363d7f360894a13ba1a3210667c828492db...
+status:        deployed for POLY_1271
+```
+
+Polygolem exposes the chain check through `pkg/contracts`:
+
+```go
+status, err := contracts.DepositWalletDeployed(ctx, depositWallet, "")
+if err != nil {
+    return err
+}
+if status.Deployed {
+    // Skip WALLET-CREATE and continue approval/funding/readiness.
+}
+```
+
+The CLI reports the split explicitly:
+
+```json
+{
+  "deployed": true,
+  "deploymentStatusSource": "polygon_code",
+  "relayerDeployed": false,
+  "onchainCodeDeployed": true
+}
+```
 
 ## DepositWalletFactory
 
@@ -153,7 +235,7 @@ The relayer at `relayer-v2.polymarket.com` provides gas-sponsored transaction su
 | `/submit` | POST | Builder HMAC or Relayer API Key | WALLET-CREATE, WALLET batch |
 | `/nonce` | GET | Builder HMAC or Relayer API Key | Current WALLET nonce |
 | `/transaction` | GET | Builder HMAC or Relayer API Key | Poll transaction status |
-| `/deployed` | GET | Builder HMAC or Relayer API Key | Check if wallet deployed |
+| `/deployed` | GET | Builder HMAC or Relayer API Key | Relayer/indexer deployment view; use Polygon bytecode as fallback/source of truth |
 | `/relay-payload` | GET | None | Get relayer address + nonce |
 | `/relayer/api/keys` | GET | Gamma auth or API key | List relayer API keys |
 
@@ -171,10 +253,11 @@ The relayer at `relayer-v2.polymarket.com` provides gas-sponsored transaction su
 | Operation | Who Pays | Cost to User |
 |-----------|---------|-------------|
 | Wallet deploy (WALLET-CREATE) | Polymarket relayer | FREE |
-| 6-call approve batch | Polymarket relayer | FREE |
+| Trading approve batch | Polymarket relayer | FREE |
+| Adapter approve batch | Polymarket relayer | FREE |
 | Order placement | No user transaction; posted to CLOB | No user gas |
 | Trade settlement | CLOB executor / exchange settlement path | No user-submitted gas transaction |
-| CTF split/merge/redeem via WALLET batch | Polymarket relayer | FREE |
+| CTF split/merge/redeem through V2 collateral adapters | Polymarket relayer | FREE |
 | **Fund wallet (pUSD transfer)** | **User** | **~$0.01 POL** |
 
 The only transaction you pay gas for is the initial pUSD transfer from EOA to deposit wallet.

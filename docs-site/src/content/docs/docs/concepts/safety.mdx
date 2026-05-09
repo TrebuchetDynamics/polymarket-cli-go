@@ -63,9 +63,60 @@ V2 relayer keys and legacy builder HMAC credentials authenticate with the relaye
 When `signature_type = 3` (deposit), the CLOB balance endpoint returns the
 **deposit wallet's pUSD balance**, not the EOA's. Live readiness must:
 1. Check CLOB balance with `signature_type = 3`
-2. Verify deposit wallet is deployed (relayer `/deployed`)
+2. Verify deposit wallet is deployed. Polygon `eth_getCode` is the source of
+   truth; relayer `/deployed` is advisory and can return false while bytecode
+   already exists.
 3. Verify collateral allowances are non-zero
 4. Block before order submission if any check fails
+
+### Decision-Window Safety
+
+Automated trading must bind each strategy decision to the exact market window
+it intends to trade. A 5m signal for `2026-05-09T08:20:00Z` must not buy a
+market that starts at `2026-05-09T12:20:00Z`, even if the asset and timeframe
+match.
+
+The safe resolver behavior is fail-closed:
+
+- return available only when the market `startDate` matches the requested
+  decision window,
+- return `window_mismatch` when a slug hit points to a different window,
+- never fall through from an exact-window lookup to a generic "next available"
+  market search.
+
+### Matched, Winning, Redeemable
+
+Post-trade state has three separate meanings:
+
+| State | Meaning |
+|---|---|
+| `matched` | The CLOB filled the order and position shares moved into the deposit wallet. |
+| `winning` | The market resolved in favor of the held outcome. |
+| `redeemable` | The Data API reports the held position can be redeemed. |
+
+A matched order is not proof that the market won. Redemption automation must
+query the deposit wallet's Data API `/positions` rows and use
+`redeemable=true` as the readiness signal. There is no separate `resolved`
+boolean in the current position schema.
+
+### V2 Redeem Readiness
+
+Polymarket V2 routes pUSD-native split, merge, and redeem through collateral
+adapters:
+
+| Market Type | Adapter |
+|---|---|
+| Standard binary | `CtfCollateralAdapter` |
+| Negative-risk | `NegRiskCtfCollateralAdapter` |
+
+The adapter reads `conditionId`, detects the wallet's current CTF balances,
+performs the underlying CTF redemption, wraps proceeds back into pUSD, and
+returns pUSD to the deposit wallet. It ignores caller-supplied collateral
+address, parent collection, and `indexSets`.
+
+Adapter readiness is separate from trading readiness. Existing wallets that
+only ran the six-call trading approval batch need a one-shot adapter approval
+batch before their first V2 redeem.
 
 ### Relayer Auth vs Trading Auth
 

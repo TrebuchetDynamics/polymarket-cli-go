@@ -9,12 +9,51 @@
 
 A single Go binary and SDK for trading on Polymarket V2.
 
-Built specifically for Polymarket's current production deposit-wallet model.
-No external SDKs. No Python runtime. No opaque signing wrappers.
+Built for Polymarket's current deposit-wallet production model — with local
+signing, no external SDKs, and no opaque runtime layers.
 
 *For operators who want verifiable trading infrastructure instead of opaque
 wrappers — validated against live Polygon mainnet flows, not mocks or paper
 environments.*
+
+---
+
+## Try It in 60 Seconds (No Credentials Needed)
+
+All outputs below come from live Polygon mainnet responses.
+
+```bash
+git clone https://github.com/TrebuchetDynamics/polygolem
+cd polygolem && go build -o polygolem ./cmd/polygolem
+
+./polygolem health
+# {"clob":"ok","gamma":"ok"}
+
+./polygolem orderbook price --token-id 1391568931...637394586
+# {"price":"0.012","token_id":"1391568931...637394586"}
+
+./polygolem orderbook spread --token-id 1391568931...637394586
+# {"spread":"0.002","token_id":"1391568931...637394586"}
+
+./polygolem discover search --query "btc 150k" --limit 3
+```
+
+That's polygolem talking to live Polymarket — no key, no credentials, no
+sign-up. Read-only is the default for everything until you set
+`POLYMARKET_PRIVATE_KEY`.
+
+---
+
+## Production Validation
+
+> **Production-validated:** Polygon mainnet · 2026-05-08 reference run
+>
+> [Every tx hash, gas figure, and pUSD movement](docs/LIVE-TRADE-WALKTHROUGH.md)
+> is documented from EOA private key to filled buy + sell.
+
+Core trading flows are production-validated today: headless relayer onboarding,
+deposit-wallet deploy + funding, CLOB V2 trading + cancels, advanced order
+types, market discovery, streaming, and local risk controls.
 
 ---
 
@@ -24,25 +63,26 @@ In April 2026 Polymarket migrated to V2: a new exchange, a new stablecoin
 (pUSD), and a new requirement that orders be placed by **deposit wallets**
 (ERC-1967 proxies that validate signatures via ERC-1271) instead of EOAs.
 
-Most existing Polymarket bots, wrappers, and unofficial SDKs still assume
-EOA signing. Many of them silently broke; the rest produce ghost fills that
-appear in the book and never settle.
+That broke the old assumption that an EOA is the order maker. Many existing
+Polymarket bots, wrappers, and unofficial SDKs still sign as EOAs; those paths
+can produce ghost fills that appear in the book and never settle.
 
 polygolem only knows the production-safe path:
 
-- **Deposit-wallet only** — the current Polymarket production signing model
-  for every order (known in the Polymarket docs as `signatureType=3` /
-  `POLY_1271`, validated on-chain via ERC-1271)
+- **Deposit-wallet only** — the current production order model
+  (`signatureType=3` / `POLY_1271`, validated on-chain via ERC-1271)
 - **Local signing** — your private key never leaves the process
-- **Spec-implemented protocol** — no shimmed Python or JS SDKs in the trust path
+- **Spec-implemented protocol** — no shimmed Python or JS SDK in the trust path
 - **CREATE2 wallet derivation verified** against the official Polymarket Python SDK
 - **Read-only by default** — every authenticated command requires explicit credentials
 
 EOA, proxy, and Gnosis Safe paths are intentionally not supported.
 
-**Why Go?** A single static binary keeps the trust path inspectable: one
-language, one build, no hidden runtime layers, no transitive npm or pip
-dependencies that get to see your private key.
+> **Why Go?**
+>
+> One language. One binary. No hidden runtime layers between your private key
+> and the exchange. No transitive npm or pip dependencies that get to see your
+> signing key.
 
 The on-chain identity model the rest of this README is built around:
 
@@ -69,17 +109,26 @@ for the full lifecycle with real txes.
 
 ## What Works Today
 
-Verified end-to-end against Polygon mainnet on the 2026-05-08 reference run:
+Covered by the 2026-05-08 Polygon mainnet reference run:
 
-- Headless relayer onboarding
+**Trading**
+
+- Headless V2 relayer onboarding
 - Deposit-wallet deploy + funding
 - CLOB V2 trading + cancels
 - Advanced order types
-- Market discovery + streaming
-- Local risk controls
 
-Validated walkthrough →
-[every tx hash, gas figure, and pUSD movement](docs/LIVE-TRADE-WALKTHROUGH.md)
+**Market Data**
+
+- Gamma + CLOB market discovery
+- Public CLOB WebSocket market stream
+- Order book price + spread helpers
+
+**Safety**
+
+- Read-only default CLI/SDK surface
+- Local risk controls
+- Secret redaction
 
 ---
 
@@ -98,46 +147,6 @@ The SDK defaults toward preventing irreversible mistakes.
 | **Secret redaction** | API keys and signatures are redacted in logs (`internal/transport`). |
 
 See [docs/SAFETY.md](docs/SAFETY.md) for the full safety model.
-
----
-
-## Try It in 60 Seconds (No Credentials Needed)
-
-```bash
-git clone https://github.com/TrebuchetDynamics/polygolem
-cd polygolem && go build -o polygolem ./cmd/polygolem
-
-./polygolem health
-# {"clob":"ok","gamma":"ok"}
-
-./polygolem orderbook price --token-id 1391568931...637394586
-# {"price":"0.012","token_id":"1391568931...637394586"}
-
-./polygolem orderbook spread --token-id 1391568931...637394586
-# {"spread":"0.002","token_id":"1391568931...637394586"}
-
-./polygolem discover search --query "btc 150k" --limit 3
-```
-
-That's polygolem talking to live Polymarket — no key, no credentials, no
-sign-up. Read-only is the default for everything until you set
-`POLYMARKET_PRIVATE_KEY`.
-
-All example outputs in this README come from live Polygon mainnet responses.
-
----
-
-## Demo Pipeline (Planned)
-
-A guided read-only walkthrough across Gamma, CLOB, Data API, and market streams:
-
-```bash
-polygolem demo
-polygolem demo --layer l2
-```
-
-Designed to explain how Polymarket identifiers, books, markets, and analytics
-connect without requiring funding or order placement.
 
 ---
 
@@ -173,26 +182,41 @@ and every CLOB settlement are sponsored by Polymarket-run services. See
 > headless.** Existing Polymarket users with an already-minted CLOB key skip
 > this entirely. See [docs/BROWSER-SETUP.md](docs/BROWSER-SETUP.md).
 
+### After a Fill
+
+`status=matched` means the CLOB filled the order. It does not mean the market
+won. Polygolem treats post-trade state as three separate checks:
+
+- `matched`: the order filled and shares moved into the deposit wallet.
+- `winning`: the market resolved in favor of the held outcome.
+- `redeemable`: the Data API reports the held winning position can be redeemed.
+
+For V2, redeem must route through the pUSD collateral adapters, not
+`ConditionalTokens` directly. Standard markets use `CtfCollateralAdapter`;
+negative-risk markets use `NegRiskCtfCollateralAdapter`. Existing deposit
+wallets that only ran the six-call trading approval batch need a separate
+adapter-approval migration before their first V2 redeem.
+
+The first-class SDK/CLI settlement surface is being added as
+`pkg/settlement` plus deposit-wallet redeem commands. Until those commands
+ship in the generated CLI reference, treat winner redemption as documented
+process, not an operator-ready command path. See [docs/SAFETY.md](docs/SAFETY.md)
+and [docs/CONTRACTS.md](docs/CONTRACTS.md).
+
 ---
 
 ## Go SDK
 
 If you'd rather embed polygolem in a larger Go service, every CLI subcommand
-is a thin wrapper around an importable `pkg/` package:
+is a thin wrapper around importable `pkg/` packages:
 
 | Package | What it does |
 |---|---|
 | [`pkg/universal`](pkg/universal) | One typed client over Gamma + CLOB + Data API + Stream + Discovery (70+ methods) |
 | [`pkg/clob`](pkg/clob) | CLOB V2 — market data, orders, balances, builder fees |
-| [`pkg/contracts`](pkg/contracts) | Polygon contract registry and deposit-wallet bytecode deployment checks |
 | [`pkg/gamma`](pkg/gamma) | Read-only Gamma market discovery (26 methods) |
-| [`pkg/data`](pkg/data) | Data API — positions, volume, leaderboards |
 | [`pkg/stream`](pkg/stream) | Public CLOB WebSocket market stream |
-| [`pkg/orderbook`](pkg/orderbook) | Read-only book + price + spread |
 | [`pkg/relayer`](pkg/relayer) | V2 Relayer client — WALLET-CREATE, batch, nonce |
-| [`pkg/builder`](pkg/builder) | Builder HMAC signing (local or remote) |
-| [`pkg/marketresolver`](pkg/marketresolver) | Market + token ID resolution |
-| [`pkg/types`](pkg/types) | Shared public DTOs |
 
 ```go
 import (
@@ -213,8 +237,8 @@ fmt.Printf("BTC $150k YES — price %s, spread %s\n", price, spread)
 // BTC $150k YES — price 0.012, spread 0.002
 ```
 
-Internal implementation details live under `internal/` and are documented in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Full package boundaries, dependency direction, and internal implementation
+details are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
@@ -272,5 +296,8 @@ Core trading flows are production-validated today.
 
 Release signing, broader exchange abstractions, and extended automation
 surfaces are still hardening.
+
+Planned: a guided read-only demo pipeline for onboarding and API graph
+exploration.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for per-version detail.

@@ -11,12 +11,15 @@ recovers to a ready state.
 
 ```
   ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
-  │ DERIVE   │ ──→ │ DEPLOY   │ ──→ │ FUND     │ ──→ │ TRADE    │
-  │ (offline)│     │ (relayer)│     │ (onchain)│     │ (CLOB)   │
+  │ DERIVE   │ ──→ │ DEPLOY   │ ──→ │ APPROVE │ ──→ │ FUND     │
+  │ (offline)│     │ (relayer)│     │ (relayer)│    │ (onchain)│
   └──────────┘     └──────────┘     └──────────┘     └──────────┘
-       │                │                │                │
-       └────────────────┴────────────────┴────────────────┘
-                     All idempotent on restart
+       │                                                   │
+       └───────────────────────────────────────────────────▼
+                         ┌──────────┐     ┌──────────┐
+                         │ TRADE    │ ──→ │ REDEEM   │
+                         │ (CLOB)   │     │ (relayer)│
+                         └──────────┘     └──────────┘
 ```
 
 ### Phase 1: Derive (offline, always succeeds)
@@ -61,16 +64,59 @@ Two-step funding:
 1. EOA acquires pUSD (bridge POL or swap)
 2. EOA transfers pUSD to deposit wallet (ERC-20 transfer)
 
-### Phase 4: Approve (relayer WALLET batch)
+### Phase 4: Approve (relayer WALLET batches)
 
-The deposit wallet must approve six trading contracts to spend its tokens.
-This is a single WALLET batch signed via EIP-712 and submitted to the relayer.
+The deposit wallet must approve trading contracts before CLOB orders can
+settle. That trading readiness batch is six calls:
+
+- pUSD `approve` for `CTFExchangeV2`
+- CTF `setApprovalForAll` for `CTFExchangeV2`
+- pUSD `approve` for `NegRiskExchangeV2`
+- CTF `setApprovalForAll` for `NegRiskExchangeV2`
+- pUSD `approve` for `NegRiskAdapterV2`
+- CTF `setApprovalForAll` for `NegRiskAdapterV2`
+
+V2 split, merge, and redeem readiness is separate. The collateral adapters
+also need a one-time WALLET batch:
+
+- pUSD `approve` for `CtfCollateralAdapter`
+- CTF `setApprovalForAll` for `CtfCollateralAdapter`
+- pUSD `approve` for `NegRiskCtfCollateralAdapter`
+- CTF `setApprovalForAll` for `NegRiskCtfCollateralAdapter`
+
+Redeem itself requires the CTF approval leg; pUSD approval is included so the
+same adapter-readiness batch also covers future split flows.
 
 ### Phase 5: Trade (CLOB)
 
 With the wallet deployed, funded, and approved, orders are placed with
 deposit-wallet signing automatically. The EOA signs the order, but the CLOB
 sees the deposit wallet as both `maker` and `signer` in the V2 order payload.
+
+### Phase 6: Redeem Winners (relayer WALLET batch)
+
+After a market resolves, query Data API positions for the deposit wallet and
+look for `redeemable=true`. That is the readiness signal; there is no separate
+`resolved` boolean in the current Data API position schema.
+
+V2 redeem routes through collateral adapters, not `ConditionalTokens`
+directly:
+
+| Market Type | Adapter |
+|---|---|
+| Standard binary | `CtfCollateralAdapter` |
+| Negative-risk | `NegRiskCtfCollateralAdapter` |
+
+The adapter uses `conditionId`, detects the wallet's CTF balances, redeems the
+winning side, wraps proceeds back into pUSD, and returns pUSD to the deposit
+wallet.
+
+The operator surface is `polygolem deposit-wallet approve-adapters`,
+`redeemable`, and `redeem`. Every signing path is dry-run by default;
+submission requires both `--submit` and a typed `--confirm` token
+(`APPROVE_ADAPTERS` for adapter approvals, `REDEEM_WINNERS` for redeem).
+See [Redeeming Winning Positions](/docs/guides/redeem-winners/) for the
+full runbook.
 
 ## Recovery Modes
 
@@ -84,6 +130,7 @@ is idempotent — running it twice on an already-ready wallet is a no-op.
 | **Deployed (relayer false-negative)** | `IsDeployed()` → false **but** `eth_getCode` non-empty → treat as deployed, skip `WALLET-CREATE` |
 | **Deployed, no pUSD** | Wallet has code, balance zero → fund EOA pUSD → transfer to wallet |
 | **Deployed, pUSD present, no approvals** | Balance OK, allowances empty → `SubmitWalletBatchSafe` with fresh nonce |
+| **Deployed, trade approvals present, adapter approvals missing** | Trading can work, but split/merge/redeem must fail closed until adapter approvals are submitted |
 | **Fully operational** | All checks pass → skip to live trading loop |
 | **Nonce conflict** (lost response after a previous batch) | `SubmitWalletBatchSafe` re-fetches nonce from relayer, signs with new nonce, retries |
 | **Wallet lost** (never happens — it's a contract on Polygon) | Re-derive address (same result) → on-chain code still present → skip deploy |
@@ -121,7 +168,7 @@ POLYMARKET_PRIVATE_KEY="0x..." \
 POLYMARKET_PRIVATE_KEY="0x..." \
   polygolem auth headless-onboard
 
-# Full wallet onboarding (deploy + approve + fund).
+# Full wallet onboarding (deploy + trading approve + fund).
 POLYMARKET_PRIVATE_KEY="0x..." \
 RELAYER_API_KEY="..." \
 RELAYER_API_KEY_ADDRESS="..." \
@@ -134,7 +181,9 @@ login and mints the V2 relayer key used by `deposit-wallet deploy` and
 `deposit-wallet approve`. Non-zero order attribution is configured separately
 with `POLYMARKET_BUILDER_CODE` or CLI `--builder-code`.
 
-This single command runs: derive → deploy → approve (6 calls) → fund (transfer).
+This single command currently runs: derive → deploy → trading approve
+(6 calls) → fund (transfer). V2 redeem readiness adds the separate
+collateral-adapter approval batch described in Phase 4.
 
 Then sync the CLOB balance:
 
@@ -197,3 +246,19 @@ polygolem clob balance --asset-type collateral
 
 > pUSD held by the EOA and pUSD held by the deposit wallet are **separate
 > balances**. Only the deposit wallet balance counts for POLY_1271 trading.
+
+## Redeem Readiness Checklist
+
+Before submitting a V2 redeem batch:
+
+1. The wallet is deployed according to Polygon `eth_getCode`.
+2. Data API `/positions?user=<depositWallet>` returns at least one
+   `redeemable=true` row.
+3. The position includes `conditionId`, `asset`, `outcome`, `outcomeIndex`,
+   and `negativeRisk`.
+4. CTF `isApprovedForAll(wallet, adapter)` is true for the required adapter.
+5. The WALLET batch is dry-run and inspected before any live submission.
+
+go-bot must call the Polygolem SDK package directly for this flow. The
+Polygolem CLI is for humans and operator runbooks, not the production bot
+integration boundary.

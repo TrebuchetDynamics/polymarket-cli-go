@@ -38,8 +38,29 @@ leaders, err := client.TraderLeaderboard(ctx, 20)
 volume, err := client.LiveVolume(ctx, 20)
 ```
 
+## Position Fields For Settlement
+
+`GET /positions` is the read-only source Polygolem uses to distinguish a
+filled order from a redeemable winner. Current position rows include:
+
+| Field | Use |
+|---|---|
+| `asset` | CTF token ID held by the wallet |
+| `conditionId` | Market condition used for redeem calldata |
+| `redeemable` | Redemption readiness signal |
+| `mergeable` | Future merge-flow readiness signal |
+| `negativeRisk` | Chooses `NegRiskCtfCollateralAdapter` instead of `CtfCollateralAdapter` |
+| `outcome`, `outcomeIndex` | Held side and its index |
+| `oppositeOutcome`, `oppositeAsset` | Opposite side, useful for operator output |
+| `endDate` | Resolution window context |
+
+There is no separate `resolved` boolean in the current schema. A settlement
+worker should filter on `redeemable=true` and then route through the V2
+collateral adapter that matches `negativeRisk`.
+
 ## Related
 
 - [CLI Commands](/reference/cli)
 - [Go SDK Contracts](/reference/sdk)
+- [Redeeming Winning Positions](/guides/redeem-winners)
 - [Polymarket API Overview](/concepts/polymarket-api)

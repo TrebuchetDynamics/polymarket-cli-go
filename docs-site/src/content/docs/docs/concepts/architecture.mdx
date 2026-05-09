@@ -11,7 +11,7 @@ Cobra-based CLI on top.
 | Layer | Packages | Role |
 |-------|----------|------|
 | **`cmd/polygolem`** | 1 | Binary entry point. Wires Cobra and exits. |
-| **`pkg/`** | 12 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; authenticated CLOB account/order DTOs live in `pkg/clob`; market WebSocket events use public `pkg/stream` DTOs; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; enrichment and rewards type paths still need cleanup. |
+| **`pkg/`** | 16 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; authenticated CLOB account/order DTOs live in `pkg/clob`; contract registry/readiness lives in `pkg/contracts`; market WebSocket events use public `pkg/stream` DTOs; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; enrichment and rewards type paths still need cleanup. |
 | **`internal/`** | 21 | Implementation. Not part of public API. |
 
 The CLI and public SDK both depend on the internal protocol implementation.
@@ -26,6 +26,7 @@ The `internal/` packages do not depend on `cmd/`.
 | `pkg/data` | Read-only Data API analytics client returning `pkg/types` DTOs |
 | `pkg/types` | Public DTOs shared by SDK packages |
 | `pkg/clob` | CLOB market-data plus authenticated account/order DTOs |
+| `pkg/contracts` | Polygon contract registry and deposit-wallet bytecode checks |
 | `pkg/orderbook` | Read-only CLOB order-book reader |
 | `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook` |
 | `pkg/marketresolver` | Market + token ID resolution |
@@ -45,7 +46,7 @@ The `internal/` packages do not depend on `cmd/`.
 | `internal/dataapi` | Data API — positions, volume, leaderboards |
 | `internal/relayer` | Builder relayer — WALLET-CREATE, WALLET batch, nonce, polling |
 | `internal/stream` | WebSocket market stream implementation behind `pkg/stream` |
-| `internal/rpc` | Direct on-chain transfers (pUSD EOA → wallet) |
+| `internal/rpc` | Low-level Polygon RPC helpers: bytecode checks, direct transfers, swaps, deploy estimates |
 
 ### Cross-Cutting
 
@@ -88,7 +89,7 @@ internal/{auth, transport, polytypes}                   ← cross-cutting
 internal/{wallet, orders, execution, risk, paper, marketdiscovery}
         ^
         |
-pkg/{universal, gamma, data, types, clob, stream, orderbook, bookreader, marketresolver, bridge, relayer, pagination}
+pkg/{universal, gamma, data, types, clob, contracts, stream, orderbook, bookreader, marketresolver, bridge, relayer, pagination}
 ```
 
 ## Mode System

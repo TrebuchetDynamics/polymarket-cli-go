@@ -19,10 +19,11 @@ description: Polygolem coverage across Gamma, CLOB, Data API, Bridge, WebSocket,
 | CLOB heartbeat | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob heartbeat` | Covered |
 | Data API | `internal/dataapi`, `pkg/data`, `pkg/types`, `pkg/universal` | `data *` | Covered |
 | Bridge | `pkg/bridge` | `bridge assets`, `bridge deposit` | Covered |
+| Contracts | `internal/rpc`, `pkg/contracts`, `pkg/relayer` compatibility wrapper | `deposit-wallet status`, `deposit-wallet deploy` preflight | Covered |
 | Conditional Tokens helpers | `pkg/ctf` | Not exposed | SDK calldata helpers only |
 | Public WebSocket | `internal/stream`, `pkg/stream`, `pkg/universal` | `stream market` | Covered |
 | User WebSocket | Planned | Planned | Gap |
-| Deposit wallet lifecycle | `pkg/relayer`, `internal/auth`, `internal/rpc` | `deposit-wallet *` | SDK deploy+approve and CLI full onboard covered; funding remains explicit |
+| Deposit wallet lifecycle | `pkg/relayer`, `pkg/contracts`, `internal/auth`, `internal/rpc` | `deposit-wallet *` | SDK deploy+approve and CLI full onboard covered; funding remains explicit |
 
 The repository copy with test and documentation columns lives in
 [`docs/POLYMARKET-COVERAGE-MATRIX.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/POLYMARKET-COVERAGE-MATRIX.md).

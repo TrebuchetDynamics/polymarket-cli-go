@@ -29,6 +29,7 @@ export default defineConfig({
             { label: "Market Discovery", link: "/docs/guides/market-discovery" },
             { label: "Universal Client", link: "/docs/guides/universal-client" },
             { label: "Deposit Wallet Lifecycle", link: "/docs/guides/deposit-wallet-lifecycle" },
+            { label: "Redeem Winners", link: "/docs/guides/redeem-winners" },
             { label: "Orderbook Data", link: "/docs/guides/orderbook-data" },
             { label: "Paper Trading", link: "/docs/guides/paper-trading" },
             { label: "Bridge & Funding", link: "/docs/guides/bridge-funding" },

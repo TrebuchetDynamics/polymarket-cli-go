@@ -149,3 +149,59 @@ operations. These rules apply.
 7. **Builder attribution does not bypass safety.** Setting builder
    credentials enables deposit-wallet operations; it does not relax any
    gate or grant trading privileges.
+
+8. **Decision-window safety.** Automated order placement must bind the
+   strategy decision window to the selected market window. A signal for
+   `2026-05-09T08:20:00Z` must not buy a market that starts at
+   `2026-05-09T12:20:00Z`, even when the asset and timeframe match. The
+   required SDK path is a strict window resolver that returns a
+   `window_mismatch` status instead of silently falling back to a future
+   market.
+
+## Matched, Winning, And Redeemable
+
+Matched, winning, and redeemable are separate states:
+
+- `matched`: the CLOB filled the order and transferred or minted position
+  shares.
+- `winning`: the market resolved and the held token is the winning outcome.
+- `redeemable`: Polymarket's Data API reports the held position can be
+  redeemed.
+
+A matched order is not proof that the market won. Redemption automation must
+read the deposit wallet's Data API `/positions` rows and use
+`redeemable=true` as the readiness signal. The current position schema exposes
+`redeemable`, `mergeable`, `negativeRisk`, `outcome`, `outcomeIndex`,
+`oppositeOutcome`, `oppositeAsset`, and `endDate`; it does not expose a
+separate `resolved` boolean.
+
+## V2 Redeem Readiness
+
+Polymarket V2 uses collateral adapter contracts for pUSD-native CTF actions.
+Deposit wallets must route split, merge, and redeem through:
+
+- `CtfCollateralAdapter` for standard binary markets:
+  `0xADa100874d00e3331D00F2007a9c336a65009718`
+- `NegRiskCtfCollateralAdapter` for negative-risk markets:
+  `0xAdA200001000ef00D07553cEE7006808F895c6F1`
+
+Do not call `ConditionalTokens.redeemPositions` directly from a V2 deposit
+wallet flow. The adapter reads `conditionId`, detects the wallet's current CTF
+balances, redeems through the underlying CTF path, wraps proceeds back into
+pUSD, and returns pUSD to the deposit wallet.
+
+Adapter readiness is distinct from trading readiness. The existing trading
+approval batch covers CLOB exchange spenders. V2 redeem requires the deposit
+wallet to approve the collateral adapters with CTF `setApprovalForAll`; the
+one-time adapter approval batch should also include pUSD `approve` for future
+split support. Existing live wallets that only ran the trading approval batch
+need a one-shot adapter-approval migration before their first V2 redeem.
+
+The first-class `polygolem deposit-wallet approve-adapters`, `redeemable`,
+and `redeem` commands are live (commits `c77e735` and `0593991`). Every
+signing path defaults to dry-run; submission requires both `--submit` and a
+typed `--confirm` token (`APPROVE_ADAPTERS` for adapter approvals,
+`REDEEM_WINNERS` for redeem). The redeem command runs an
+`isApprovedForAll(wallet, adapter)` pre-check via `eth_call` and refuses to
+sign if any approval is missing — the relayer never sees `/submit` when the
+pre-check fails.

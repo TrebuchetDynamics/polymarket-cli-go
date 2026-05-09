@@ -21,13 +21,57 @@
 | **pUSD (proxy)** | `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB` | Collateral token |
 | **pUSD (impl)** | `0x6bBCef9f7ef3B6C592c99e0f206a0DE94Ad0925f` | Collateral implementation |
 | **CTF** | `0x4D97DCd97eC945f40cF65F87097ACe5EA0476045` | Conditional Tokens Framework (ERC-1155) |
+| **CollateralOnramp** | `0x93070a847efEf7F70739046A929D47a521F5B8ee` | USDC/USDC.e to pUSD onramp |
+| **CollateralOfframp** | `0x2957922Eb93258b93368531d39fAcCA3B4dC5854` | pUSD to USDC/USDC.e offramp |
+| **PermissionedRamp** | `0xebC2459Ec962869ca4c0bd1E06368272732BCb08` | Permissioned collateral ramp |
+| **CtfCollateralAdapter** | `0xADa100874d00e3331D00F2007a9c336a65009718` | V2 split/merge/redeem adapter for standard CTF markets |
+| **NegRiskCtfCollateralAdapter** | `0xAdA200001000ef00D07553cEE7006808F895c6F1` | V2 split/merge/redeem adapter for negative-risk markets |
 
-### 1.2 Which Wallet Type Wins
+### 1.2 V2 Collateral Layer
+
+pUSD is Polymarket's V2 collateral wrapper on Polygon. The proxy address is
+`0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB`; local V2 source names it
+`Polymarket USD`, symbol `pUSD`, with 6 decimals.
+
+Deposit wallets must not call `ConditionalTokens.redeemPositions` directly for
+V2 pUSD-native flows. Standard binary-market split, merge, and redeem calls
+route through `CtfCollateralAdapter`; negative-risk calls route through
+`NegRiskCtfCollateralAdapter`.
+
+For redeem, the adapter exposes the same function shape as the legacy CTF
+interface:
+
+```solidity
+redeemPositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId, uint256[] indexSets)
+```
+
+The V2 adapter uses `conditionId`, reads the deposit wallet's current YES/NO
+CTF balances, pulls those ERC-1155 positions into the adapter, performs the
+underlying CTF redemption, wraps the USDC.e proceeds back into pUSD, and sends
+pUSD to `msg.sender` (the deposit wallet). The caller-supplied collateral
+address, parent collection, and `indexSets` are accepted for ABI compatibility
+but ignored by the adapter.
+
+This creates a separate approval requirement from trading:
+
+| Approval Set | Spenders | Purpose |
+|---|---|---|
+| Trading approvals | `CTFExchangeV2`, `NegRiskExchangeV2`, `NegRiskAdapterV2` | CLOB order matching and settlement |
+| Adapter approvals | `CtfCollateralAdapter`, `NegRiskCtfCollateralAdapter` | V2 split, merge, and redeem |
+
+Today's trading approval batch is six calls: pUSD `approve` plus CTF
+`setApprovalForAll` for each trading spender. V2 adapter readiness requires an
+additional four-call WALLET batch: pUSD `approve` plus CTF
+`setApprovalForAll` for each collateral adapter. Redeem itself needs the CTF
+approval leg; the pUSD approval leg is included so the same one-time adapter
+batch also covers split flows.
+
+### 1.3 Which Wallet Type Wins
 
 **New API users (post-May 2026):** Deposit wallet (type 3 / POLY_1271) only. EOA is blocked by CLOB V2.
 **Grandfathered users:** Proxy (type 1) or Safe (type 2) still work.
 
-### 1.3 Deployment Status Source of Truth
+### 1.4 Deployment Status Source of Truth
 
 There are two different deployment signals:
 
@@ -240,9 +284,11 @@ These systems are **independent**. Builder credentials cannot be substituted for
 The relayer pays gas for all on-chain operations. Users need pUSD for trading amounts, not MATIC for gas:
 
 - Wallet deployment: gas-sponsored
-- Token approvals (6-call batch): gas-sponsored
-- CTF splits/merges/redemptions: gas-sponsored
-- Transfers: gas-sponsored
+- Trading approval batch: gas-sponsored
+- Adapter approval batch: gas-sponsored
+- CTF split/merge/redeem through V2 collateral adapters: gas-sponsored
+- Deposit-wallet WALLET batches: gas-sponsored
+- EOA-to-wallet funding transfer: user pays Polygon gas
 
 ---
 
@@ -259,11 +305,14 @@ The relayer pays gas for all on-chain operations. Users need pUSD for trading am
 1. Wallet address prediction (`derive`) — local CREATE2 computation
 2. Wallet deployment status (`status`) — relayer view plus Polygon `eth_getCode`
 3. Wallet deployment (`deploy`) — skip when bytecode exists; otherwise POST to relayer with builder creds
-4. Token approvals (`approve`) — build 6-call batch, EOA signs, relayer submits
-5. Wallet funding (`fund`) — ERC-20 transfer EOA → deposit wallet
-6. Order creation → signing → submission — full CLOB flow
-7. Balance checks, orderbook reads — all read-only CLOB/Gamma endpoints
-8. Entire onboarding: `deploy → approve → fund` as one command
+4. Token approvals (`approve`) — build the trading approval batch, EOA signs,
+   relayer submits
+5. Adapter approvals — submit the separate collateral-adapter batch before
+   split/merge/redeem
+6. Wallet funding (`fund`) — ERC-20 transfer EOA → deposit wallet
+7. Order creation → signing → submission — full CLOB flow
+8. Balance checks, orderbook reads — all read-only CLOB/Gamma endpoints
+9. Entire onboarding: `deploy → approve → fund` as one command
 
 ### 6.3 The polygolem Flow
 

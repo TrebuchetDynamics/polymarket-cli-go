@@ -184,9 +184,9 @@ function verifyPoly1271Signature(address signer, address maker, bytes32 hash, by
 - `maker.code.length > 0` — wallet must be deployed ✅ (via WALLET-CREATE)
 - `isValidSignature` — EOA signs, DepositWallet contract verifies
 
-## Open
+## Current status
 
-### B-10 — 2026-05-09 live readiness blockers
+### B-10 — 2026-05-09 live readiness remediation
 
 Live account:
 
@@ -195,21 +195,100 @@ EOA:            0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C
 depositWallet: 0x21999a074344610057c9b2B362332388a44502D4
 ```
 
-Current read-only state:
+Current live state after the 2026-05-09T07:20Z remediation:
 
 - Deposit wallet is deployed on-chain. `eth_getCode` at
   `0x21999a074344610057c9b2B362332388a44502D4` returns non-empty bytecode
   (`0x363d3d37...`), even though the relayer `/deployed` endpoint returns
   `false`.
-- CLOB collateral balance is `0.939926` pUSD.
-- EOA on-chain pUSD is `0.022208` pUSD.
-- EOA gas balance is `38.050244` POL.
+- POL gas balance is `36.952069` POL.
+- EOA on-chain pUSD is `0.000000` pUSD.
+- CLOB collateral balance is `1.064918` pUSD.
 - CLOB pUSD/CTF allowances are present for three exchange spenders.
 - Open CLOB orders are empty.
+- Live order budget at `LIVE_ORDER_ALLOCATION_PCT=95` is about `1.0117` pUSD.
+- Local live policy pins `MINIMUM_POL=30` for this funded account.
 
-Current hard blockers:
+Live transactions broadcast in this run:
 
-1. Deposit-wallet relayer deploy status is a false-negative trap:
+```
+POL->pUSD swap, amount=1 POL, min reserve=30 POL
+tx_hashes:
+  0xe95af436e337500533a3b4c02e613693d20d0ca70bad48e05ddb3b0d86fc7f95
+  0xbc9f30dfbf3ebd6845d1b112a07cc4cc9658ec99ddb27b50fae5799f47cd74eb
+
+manual EOA->deposit-wallet pUSD transfer, amount=0.10
+tx_hash:
+  0x14e982e8cccafdf4d8c0bd4a38e902686b7921df30b35f04cba38497280d1474
+
+live startup residual EOA->deposit-wallet pUSD transfer, amount=0.025383
+tx_hash:
+  0x8f19b1768763b362bf4bdb4c3a63b814434dfa73fce942b400d7f47cfbdfeee1
+```
+
+Operational fixes made during this run:
+
+- `go-bot/internal/polygolem` now defaults the SDK relayer URL to
+  `https://relayer-v2.polymarket.com` when `POLYMARKET_RELAYER_URL` is unset.
+- `go-bot live` now defaults evidence reads to repo `logs/evidence`, matching
+  `diagnose-gates` and `run-evidence`.
+- Deposit-wallet startup funding is now a no-op when the EOA has zero pUSD;
+  CLOB collateral readiness remains the actual funding gate.
+- Six-asset MTF inference freshness was restored by backfilling the raw 1m
+  candle gap for BTC, ETH, SOL, XRP, DOGE, and BNB.
+- `go-bot live` now requires only live-entry applicable gates:
+  W01, W02, W03, W04, W05, W07, W09, W10, and W11. W06 is a post-fill
+  paper/live divergence monitor; W08 and W12 are not applicable to the
+  current crypto MTF path because it does not assume maker rewards or LLM
+  calibration.
+- `go-bot run-evidence` now populates W08-W12. W09 checks the documented CLOB
+  `/simplified-markets` schema, W10 checks `https://polymarket.com/api/geoblock`
+  without storing the detected IP, and W11 checks CLOB collateral, allowances,
+  and order-read operational readiness.
+- Local `go-bot/.env` now sets `MINIMUM_POL=30`, matching the explicit operator
+  reserve used for the successful guarded live startup.
+- Local `go-bot/.env` now sets `LIVE_ORDER_ALLOCATION_PCT=95` for this
+  underfunded account so market-FOK fallback can spend enough USD amount to
+  exercise the live path when a limit order would be below market size.
+- `go-bot` now requires `LIVE_MARKET_FALLBACK=true` before converting a
+  below-min-size limit intent into a buy `market-order` FOK, and it passes the
+  executable price as the market order's slippage cap.
+- Polygolem market-order signing now matches the official py-clob-client shape:
+  buy market orders are built from USD amount and price cap without a local
+  minimum-share precheck; the production CLOB remains the final acceptance gate.
+- `go-bot wallet-status` no longer reports empty EOA pUSD as `BLOCKED` when
+  CLOB collateral is already funded; the live-trading funding checklist now
+  follows the CLOB collateral source of truth.
+
+Evidence status after the 2026-05-09T07:20Z remediation:
+
+```
+diagnose-gates:
+  populated=12 empty=0 stale=0
+  W01-W12 OK
+
+guarded live verification:
+  LIVE_MAX_BUY_PRICE=0.0001
+  MINIMUM_POL=30
+  LIVE_ORDER_ALLOCATION_PCT=95
+  gate_blocked=0
+  funding_blocked=0
+  validation_fail=0
+  submitted=0
+  accepted=0
+  no_trade=6
+  processed=12
+  decided=6
+```
+
+No active guarded live-startup blockers remain after refreshing six-asset
+candle data and pinning the account reserve policy. The `timeout` wrapper used
+for verification stops the long-running live loop after it prints the summary;
+the zero `submitted` count above confirms no order was sent.
+
+Known non-blocking trap:
+
+- Deposit-wallet relayer deploy status remains a false-negative:
 
    ```
    tx_id=019e0ab5-166e-7aca-81a9-2f7bbd7463a7
@@ -220,69 +299,129 @@ Current hard blockers:
    nonce=0
    ```
 
-   The current source of truth must be Polygon `eth_getCode`, not
-   relayer `/deployed`. Tooling should skip another `WALLET-CREATE` when the
-   derived deposit wallet already has code.
+  The current source of truth must be Polygon `eth_getCode`, not relayer
+  `/deployed`. Tooling should skip another `WALLET-CREATE` when the derived
+  deposit wallet already has code.
 
-2. `go-bot swap pol-to-pusd --amount 1` is blocked by the reserve guard:
+### B-11 — 2026-05-09 live alpha run
 
-   ```
-   balance=38050244057901668653
-   required=51000000000000000000
-   ```
+Live alpha was reached on 2026-05-09T08:01Z with the same account:
 
-   This is expected because the default `MINIMUM_POL` reserve is `50`, while
-   the EOA only has `38.050244` POL.
-
-3. A lower-reserve dry run proves the swap route can quote, but it was not
-   broadcast because lowering the reserve is a live-money policy override:
-
-   ```
-   go-bot swap pol-to-pusd --amount 1 --min-pol-reserve 30
-   quote_out_raw=103209
-   min_out_raw=102176
-   fee_tier=500
-   ```
-
-4. The configured `LIVE_ORDER_ALLOCATION_PCT=5` makes the order budget about
-   `0.046996` pUSD from the current CLOB balance, which is below the practical
-   5-share minimum at common prices.
-
-5. Evidence gates are not green: W02-W06 are stale and W08-W12 are empty.
-
-Required decision before continuing:
-
-- Either fund POL above the default `MINIMUM_POL=50`, or explicitly lower the
-  reserve for this account.
-- Resolve the relayer `WALLET-CREATE` failure or switch to an already-deployed
-  deposit wallet path.
-- Only after the deposit wallet is deployed should pUSD be transferred to the
-  deposit wallet and CLOB balance refreshed.
-
-### B-9 — Builder credentials not configured
-
-`go-bot/.env` is missing builder credentials. The live loop now fails early
-with a clear actionable message instead of the confusing "pUSD balance is zero."
-
-**Live output:**
 ```
-deposit wallet derived: 0x21999a074344610057c9b2B362332388a44502D4
-⚠ builder credentials required
-  → https://polymarket.com/settings?tab=builder
-  → Add POLYMARKET_BUILDER_API_KEY/SECRET/PASSPHRASE to go-bot/.env
-  → Then restart: go-bot live
+EOA:            0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C
+depositWallet: 0x21999a074344610057c9b2B362332388a44502D4
+accepted order: 0xf06cbfacf8101227c240f5d532977000c2d202b490019674ff62bf8c4a057e86
+settlement tx:  0xc78239f4fee60721d71e9228eb1de6206dbd5a70f225b9a970c5cc8b6b577f22
+status:         matched
+makingAmount:   1.069999
+takingAmount:   2.098038
 ```
 
-**Resolution:**
-1. Go to https://polymarket.com/settings?tab=builder
-2. Copy API key, secret, passphrase
-3. Add to `go-bot/.env`:
-   ```
-   POLYMARKET_BUILDER_API_KEY=...
-   POLYMARKET_BUILDER_SECRET=...
-   POLYMARKET_BUILDER_PASSPHRASE=...
-   ```
-4. `go-bot live` — auto-deploys, funds, approves, starts trading
+Additional blockers found and fixed in the live loop:
+
+- Submissions now get a client-side UUID before insert, so accepted/lost
+  transitions do not depend on Postgres-generated IDs that the in-memory
+  caller never sees.
+- Market-FOK buy amounts now use CLOB-compatible USD/share precision.
+- CLOB balances below the executable $1 market-buy minimum are treated as
+  `LOW`, not live-ready.
+- Confirmed auto-swap now handles both zero pUSD and dust pUSD, then funds
+  the deposit wallet and refreshes CLOB collateral.
+- A stranded router-leg USDC.e balance was wrapped into pUSD with
+  `wrap-usdce-to-pusd --amount all --min-pol-reserve 10 --confirm EXECUTE_SWAP`.
+- `LIVE_MAX_SIGNAL_AGE` is configurable; the live alpha run used `15m` to
+  tolerate normal 5m candle/API lag.
+- Production `go-bot live` now sets `MaxSubmissionsPerTick=1`, preventing
+  multiple same-tick submissions from racing a stale upstream collateral
+  balance after the first fill.
+
+Post-run state:
+
+- `audit.live_submissions`: `accepted=2`, `lost=32`, `pending=0`.
+- Active safe pauses: `0`.
+- Active live locks: `0`.
+- CLOB collateral is dust: `0.021734` pUSD, correctly below the $1 executable
+  minimum.
+- Final no-auto-swap startup check stops at
+  `funding_blocked: order budget below minimum`; no new order is sent.
+
+### B-12 — 2026-05-09 V2 settlement and wrong-window remediation plan
+
+Live order review found two issues that must be fixed before adding funds or
+raising live order size:
+
+1. Some accepted 5m buys matched against markets whose `starts_at` did not
+   equal the strategy decision window.
+2. The current Polygolem trading approval batch covers exchange spenders but
+   not the V2 collateral adapters required for redeeming winning positions.
+
+The required remediation path is:
+
+- Polygolem market resolution must expose a strict decision-window resolver
+  and return a `window_mismatch` status instead of falling back to another
+  available market.
+- Data API position DTOs must expose `redeemable`, `mergeable`,
+  `negativeRisk`, `outcome`, `outcomeIndex`, `oppositeOutcome`,
+  `oppositeAsset`, and `endDate`; there is no separate `resolved` field.
+- `pkg/contracts` must expose the V2 collateral adapters and ramp addresses:
+  `CtfCollateralAdapter=0xADa100874d00e3331D00F2007a9c336a65009718`,
+  `NegRiskCtfCollateralAdapter=0xAdA200001000ef00D07553cEE7006808F895c6F1`.
+- Existing deposit wallets need a one-shot adapter-approval WALLET batch
+  before V2 split/merge/redeem. New wallet onboarding should include both the
+  six trading approvals and the four adapter-readiness approvals.
+- `pkg/settlement` should become the SDK surface go-bot calls directly:
+  find `redeemable=true` positions, build adapter-targeted redeem calls, and
+  submit a capped WALLET batch only after adapter approvals are present.
+
+The process is now documented in `docs/SAFETY.md`, `docs/CONTRACTS.md`, the
+README, and the Starlight guide set.
+
+**Implementation status (2026-05-09 PM):** all code and CLI work has landed
+on `main`. The blocker is now an operator runbook rather than a code task.
+
+Commits:
+
+- `5ece04a` `fix(marketresolver)` — fail-closed decision-window guard
+  (`StatusWindowMismatch`, strict `ResolveTokenIDsForWindow`).
+- `0800fe4` `feat(contracts)` — V2 collateral adapter and ramp registry,
+  `RedeemAdapterFor` helper.
+- `c77e735` `feat(relayer,cli)` — `BuildAdapterApprovalCalls`,
+  `OnboardDepositWallet` 10-call batch, `deposit-wallet approve-adapters`
+  CLI with `--submit --confirm APPROVE_ADAPTERS` gating.
+- `753a576` `fix(dataapi)` — Position camelCase tags + V2 redemption
+  fields (`redeemable`, `mergeable`, `negativeRisk`, …). Closes a
+  pre-existing decode bug where snake_case tags silently zeroed every
+  field against the live API.
+- `9d3226d` `feat(settlement)` — `pkg/settlement` SDK
+  (`FindRedeemable`, `BuildRedeemCall`, `SubmitRedeem`).
+- `0593991` `feat(cli)` — `deposit-wallet redeemable` / `redeem` with
+  `CTF.isApprovedForAll` adapter pre-check and
+  `--submit --confirm REDEEM_WINNERS` gating.
+
+Operator runbook to recover the existing redeemable position on
+`0x21999a07…02D4`:
+
+```
+# 1. One-shot adapter approval (idempotent).
+polygolem deposit-wallet approve-adapters --submit --confirm APPROVE_ADAPTERS --json
+
+# 2. Inspect what's redeemable.
+polygolem deposit-wallet redeemable --json
+
+# 3. Dry-run.
+polygolem deposit-wallet redeem --json
+
+# 4. Submit. Pre-check refuses to sign if any
+#    isApprovedForAll(wallet, adapter) is false.
+polygolem deposit-wallet redeem --submit --confirm REDEEM_WINNERS --json
+```
+
+### B-9 — Builder credentials configured
+
+The earlier missing-builder-credentials blocker is no longer active in this
+workspace. Guarded live startup reaches `clob api key ready` and passes the
+funding gate. Keep the credentials only in local ignored env files; do not
+commit or print them.
 
 ### Future work
 

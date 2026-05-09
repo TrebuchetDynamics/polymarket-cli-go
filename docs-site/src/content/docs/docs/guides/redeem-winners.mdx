@@ -1,0 +1,159 @@
+---
+title: Redeeming Winning Positions
+description: How Polygolem detects, plans, and submits V2 redemption transactions for deposit-wallet positions.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Polymarket V2 deposit wallets do not redeem pUSD-native positions by calling
+`ConditionalTokens` directly. Split, merge, and redeem actions route through
+thin collateral adapters that bridge between pUSD and CTF positions.
+
+<Aside type="caution">
+Live-money safety: every signing path requires both `--submit` and a typed
+`--confirm` token (`APPROVE_ADAPTERS` for adapter approvals,
+`REDEEM_WINNERS` for redeem). Default behavior without those flags is dry-run
+JSON output.
+</Aside>
+
+## State Model
+
+Matched, winning, and redeemable are different states:
+
+| State | Meaning |
+|---|---|
+| `matched` | The CLOB filled the order and shares moved into the deposit wallet. |
+| `winning` | The resolved outcome matches the held token. |
+| `redeemable` | The Data API reports the held winning shares can be redeemed. |
+
+Do not infer winning status from a matched order. Use Data API positions.
+
+## Detection
+
+Query the deposit wallet, not the EOA:
+
+```bash
+polygolem data positions --user 0xDEPOSIT_WALLET --limit 50 --json
+```
+
+The important fields are:
+
+| Field | Purpose |
+|---|---|
+| `asset` | Held CTF token ID |
+| `conditionId` | Bytes32 condition ID used by redeem calldata |
+| `redeemable` | Redemption readiness signal |
+| `mergeable` | Future merge-readiness signal |
+| `negativeRisk` | Chooses the negative-risk collateral adapter |
+| `outcome`, `outcomeIndex` | Held outcome metadata |
+| `oppositeOutcome`, `oppositeAsset` | Operator context and idempotence checks |
+| `endDate` | Resolution window context |
+
+There is no separate `resolved` boolean in the current position schema.
+
+## Adapter Selection
+
+| Position | Target |
+|---|---|
+| `negativeRisk=false` | `CtfCollateralAdapter` |
+| `negativeRisk=true` | `NegRiskCtfCollateralAdapter` |
+
+Addresses:
+
+```text
+CtfCollateralAdapter        0xADa100874d00e3331D00F2007a9c336a65009718
+NegRiskCtfCollateralAdapter 0xAdA200001000ef00D07553cEE7006808F895c6F1
+```
+
+The adapter keeps the legacy CTF redeem ABI:
+
+```solidity
+redeemPositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId, uint256[] indexSets)
+```
+
+It uses `conditionId`; it ignores the collateral address, parent collection,
+and caller-supplied `indexSets`. The adapter reads the wallet's CTF balances,
+redeems the winning side, wraps proceeds back into pUSD, and sends pUSD to the
+deposit wallet.
+
+## Approval Requirement
+
+Trading approvals are not enough. A deposit wallet that only approved
+`CTFExchangeV2`, `NegRiskExchangeV2`, and `NegRiskAdapterV2` can place and
+settle orders, but it cannot redeem through the collateral adapters.
+
+The adapter-readiness batch is four calls:
+
+1. pUSD `approve(CtfCollateralAdapter, MaxUint256)`
+2. CTF `setApprovalForAll(CtfCollateralAdapter, true)`
+3. pUSD `approve(NegRiskCtfCollateralAdapter, MaxUint256)`
+4. CTF `setApprovalForAll(NegRiskCtfCollateralAdapter, true)`
+
+Redeem itself needs the CTF approval leg. The pUSD approval leg is included so
+the same one-time batch also supports future split flows.
+
+## CLI Flow
+
+```bash
+# One-time migration for existing wallets.
+polygolem deposit-wallet approve-adapters --submit --confirm APPROVE_ADAPTERS --json
+
+# Read-only detection.
+polygolem deposit-wallet redeemable --json
+
+# Inspect the redeem calls before signing.
+polygolem deposit-wallet redeem --json
+
+# Submit only after operator approval.
+polygolem deposit-wallet redeem --submit --confirm REDEEM_WINNERS --json
+```
+
+The submit path fails closed when `CTF.isApprovedForAll(wallet, adapter)` is
+false; the JSON output lists the missing adapter addresses and points the
+operator back to `approve-adapters`. The relayer never sees `/submit` when
+the pre-check fails.
+
+## SDK Flow
+
+go-bot consumes the SDK directly. The CLI is for humans and runbooks;
+production integration should not shell out to Polygolem.
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/settlement"
+
+positions, err := settlement.FindRedeemable(ctx, dataClient, depositWallet)
+if err != nil {
+    return err
+}
+if len(positions) == 0 {
+    return nil
+}
+
+result, err := settlement.SubmitRedeem(ctx, relayerClient, privateKey, positions, settlement.DefaultBatchLimit)
+if err != nil {
+    return err
+}
+log.Printf("redeem tx=%s state=%s redeemed=%d", result.TransactionID, result.State, result.CallCount)
+```
+
+`settlement.SubmitRedeem` dedupes by `conditionId` (collapsing YES/NO splits)
+and caps each WALLET batch at `limit` calls (default 10). The contract-level
+no-op behavior keeps it idempotent: re-running on a wallet whose CTF balance
+for a condition is already zero pays nothing.
+
+## Safety Checks
+
+Before live submission:
+
+1. Dry-run output lists the expected condition IDs.
+2. Required adapter approvals are present on-chain.
+3. Batch size is capped; default target is 10 calls.
+4. The private key and relayer credentials are loaded from ignored env files.
+5. No market-window mismatch exists for the position lineage.
+
+## Related
+
+- [Safety Model](/concepts/safety)
+- [Smart Contracts](/concepts/contracts)
+- [Deposit Wallet Lifecycle](/guides/deposit-wallet-lifecycle)
+- [Data API](/reference/data-api)
