@@ -214,7 +214,10 @@ polygolem version
 
 **For developers:** The auth flow is simpler than it looks. Standard EOA ECDSA for L1, ERC-7739 only for order signing. Don't over-engineer what the browser doesn't.
 
-**For automation:** Everything above is headless. One `polygolem auth headless-onboard` replaces the browser signup. After that, deploy, fund, trade — all code.
+**For automation:** New users still need one browser login to mint the
+deposit-wallet-owned CLOB key. After that boundary is crossed,
+`polygolem auth headless-onboard`, deposit-wallet deploy, approvals, funding,
+orders, cancels, and settlement can run headlessly.
 
 ---
 

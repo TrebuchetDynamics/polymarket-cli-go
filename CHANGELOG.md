@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deposit-wallet redeem docs and CLI help now hard-disable fallback thinking:
   V2 settlement is relayer + collateral adapter only, with no direct EOA, raw
   CTF, SAFE, or PROXY route.
+- `RELAYER_ALLOWLIST_BLOCKED` now tells operators to verify the local contract
+  registry against Polymarket's current contract reference before escalating.
+  The stale upstream issue tracker is no longer surfaced as a current source
+  of truth.
 
 ### Fixed
 
@@ -28,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   current official Polygon addresses from Polymarket's contracts reference.
   The previous constants pointed at stale adapter addresses and caused the
   relayer to reject adapter approvals as not allowlisted.
+
+### Removed
+
+- Removed the deprecated `deposit-wallet deploy-onchain` command and internal
+  direct EOA factory deploy helper. The production deposit-wallet factory gates
+  `deploy(...)` and `proxy(...)` behind `onlyOperator`, so the relayer
+  `WALLET-CREATE` path is the only supported Polygolem deploy surface.
 
 ## [v2026.5.9] — 2026-05-09
 

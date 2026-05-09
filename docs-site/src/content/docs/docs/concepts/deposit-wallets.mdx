@@ -134,7 +134,10 @@ approved.
 
 There is no raw CTF fallback, direct EOA bypass, or SAFE/PROXY shortcut for
 deposit-wallet positions. If the relayer rejects the adapter-targeted WALLET
-batch as not allowlisted, the correct state is upstream blocked.
+batch as not allowlisted, verify the adapter addresses against Polymarket's
+current contracts reference first. Stale adapter constants caused the
+2026-05-09 live blocker; current addresses plus the same rejection is the
+actual upstream-blocked state.
 
 ## See Also
 

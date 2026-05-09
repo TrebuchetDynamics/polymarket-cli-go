@@ -213,7 +213,11 @@ sign if any approval is missing — the relayer never sees `/submit` when the
 pre-check fails.
 
 If the relayer rejects adapter approval or redeem calls as "not in the allowed
-list", stop and treat it as an upstream relayer allowlist blocker. The
-production `DepositWalletFactory.proxy()` entrypoint is `onlyOperator`, so the
-owner EOA cannot bypass the relayer, and raw `ConditionalTokens.redeemPositions`
-is not a V2 deposit-wallet fallback.
+list", first verify the adapter constants against Polymarket's current
+contracts reference. The 2026-05-09 live recovery proved that stale adapter
+addresses can produce this exact symptom. If the addresses match the official
+reference and the relayer still rejects the batch, stop and treat it as an
+upstream allowlist blocker. The production `DepositWalletFactory.deploy()` and
+`proxy()` entrypoints are `onlyOperator`, so the owner EOA cannot bypass the
+relayer, and raw `ConditionalTokens.redeemPositions` is not a V2
+deposit-wallet fallback.

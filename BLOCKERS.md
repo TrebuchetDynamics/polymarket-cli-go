@@ -377,13 +377,30 @@ The process is now documented in `docs/SAFETY.md`, `docs/CONTRACTS.md`,
 `docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md`, the README, and the Starlight
 guide set.
 
-**Implementation status (2026-05-09 PM):** the SDK/CLI can build the V2
-adapter approval and redeem WALLET batches, but live recovery still depends on
-Polymarket's relayer accepting those adapter calls. Verified factory source and
-Polygon RPC show `DepositWalletFactory.proxy(...)` is `onlyOperator`; direct EOA
-submission is not a fallback. If the relayer returns "not in the allowed list",
-the remaining blocker is upstream relayer allowlist support or an official
-Polymarket redeem route.
+**Resolution status (2026-05-09 PM):** closed. The initial diagnosis of a
+permanent upstream relayer blocker was wrong. The relayer was rejecting stale
+V2 collateral adapter addresses. After Polygolem was updated to the current
+Polymarket contracts reference, adapter approvals and redeem executed through
+the production deposit-wallet WALLET path.
+
+Live settlement evidence:
+
+- Stale standard adapter approval was rejected as not allowlisted.
+- Official standard adapter CTF approval executed:
+  `019e0ed9-2948-7764-ad69-d0e97cb70e6c`.
+- Official negative-risk adapter CTF approval executed:
+  `019e0ed9-4985-7759-9aeb-b49784a514f5`.
+- Full adapter approval batch executed:
+  `019e0edb-8c8d-76e8-9d3c-8e0f0d251581`.
+- Redeem batch executed:
+  `019e0eda-a012-75d3-9aee-6c2c3dc61450`.
+- Post-redeem checks reported `settlement-status.ready=true`,
+  `redeemableCount=0`, and CLOB collateral `2.899475` pUSD.
+
+The hard stop remains valid: verified factory source and Polygon RPC show
+`DepositWalletFactory.deploy(...)` and `proxy(...)` are `onlyOperator`, so
+direct EOA submission is not a fallback. Raw `ConditionalTokens.redeemPositions`
+and SAFE/PROXY examples are not deposit-wallet settlement paths.
 
 Commits:
 
@@ -404,8 +421,7 @@ Commits:
   `CTF.isApprovedForAll` adapter pre-check and
   `--submit --confirm REDEEM_WINNERS` gating.
 
-Operator runbook to recover the existing redeemable position on
-`0x21999a07…02D4`:
+Operator runbook for future redeemable positions on `0x21999a07...02D4`:
 
 ```
 # 1. One-shot adapter approval (idempotent).
@@ -422,7 +438,9 @@ polygolem deposit-wallet redeem --json
 polygolem deposit-wallet redeem --submit --confirm REDEEM_WINNERS --json
 ```
 
-If step 1 or step 4 fails with a relayer allowlist rejection, stop. Do not use
+If step 1 or step 4 fails with a relayer allowlist rejection, first compare
+the adapter addresses against <https://docs.polymarket.com/resources/contracts>.
+If the addresses match the official reference, stop and escalate; do not use
 raw `ConditionalTokens.redeemPositions`, direct EOA calls, or SAFE/PROXY
 relayer examples as a V2 deposit-wallet redeem workaround.
 

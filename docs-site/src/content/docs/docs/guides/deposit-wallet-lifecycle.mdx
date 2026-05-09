@@ -114,7 +114,9 @@ wallet.
 
 Do not use direct EOA calls, raw CTF calls, or SAFE/PROXY relayer examples as
 fallbacks for deposit-wallet positions. If the relayer rejects the
-adapter-targeted WALLET batch, surface the upstream blocker and stop.
+adapter-targeted WALLET batch, first verify the adapter addresses against
+Polymarket's current contracts reference. If the addresses are current, surface
+the upstream blocker and stop.
 
 The operator surface is `polygolem deposit-wallet approve-adapters`,
 `redeemable`, and `redeem`. Every signing path is dry-run by default;

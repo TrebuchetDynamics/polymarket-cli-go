@@ -71,7 +71,9 @@ batch also covers split flows.
 SAFE/PROXY relayer examples are separate wallet-type flows. They do not create
 a deposit-wallet shortcut around the V2 adapter path, and raw
 `ConditionalTokens.redeemPositions` must not be used as a deposit-wallet
-fallback when the relayer rejects adapter calls.
+fallback. If the relayer rejects adapter calls, first verify the local adapter
+addresses against Polymarket's current contracts reference; stale constants are
+a known failure mode.
 
 ### 1.3 Which Wallet Type Wins
 

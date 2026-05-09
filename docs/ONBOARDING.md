@@ -1,6 +1,6 @@
 # Deposit Wallet Onboarding — Single Source of Truth
 
-**Last updated:** 2026-05-08
+**Last updated:** 2026-05-09
 **Status:** Production — verified with live funds on Polygon mainnet
 **Companion:** [BROWSER-SETUP.md](./BROWSER-SETUP.md) — one-time browser login guide for new users
 
@@ -11,12 +11,13 @@
 | User Type | What You Need | Browser Required? |
 |-----------|--------------|-------------------|
 | **Existing Polymarket user** | `POLYMARKET_PRIVATE_KEY` | ❌ No — fully headless |
-| **New user (fresh EOA)** | `POLYMARKET_PRIVATE_KEY` + pUSD | ⚠️ One-time browser login OR deploy + headless API key (see below) |
+| **New user (fresh EOA)** | `POLYMARKET_PRIVATE_KEY` + pUSD | ⚠️ One-time browser login |
 
-**For new users:** The 2026-05-08 Playwright capture proved the browser creates deposit-wallet API keys
-using standard EOA ECDSA (not ERC-7739) with `POLY_ADDRESS` set to the deposit wallet. We updated
-`polygolem` to match this behavior, but the headless path has not been live-tested yet. The safe path
-is browser login once; the headless path is theoretically correct but unverified.
+**For new users:** the supported path is browser login once to mint the
+deposit-wallet-owned CLOB API key. Polygolem keeps the rest of the lifecycle
+headless: relayer credentials, wallet deploy, trading approvals, adapter
+approvals, funding, balance sync, orders, cancels, settlement readiness, and
+winner redemption.
 
 **Cost:** ~$0.01 POL for one pUSD funding transfer. Everything else (deploy, approve, orders) is gasless via relayer.
 

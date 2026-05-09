@@ -88,6 +88,11 @@ CtfCollateralAdapter        0xAdA100Db00Ca00073811820692005400218FcE1f
 NegRiskCtfCollateralAdapter 0xadA2005600Dec949baf300f4C6120000bDB6eAab
 ```
 
+These addresses come from Polymarket's current contracts reference. Verify
+them before treating a relayer allowlist rejection as an upstream blocker.
+The 2026-05-09 live settlement incident was caused by stale adapter constants,
+not by a permanent relayer limitation.
+
 The adapter keeps the legacy CTF redeem ABI:
 
 ```solidity
@@ -143,12 +148,15 @@ the pre-check fails.
 submitting. Live bots should refuse new buys unless it reports `ready=true`.
 
 If the relayer rejects adapter approval or redeem calls as "not in the allowed
-list", stop. The production factory `proxy()` entrypoint is `onlyOperator`, so
+list", first verify the adapter constants against Polymarket's current
+contracts reference. The 2026-05-09 live recovery proved that stale adapter
+addresses produce this exact symptom. If the addresses are current, stop. The
+production factory `deploy()` and `proxy()` entrypoints are `onlyOperator`, so
 the owner EOA cannot bypass the relayer, and raw `ConditionalTokens`
 redemption is not a deposit-wallet fallback. SAFE/PROXY relayer examples use
 different wallet types and do not apply to deposit-wallet positions.
 
-## Structured Upstream-Block Stop Signal
+## Allowlist Rejection Triage
 
 Both `approve-adapters --submit` and `redeem --submit` detect three relayer
 allowlist rejection markers — `not in the allowed list`, `are not permitted`,
@@ -161,22 +169,27 @@ and `call blocked` — and emit a structured stop response:
   "command": "approve-adapters",
   "error": {
     "code": "RELAYER_ALLOWLIST_BLOCKED",
-    "message": "relayer: upstream allowlist block (Polymarket/builder-relayer-client#29) ...",
+    "message": "relayer: allowlist block ...",
     "action": "stop",
-    "reason": "Polymarket relayer rejected the WALLET batch via its allowlist policy. The V2 deposit wallet redeem path is non-negotiable: no EOA bypass, no raw CTF, no SAFE/PROXY shortcut.",
+    "reason": "Polymarket relayer rejected the WALLET batch via its allowlist policy. Verify the local V2 adapter constants against Polymarket's current contract reference; if they match, stop. The V2 deposit wallet path has no EOA bypass, raw CTF fallback, or SAFE/PROXY shortcut.",
     "upstream": {
-      "tracker": "Polymarket/builder-relayer-client#29",
-      "state": "closed-without-response",
-      "date": "2026-05-06"
+      "state": "allowlist-rejected",
+      "verify": "https://docs.polymarket.com/resources/contracts"
     }
   }
 }
 ```
 
-Operator runbooks must treat `RELAYER_ALLOWLIST_BLOCKED` as a hard stop and
-escalate via the upstream tracker, not retry on a different path. The CLI
-exits 0 with the structured envelope so wrapper scripts can match on
-`data.error.code`.
+Operator runbooks must treat `RELAYER_ALLOWLIST_BLOCKED` as a stop-and-check
+event:
+
+1. Compare local adapter constants to Polymarket's contracts reference.
+2. If local constants are stale, update Polygolem and retry only after tests
+   pass.
+3. If local constants are current, escalate as an upstream allowlist block.
+
+Do not retry on a different wallet path. The CLI exits 0 with the structured
+envelope so wrapper scripts can match on `data.error.code`.
 
 SDK consumers detect the same condition with `errors.Is`:
 
@@ -189,11 +202,9 @@ import (
 
 result, err := settlement.SubmitRedeem(ctx, rc, key, positions, settlement.DefaultBatchLimit)
 if errors.Is(err, relayer.ErrRelayerAllowlistBlocked) {
-    return fmt.Errorf("upstream relayer allowlist block: %w", err)
+    return fmt.Errorf("verify adapter registry, then stop: %w", err)
 }
 ```
-
-Tracking: [Polymarket/builder-relayer-client#29](https://github.com/Polymarket/builder-relayer-client/issues/29).
 
 ## SDK Flow
 
@@ -225,7 +236,7 @@ if len(positions) == 0 {
 result, err := settlement.SubmitRedeem(ctx, relayerClient, privateKey, positions, settlement.DefaultBatchLimit)
 if err != nil {
     if errors.Is(err, relayer.ErrRelayerAllowlistBlocked) {
-        return fmt.Errorf("relayer allowlist block: %w", err)
+        return fmt.Errorf("verify adapter registry, then stop: %w", err)
     }
     return err
 }

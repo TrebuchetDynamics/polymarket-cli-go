@@ -25,7 +25,7 @@ export default defineConfig({
         {
           label: "Guides",
           items: [
-            { label: "Builder Auto (Zero-Browser)", link: "/docs/guides/builder-auto" },
+            { label: "Builder & Relayer Keys", link: "/docs/guides/builder-auto" },
             { label: "Market Discovery", link: "/docs/guides/market-discovery" },
             { label: "Universal Client", link: "/docs/guides/universal-client" },
             { label: "Deposit Wallet Lifecycle", link: "/docs/guides/deposit-wallet-lifecycle" },

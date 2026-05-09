@@ -205,10 +205,13 @@ The first-class SDK/CLI settlement surface is `pkg/settlement` plus
 it checks wallet bytecode, relayer credentials, Data API reachability, and
 adapter approvals before a live bot should place more orders. The redeem
 commands build the V2 adapter path and fail closed on missing adapter
-approvals. If the relayer rejects adapter calls as not allowlisted, stop; the
-production factory does not expose a direct EOA fallback and raw
-`ConditionalTokens` redeem is not a deposit-wallet fallback. SAFE/PROXY
-relayer examples do not apply to deposit-wallet positions. See
+approvals. If the relayer rejects adapter calls as not allowlisted, verify the
+adapter constants against Polymarket's current contracts reference first; stale
+adapter addresses caused the 2026-05-09 live settlement blocker. If the
+addresses are current, stop. The production factory does not expose a direct
+EOA fallback and raw `ConditionalTokens` redeem is not a deposit-wallet
+fallback. SAFE/PROXY relayer examples do not apply to deposit-wallet
+positions. See
 [docs/SAFETY.md](docs/SAFETY.md),
 [docs/CONTRACTS.md](docs/CONTRACTS.md), and
 [docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md](docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md).

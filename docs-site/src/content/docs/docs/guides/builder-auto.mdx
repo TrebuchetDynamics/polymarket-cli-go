@@ -1,15 +1,25 @@
 ---
-title: Headless V2 Onboarding
-description: Create CLOB L2 credentials, mint V2 relayer keys, deploy a deposit wallet, and attach builder attribution without a browser.
+title: Builder and Relayer Keys
+description: Which Polymarket V2 credentials are headless, which belong to the deposit wallet, and where new users still need one browser login.
 ---
+
+import { Aside } from "@astrojs/starlight/components";
 
 Polygolem splits the V2 setup into three credential systems:
 
-- `builder auto` creates CLOB L2 credentials at `clob.polymarket.com/auth/api-key`.
+- `builder auto` creates bootstrap CLOB L2 credentials at `clob.polymarket.com/auth/api-key`.
 - `auth headless-onboard` performs SIWE login and mints `RELAYER_API_KEY` +
   `RELAYER_API_KEY_ADDRESS` for deposit-wallet deploy and approval batches.
 - `clob create-builder-fee-key` creates the builder attribution value used in
   the V2 order `builder` bytes32 field.
+
+<Aside type="caution">
+New users still need one browser login at polymarket.com to mint the
+deposit-wallet-owned CLOB API key used for live trading. The headless commands
+cover bootstrap credentials, relayer credentials, wallet deploy, approvals, and
+funding; they do not remove the browser login requirement for brand-new
+deposit-wallet trading keys.
+</Aside>
 
 ## Pipeline
 
@@ -36,12 +46,15 @@ RELAYER_API_KEY="..." \
 RELAYER_API_KEY_ADDRESS="..." \
   polygolem deposit-wallet onboard --fund-amount 10 --json
 
-# Step 6: Mint the deposit-wallet-owned CLOB key
+# Step 6: Mint or verify the deposit-wallet-owned CLOB key
+# New users do this once in the browser. Existing users can reuse their key.
 DEPOSIT_WALLET=$(POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
   polygolem --json deposit-wallet derive | jq -r '.data.depositWallet')
 
-POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
-  polygolem clob create-api-key-for-address --owner "$DEPOSIT_WALLET"
+# Then store the browser-minted CLOB key in your local env:
+export POLYMARKET_API_KEY="..."
+export POLYMARKET_API_SECRET="..."
+export POLYMARKET_API_PASSPHRASE="..."
 
 # Step 7: Sync balance and trade
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
@@ -54,7 +67,7 @@ POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
 
 ## CLOB L2 Credentials
 
-`builder auto` signs a **ClobAuth EIP-712** typed data message locally and posts it to `clob.polymarket.com/auth/api-key`:
+`builder auto` signs a **ClobAuth EIP-712** typed data message locally and posts it to `clob.polymarket.com/auth/api-key` for bootstrap credentials:
 
 ```
 POST https://clob.polymarket.com/auth/api-key
@@ -73,11 +86,10 @@ EIP-712 typed data:
 ```
 
 The bootstrap endpoint returns the CLOB L2 HMAC triple:
-`{ apiKey, secret, passphrase }`. After the deposit wallet exists,
-`clob create-api-key-for-address --owner <deposit-wallet>` creates the
-deposit-wallet-owned key used by balances, orders, trades, and cancellations.
-That owner-scoped flow sets the ClobAuth `address` field to the deposit wallet
-and wraps the EOA signature for ERC-1271 validation.
+`{ apiKey, secret, passphrase }`. Live deposit-wallet trading needs a
+deposit-wallet-owned CLOB key for balances, orders, trades, and cancellations.
+For brand-new users, mint that key with one browser login at polymarket.com.
+After it exists, store it locally and reuse it for headless trading.
 
 ## Idempotent
 
@@ -98,14 +110,17 @@ relayer key at `relayer-v2.polymarket.com/relayer/api/auth`.
 | Item | Cost |
 |------|------|
 | Generate EOA | Free |
-| CLOB L2 creds | Free |
+| Bootstrap CLOB L2 creds | Free |
+| Deposit-wallet CLOB key | Free, but new users need one browser login |
 | V2 relayer key | Free |
 | Builder fee key | Free |
 | Wallet deploy | Free (gas sponsored) |
 | Approvals (6 contracts) | Free (gas sponsored) |
 | **Fund wallet (one tx)** | **~$0.01 POL** |
 
-**Total: ~$0.01 POL + whatever pUSD you want to trade.** Everything else is free and automated.
+**Total: ~$0.01 POL + whatever pUSD you want to trade.** Gas-sponsored relayer
+steps remain free; the browser requirement is an authentication boundary, not
+an on-chain cost.
 
 ## With Reown/WalletConnect (Flutter/Arenaton)
 

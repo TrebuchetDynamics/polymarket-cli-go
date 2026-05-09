@@ -81,8 +81,8 @@ grep -E "CtfCollateralAdapter\b.*0x|NegRiskCtfCollateralAdapter\b.*0x" \
 ```
 Expected: lines containing
 ```
-[CtfCollateralAdapter]...0xADa100874d00e3331D00F2007a9c336a65009718
-[NegRiskCtfCollateralAdapter]...0xAdA200001000ef00D07553cEE7006808F895c6F1
+[CtfCollateralAdapter]...0xAdA100Db00Ca00073811820692005400218FcE1f
+[NegRiskCtfCollateralAdapter]...0xadA2005600Dec949baf300f4C6120000bDB6eAab
 ```
 
 - [ ] **Step 2: Confirm `redeemPositions` signature on the adapter**
@@ -104,7 +104,7 @@ Expected: a key list that contains `redeemable`, `mergeable`, `negativeRisk`, `o
 - [ ] **Step 4: Confirm current approval batch does NOT include the V2 adapters**
 
 ```bash
-grep -n "0xADa100874d00e3331D00F2007a9c336a65009718\|0xAdA200001000ef00D07553cEE7006808F895c6F1" \
+grep -n "0xAdA100Db00Ca00073811820692005400218FcE1f\|0xadA2005600Dec949baf300f4C6120000bDB6eAab" \
   internal/relayer/approvals.go
 ```
 Expected: **no matches**. (If a match appears, someone landed Task 5 already; skim the diff and restart from the next missing task.)
@@ -389,8 +389,8 @@ const (
 
     // V2 collateral adapters — route split/merge/redeem through these
     // from the deposit wallet. They wrap legacy CT calls and return pUSD.
-    CtfCollateralAdapter        = "0xADa100874d00e3331D00F2007a9c336a65009718"
-    NegRiskCtfCollateralAdapter = "0xAdA200001000ef00D07553cEE7006808F895c6F1"
+    CtfCollateralAdapter        = "0xAdA100Db00Ca00073811820692005400218FcE1f"
+    NegRiskCtfCollateralAdapter = "0xadA2005600Dec949baf300f4C6120000bDB6eAab"
 
     // V2 collateral ramps — convert between USDC/USDC.e and pUSD.
     CollateralOnramp  = "0x93070a847efEf7F70739046A929D47a521F5B8ee"
@@ -479,8 +479,8 @@ In `internal/relayer/approvals.go`, alongside the existing constants:
 ```go
 const (
     // ... existing ...
-    ctfCollateralAdapter        = "0xADa100874d00e3331D00F2007a9c336a65009718"
-    negRiskCtfCollateralAdapter = "0xAdA200001000ef00D07553cEE7006808F895c6F1"
+    ctfCollateralAdapter        = "0xAdA100Db00Ca00073811820692005400218FcE1f"
+    negRiskCtfCollateralAdapter = "0xadA2005600Dec949baf300f4C6120000bDB6eAab"
 )
 
 // BuildAdapterApprovalCalls returns the 4 calls a deposit wallet must
@@ -900,7 +900,7 @@ The `redeem` subcommand uses this against `CtfCollateralAdapter` and `NegRiskCtf
 {
   "ok": false,
   "error": "deposit wallet has not approved CtfCollateralAdapter; run `polygolem deposit-wallet approve-adapters --submit --confirm APPROVE_ADAPTERS --wait` first",
-  "missingApprovals": ["0xADa100874d00e3331D00F2007a9c336a65009718"]
+  "missingApprovals": ["0xAdA100Db00Ca00073811820692005400218FcE1f"]
 }
 ```
 
@@ -996,8 +996,8 @@ Add a section after the existing `1.3 Deployment Status Source of Truth`:
 >
 > | Contract | Address | Use |
 > |---|---|---|
-> | CtfCollateralAdapter | `0xADa100874d00e3331D00F2007a9c336a65009718` | Binary up/down markets |
-> | NegRiskCtfCollateralAdapter | `0xAdA200001000ef00D07553cEE7006808F895c6F1` | Neg-risk multi-outcome markets |
+> | CtfCollateralAdapter | `0xAdA100Db00Ca00073811820692005400218FcE1f` | Binary up/down markets |
+> | NegRiskCtfCollateralAdapter | `0xadA2005600Dec949baf300f4C6120000bDB6eAab` | Neg-risk multi-outcome markets |
 > | CollateralOnramp | `0x93070a847efEf7F70739046A929D47a521F5B8ee` | USDC/USDC.e → pUSD |
 > | CollateralOfframp | `0x2957922Eb93258b93368531d39fAcCA3B4dC5854` | pUSD → USDC/USDC.e |
 > | PermissionedRamp | `0xebC2459Ec962869ca4c0bd1E06368272732BCb08` | EIP-712 witness-signed wrap/unwrap |

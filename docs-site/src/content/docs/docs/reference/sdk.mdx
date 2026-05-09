@@ -437,14 +437,15 @@ EIP-712 WALLET batch, and submits via the relayer. When the relayer rejects
 with an allowlist error (HTTP 400 "not in the allowed list" /
 "are not permitted" / "call blocked"), the returned error wraps
 [`relayer.ErrRelayerAllowlistBlocked`](#contract-error-sentinels). Callers
-must `errors.Is` and stop — the V2 deposit-wallet redeem path is
-non-negotiable; there is no fallback to attempt.
+must `errors.Is`, verify the adapter constants against Polymarket's current
+contracts reference, and stop if the constants are current. The V2
+deposit-wallet redeem path is non-negotiable; there is no fallback to attempt.
 
 ```go
 result, err := settlement.SubmitRedeem(ctx, rc, privateKey, positions, settlement.DefaultBatchLimit)
 if err != nil {
     if errors.Is(err, relayer.ErrRelayerAllowlistBlocked) {
-        // Surface as upstream block (Polymarket/builder-relayer-client#29) and stop.
+        // Verify the contract registry, then stop if it is current.
         return err
     }
     return err
@@ -879,9 +880,9 @@ var ErrRelayerAllowlistBlocked = internalrelayer.ErrRelayerAllowlistBlocked
 submission method (`SubmitWalletCreate`, `SubmitWalletBatch`) when the
 relayer rejects with one of three known markers: `not in the allowed list`,
 `are not permitted`, or `call blocked`. Detect with `errors.Is` and surface
-as a structured upstream block — there is no safe fallback for V2
-deposit-wallet positions. Tracking: `Polymarket/builder-relayer-client#29`
-(closed without response on 2026-05-06).
+as a structured stop: verify local contract constants against Polymarket's
+current contracts reference, then stop if they are current. There is no safe
+fallback for V2 deposit-wallet positions.
 
 ### Contract: Constructors and Helpers
 

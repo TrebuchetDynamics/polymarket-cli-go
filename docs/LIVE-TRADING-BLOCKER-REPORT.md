@@ -209,8 +209,8 @@ tx := txs[0]
 
 | Workaround | Viable? | Notes |
 |------------|---------|-------|
-| Corrected V2 proxy-profile signup | ✅ Yes | Replicate SIWE login + `POST /profiles` + V2 relayer key mint. See `BLOCKERS.md` correction. |
-| Browser login to create deposit-wallet-owned API key | ✅ Maybe | One-time browser flow may seed account state, but this is no longer the recommended default path for fresh V2 signup. |
+| Corrected V2 proxy-profile signup | ❌ Not for Polygolem | Proxy signup is a different wallet family; Polygolem's production path is deposit wallet / POLY_1271. |
+| Browser login to create deposit-wallet-owned API key | ✅ Yes for new users | One-time browser flow mints the deposit-wallet CLOB key; after that, Polygolem runs headlessly. |
 | EOA-owned API key + deposit orders | ❌ No | Server enforces owner gate |
 | Wait for Polymarket fix | ❌ Unknown | No timeline, no public commitment |
 | Deposit-wallet-only headless trading | ❌ No | Blocked by deposit-wallet API-key derivation on `/auth/derive-api-key` |
