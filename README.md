@@ -257,7 +257,7 @@ call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
 | [Architecture](docs/ARCHITECTURE.md) | Package boundaries and dependency direction. |
 | [Commands](docs/COMMANDS.md) | Auto-generated CLI reference. |
 | [Deposit Wallet Migration](docs/DEPOSIT-WALLET-MIGRATION.md) | V1→V2 survival guide for older bots. |
-| [Astro Docs site](https://trebuchetdynamics.github.io/polygolem) | Searchable HTML version of the full doc tree. |
+| [polygolem.trebuchetdynamics.com](https://polygolem.trebuchetdynamics.com) | Documentation site — searchable HTML version of the full doc tree, with landing page. |
 
 ---
 
