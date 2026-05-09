@@ -21,7 +21,7 @@ func main() {
 	root := cli.NewRootCommand(cli.Options{Version: "dev"})
 	files := []generatedFile{
 		{path: "docs/COMMANDS.md", body: cli.GenerateCommandsMarkdown(root)},
-		{path: "docs-site/src/content/docs/reference/cli.mdx", body: cli.GenerateCLIReferenceMDX(root)},
+		{path: "docs-site/src/content/docs/docs/reference/cli.mdx", body: cli.GenerateCLIReferenceMDX(root)},
 	}
 
 	if *check {
