@@ -472,10 +472,10 @@ func buildCommentPath(basePath string, params *polytypes.CommentQuery) (string, 
 	}
 	q := u.Query()
 	if params.EntityID != nil {
-		q.Set("entity_id", strconv.Itoa(*params.EntityID))
+		q.Set("parent_entity_id", strconv.Itoa(*params.EntityID))
 	}
 	if params.EntityType != nil {
-		q.Set("entity_type", *params.EntityType)
+		q.Set("parent_entity_type", *params.EntityType)
 	}
 	if params.Limit > 0 {
 		q.Set("limit", strconv.Itoa(params.Limit))

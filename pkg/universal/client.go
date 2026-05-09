@@ -554,9 +554,9 @@ func (c *Client) Activity(ctx context.Context, user string, limit int) ([]types.
 	return c.data.Activity(ctx, user, limit)
 }
 
-// TopHolders returns top holders for a token.
-func (c *Client) TopHolders(ctx context.Context, tokenID string, limit int) ([]types.Holder, error) {
-	return c.data.TopHolders(ctx, tokenID, limit)
+// TopHolders returns top holders for a market condition hash.
+func (c *Client) TopHolders(ctx context.Context, market string, limit int) ([]types.Holder, error) {
+	return c.data.TopHolders(ctx, market, limit)
 }
 
 // TotalValue returns total portfolio value for a user.
@@ -564,9 +564,9 @@ func (c *Client) TotalValue(ctx context.Context, user string) (*types.PortfolioV
 	return c.data.TotalValue(ctx, user)
 }
 
-// OpenInterest returns open interest for a token.
-func (c *Client) OpenInterest(ctx context.Context, tokenID string) (*types.OpenInterest, error) {
-	return c.data.OpenInterest(ctx, tokenID)
+// OpenInterest returns open interest for a market condition hash.
+func (c *Client) OpenInterest(ctx context.Context, market string) (*types.OpenInterest, error) {
+	return c.data.OpenInterest(ctx, market)
 }
 
 // TraderLeaderboard returns the trader leaderboard.
@@ -574,9 +574,9 @@ func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]types.Lead
 	return c.data.TraderLeaderboard(ctx, limit)
 }
 
-// LiveVolume returns live volume data.
-func (c *Client) LiveVolume(ctx context.Context, limit int) (*types.LiveVolumeResponse, error) {
-	return c.data.LiveVolume(ctx, limit)
+// LiveVolume returns live volume for an event ID.
+func (c *Client) LiveVolume(ctx context.Context, eventID int) (*types.LiveVolumeResponse, error) {
+	return c.data.LiveVolume(ctx, eventID)
 }
 
 // EnrichedMarkets returns active Gamma markets enriched with CLOB data.

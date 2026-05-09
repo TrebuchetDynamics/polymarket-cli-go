@@ -2,8 +2,11 @@ package dataapi
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/transport"
 )
@@ -65,11 +68,41 @@ type Activity struct {
 	Timestamp string `json:"timestamp"`
 }
 
+func (a *Activity) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		Type      string          `json:"type"`
+		Market    string          `json:"market"`
+		AssetID   string          `json:"asset_id"`
+		Side      string          `json:"side"`
+		Price     json.RawMessage `json:"price"`
+		Size      json.RawMessage `json:"size"`
+		Timestamp json.RawMessage `json:"timestamp"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	a.Type = aux.Type
+	a.Market = aux.Market
+	a.AssetID = aux.AssetID
+	a.Side = aux.Side
+	a.Price = jsonStringOrNumber(aux.Price)
+	a.Size = jsonStringOrNumber(aux.Size)
+	a.Timestamp = jsonStringOrNumber(aux.Timestamp)
+	return nil
+}
+
 type MetaHolder struct {
-	Address string  `json:"address"`
-	Shares  float64 `json:"shares"`
-	Pnl     float64 `json:"pnl"`
-	Volume  float64 `json:"volume"`
+	Address     string  `json:"address"`
+	ProxyWallet string  `json:"proxyWallet"`
+	Shares      float64 `json:"shares"`
+	Amount      float64 `json:"amount"`
+	Pnl         float64 `json:"pnl"`
+	Volume      float64 `json:"volume"`
+}
+
+type holdersByToken struct {
+	Token   string       `json:"token"`
+	Holders []MetaHolder `json:"holders"`
 }
 
 type TotalValue struct {
@@ -81,12 +114,13 @@ type TotalValue struct {
 type TotalMarketsTraded struct {
 	User          string `json:"user"`
 	MarketsTraded int    `json:"markets_traded"`
+	Traded        int    `json:"traded,omitempty"`
 }
 
 type OpenInterest struct {
 	Market    string  `json:"market"`
-	AssetID   string  `json:"asset_id"`
-	OpenValue float64 `json:"open_value"`
+	AssetID   string  `json:"asset_id,omitempty"`
+	OpenValue float64 `json:"value"`
 }
 
 type TraderLeaderboardEntry struct {
@@ -104,9 +138,15 @@ type LiveVolumeEntry struct {
 	Volume    float64 `json:"volume"`
 }
 
+type LiveVolumeMarket struct {
+	Market string  `json:"market"`
+	Value  float64 `json:"value"`
+}
+
 type LiveVolumeResponse struct {
-	Total  int               `json:"total"`
-	Events []LiveVolumeEntry `json:"events"`
+	Total   float64            `json:"total"`
+	Markets []LiveVolumeMarket `json:"markets,omitempty"`
+	Events  []LiveVolumeEntry  `json:"events,omitempty"`
 }
 
 // --- Methods ---
@@ -173,60 +213,180 @@ func (c *Client) Activity(ctx context.Context, user string, limit int) ([]Activi
 	return result, nil
 }
 
-func (c *Client) TopHolders(ctx context.Context, tokenID string, limit int) ([]MetaHolder, error) {
-	path := buildPath("/top-holders", map[string]string{
-		"token_id": tokenID,
-		"limit":    strconv.Itoa(limit),
+func (c *Client) TopHolders(ctx context.Context, market string, limit int) ([]MetaHolder, error) {
+	path := buildPath("/holders", map[string]string{
+		"market": market,
+		"limit":  strconv.Itoa(limit),
 	})
-	var result []MetaHolder
+	var result []holdersByToken
 	if err := c.transport.Get(ctx, path, &result); err != nil {
 		return nil, err
 	}
-	return result, nil
+	var holders []MetaHolder
+	for _, token := range result {
+		for _, holder := range token.Holders {
+			if holder.Address == "" {
+				holder.Address = holder.ProxyWallet
+			}
+			if holder.Shares == 0 {
+				holder.Shares = holder.Amount
+			}
+			holders = append(holders, holder)
+		}
+	}
+	return holders, nil
 }
 
 func (c *Client) TotalValue(ctx context.Context, user string) (*TotalValue, error) {
-	path := buildPath("/total-value", map[string]string{"user": user})
-	var result TotalValue
-	if err := c.transport.Get(ctx, path, &result); err != nil {
+	path := buildPath("/value", map[string]string{"user": user})
+	raw, err := c.transport.GetRaw(ctx, path)
+	if err != nil {
 		return nil, err
 	}
+	var result TotalValue
+	if err := json.Unmarshal(raw, &result); err == nil {
+		return &result, nil
+	}
+	var rows []TotalValue
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return &TotalValue{User: user}, nil
+	}
+	result = rows[0]
 	return &result, nil
 }
 
 func (c *Client) MarketsTraded(ctx context.Context, user string) (*TotalMarketsTraded, error) {
-	path := buildPath("/total-markets-traded", map[string]string{"user": user})
+	path := buildPath("/traded", map[string]string{"user": user})
 	var result TotalMarketsTraded
 	if err := c.transport.Get(ctx, path, &result); err != nil {
 		return nil, err
 	}
+	if result.MarketsTraded == 0 {
+		result.MarketsTraded = result.Traded
+	}
 	return &result, nil
 }
 
-func (c *Client) OpenInterest(ctx context.Context, tokenID string) (*OpenInterest, error) {
-	path := buildPath("/open-interest", map[string]string{"token_id": tokenID})
-	var result OpenInterest
+func (c *Client) OpenInterest(ctx context.Context, market string) (*OpenInterest, error) {
+	path := buildPath("/oi", map[string]string{"market": market})
+	var result []OpenInterest
 	if err := c.transport.Get(ctx, path, &result); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	if len(result) == 0 {
+		return &OpenInterest{Market: market}, nil
+	}
+	return &result[0], nil
 }
 
 func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]TraderLeaderboardEntry, error) {
-	path := buildPath("/trader-leaderboard", map[string]string{"limit": strconv.Itoa(limit)})
-	var result []TraderLeaderboardEntry
-	if err := c.transport.Get(ctx, path, &result); err != nil {
+	path := buildPath("/v1/leaderboard", map[string]string{"limit": strconv.Itoa(limit)})
+	raw, err := c.transport.GetRaw(ctx, path)
+	if err != nil {
 		return nil, err
 	}
-	return result, nil
+	var rows []leaderboardWire
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, err
+	}
+	out := make([]TraderLeaderboardEntry, len(rows))
+	for i, row := range rows {
+		rank, err := parseLeaderboardRank(row.Rank)
+		if err != nil {
+			return nil, err
+		}
+		volume := row.Volume
+		if volume == 0 {
+			volume = row.Vol
+		}
+		out[i] = TraderLeaderboardEntry{
+			Rank:   rank,
+			User:   firstNonEmpty(row.User, row.ProxyWallet, row.UserName),
+			Volume: volume,
+			Pnl:    row.Pnl,
+			ROI:    row.ROI,
+		}
+	}
+	return out, nil
 }
 
-func (c *Client) LiveVolume(ctx context.Context, limit int) (*LiveVolumeResponse, error) {
-	path := buildPath("/live-volume", map[string]string{"limit": strconv.Itoa(limit)})
-	var result LiveVolumeResponse
-	if err := c.transport.Get(ctx, path, &result); err != nil {
+type leaderboardWire struct {
+	Rank        json.RawMessage `json:"rank"`
+	User        string          `json:"user"`
+	ProxyWallet string          `json:"proxyWallet"`
+	UserName    string          `json:"userName"`
+	Volume      float64         `json:"volume"`
+	Vol         float64         `json:"vol"`
+	Pnl         float64         `json:"pnl"`
+	ROI         float64         `json:"roi"`
+}
+
+func parseLeaderboardRank(raw json.RawMessage) (int, error) {
+	if len(raw) == 0 {
+		return 0, nil
+	}
+	var n int
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n, nil
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return 0, fmt.Errorf("decode leaderboard rank: %w", err)
+	}
+	if s == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("decode leaderboard rank %q: %w", s, err)
+	}
+	return n, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func jsonStringOrNumber(raw json.RawMessage) string {
+	s := strings.TrimSpace(string(raw))
+	if s == "" || s == "null" {
+		return ""
+	}
+	if s[0] == '"' {
+		var v string
+		if err := json.Unmarshal(raw, &v); err == nil {
+			return v
+		}
+	}
+	return s
+}
+
+func (c *Client) LiveVolume(ctx context.Context, eventID int) (*LiveVolumeResponse, error) {
+	path := buildPath("/live-volume", map[string]string{"id": strconv.Itoa(eventID)})
+	raw, err := c.transport.GetRaw(ctx, path)
+	if err != nil {
 		return nil, err
 	}
+	var result LiveVolumeResponse
+	if err := json.Unmarshal(raw, &result); err == nil {
+		return &result, nil
+	}
+	var rows []LiveVolumeResponse
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return &LiveVolumeResponse{}, nil
+	}
+	result = rows[0]
 	return &result, nil
 }
 

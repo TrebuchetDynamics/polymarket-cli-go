@@ -20,8 +20,8 @@ type CommentUser struct {
 
 // CommentQuery is the public query shape for listing comments.
 type CommentQuery struct {
-	EntityID   *int    `json:"entity_id,omitempty"`
-	EntityType *string `json:"entity_type,omitempty"`
+	EntityID   *int    `json:"parent_entity_id,omitempty"`
+	EntityType *string `json:"parent_entity_type,omitempty"`
 	Limit      int     `json:"limit,omitempty"`
 	Offset     int     `json:"offset,omitempty"`
 }

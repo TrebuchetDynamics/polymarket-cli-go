@@ -112,7 +112,7 @@ func TestLiveVolume(t *testing.T) {
 		t.Fatalf("LiveVolume error: %v", err)
 	}
 	if vol.Total != 1 {
-		t.Errorf("expected total 1, got %d", vol.Total)
+		t.Errorf("expected total 1, got %v", vol.Total)
 	}
 }
 

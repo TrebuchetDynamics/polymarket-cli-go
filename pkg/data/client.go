@@ -84,9 +84,9 @@ func (c *Client) Activity(ctx context.Context, user string, limit int) ([]types.
 	return activitiesFromInternal(rows), nil
 }
 
-// TopHolders returns top holders for a token.
-func (c *Client) TopHolders(ctx context.Context, tokenID string, limit int) ([]types.Holder, error) {
-	rows, err := c.inner.TopHolders(ctx, tokenID, limit)
+// TopHolders returns top holders for a market condition hash.
+func (c *Client) TopHolders(ctx context.Context, market string, limit int) ([]types.Holder, error) {
+	rows, err := c.inner.TopHolders(ctx, market, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -111,9 +111,9 @@ func (c *Client) MarketsTraded(ctx context.Context, user string) (*types.TotalMa
 	return totalMarketsTradedFromInternal(row), nil
 }
 
-// OpenInterest returns open interest for a token.
-func (c *Client) OpenInterest(ctx context.Context, tokenID string) (*types.OpenInterest, error) {
-	row, err := c.inner.OpenInterest(ctx, tokenID)
+// OpenInterest returns open interest for a market condition hash.
+func (c *Client) OpenInterest(ctx context.Context, market string) (*types.OpenInterest, error) {
+	row, err := c.inner.OpenInterest(ctx, market)
 	if err != nil {
 		return nil, err
 	}
@@ -129,9 +129,9 @@ func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]types.Lead
 	return leaderboardRowsFromInternal(rows), nil
 }
 
-// LiveVolume returns live volume data.
-func (c *Client) LiveVolume(ctx context.Context, limit int) (*types.LiveVolumeResponse, error) {
-	row, err := c.inner.LiveVolume(ctx, limit)
+// LiveVolume returns live volume for an event ID.
+func (c *Client) LiveVolume(ctx context.Context, eventID int) (*types.LiveVolumeResponse, error) {
+	row, err := c.inner.LiveVolume(ctx, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -269,8 +269,15 @@ func liveVolumeFromInternal(row *dataapi.LiveVolumeResponse) *types.LiveVolumeRe
 		return nil
 	}
 	out := &types.LiveVolumeResponse{
-		Total:  row.Total,
-		Events: make([]types.LiveVolumeRow, len(row.Events)),
+		Total:   row.Total,
+		Markets: make([]types.LiveVolumeMarket, len(row.Markets)),
+		Events:  make([]types.LiveVolumeRow, len(row.Events)),
+	}
+	for i, market := range row.Markets {
+		out.Markets[i] = types.LiveVolumeMarket{
+			Market: market.Market,
+			Value:  market.Value,
+		}
 	}
 	for i, event := range row.Events {
 		out.Events[i] = types.LiveVolumeRow{

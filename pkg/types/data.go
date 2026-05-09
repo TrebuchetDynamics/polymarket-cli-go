@@ -72,8 +72,8 @@ type TotalMarketsTraded struct {
 // OpenInterest is an open-interest row.
 type OpenInterest struct {
 	Market    string  `json:"market"`
-	AssetID   string  `json:"asset_id"`
-	OpenValue float64 `json:"open_value"`
+	AssetID   string  `json:"asset_id,omitempty"`
+	OpenValue float64 `json:"value"`
 }
 
 // LeaderboardRow is a trader leaderboard row.
@@ -93,8 +93,15 @@ type LiveVolumeRow struct {
 	Volume    float64 `json:"volume"`
 }
 
+// LiveVolumeMarket is one per-market row in an event live-volume response.
+type LiveVolumeMarket struct {
+	Market string  `json:"market"`
+	Value  float64 `json:"value"`
+}
+
 // LiveVolumeResponse is the Data API live-volume response.
 type LiveVolumeResponse struct {
-	Total  int             `json:"total"`
-	Events []LiveVolumeRow `json:"events"`
+	Total   float64            `json:"total"`
+	Markets []LiveVolumeMarket `json:"markets,omitempty"`
+	Events  []LiveVolumeRow    `json:"events,omitempty"`
 }

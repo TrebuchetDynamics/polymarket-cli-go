@@ -142,3 +142,38 @@ func TestEventBySlugUsesEventsSlugQuery(t *testing.T) {
 		t.Fatalf("unexpected event: %#v", event)
 	}
 }
+
+func TestCommentsUsesCurrentParentEntityQuery(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/comments" {
+			t.Fatalf("path = %q, want /comments", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("parent_entity_id"); got != "2144505" {
+			t.Fatalf("parent_entity_id = %q, want 2144505", got)
+		}
+		if got := r.URL.Query().Get("parent_entity_type"); got != "Event" {
+			t.Fatalf("parent_entity_type = %q, want Event", got)
+		}
+		if stale := r.URL.Query().Get("entity_id"); stale != "" {
+			t.Fatalf("stale entity_id query was sent: %q", stale)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	cfg := transport.DefaultConfig(server.URL + "/")
+	cfg.RetryMax = 0
+	tc := transport.New(server.Client(), cfg)
+	client := NewClient(server.URL+"/", tc)
+
+	entityID := 2144505
+	entityType := "Event"
+	if _, err := client.Comments(context.Background(), &polytypes.CommentQuery{
+		EntityID:   &entityID,
+		EntityType: &entityType,
+		Limit:      3,
+	}); err != nil {
+		t.Fatalf("Comments returned error: %v", err)
+	}
+}

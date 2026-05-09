@@ -557,7 +557,7 @@ func TestPolygolemPublicSDKE2EAgainstLocalPolymarket(t *testing.T) {
 	if len(activity) != 1 || activity[0].Type != "TRADE" {
 		t.Fatalf("activity = %+v", activity)
 	}
-	holders, err := client.TopHolders(ctx, "12345", 2)
+	holders, err := client.TopHolders(ctx, "condition-1", 2)
 	if err != nil {
 		t.Fatalf("TopHolders: %v", err)
 	}
@@ -578,7 +578,7 @@ func TestPolygolemPublicSDKE2EAgainstLocalPolymarket(t *testing.T) {
 	if marketsTraded.MarketsTraded != 3 {
 		t.Fatalf("markets traded = %+v", marketsTraded)
 	}
-	openInterest, err := client.OpenInterest(ctx, "12345")
+	openInterest, err := client.OpenInterest(ctx, "condition-1")
 	if err != nil {
 		t.Fatalf("OpenInterest: %v", err)
 	}
@@ -1118,17 +1118,17 @@ func newE2EDataServer(t *testing.T, rec *e2eRecorder) *httptest.Server {
 		case "/trades":
 			respondJSON(t, w, []map[string]interface{}{{"id": "data-trade-1", "market": "condition-1", "asset_id": "12345", "side": "BUY", "price": 0.45, "size": 2, "fee_rate_bps": 0, "created_at": "1710000000"}})
 		case "/activity":
-			respondJSON(t, w, []map[string]interface{}{{"type": "TRADE", "market": "condition-1", "asset_id": "12345", "side": "BUY", "price": "0.45", "size": "2", "timestamp": "1710000000"}})
-		case "/top-holders":
-			respondJSON(t, w, []map[string]interface{}{{"address": "0xholder", "shares": 3, "pnl": 1, "volume": 10}})
-		case "/total-value":
-			respondJSON(t, w, map[string]interface{}{"user": "0xuser", "value": 42, "timestamp": "1710000000"})
-		case "/total-markets-traded":
-			respondJSON(t, w, map[string]interface{}{"user": "0xuser", "markets_traded": 3})
-		case "/open-interest":
-			respondJSON(t, w, map[string]interface{}{"market": "condition-1", "asset_id": "12345", "open_value": 25})
-		case "/trader-leaderboard":
-			respondJSON(t, w, []map[string]interface{}{{"rank": 1, "user": "0xuser", "volume": 100, "pnl": 5, "roi": 0.1}})
+			respondJSON(t, w, []map[string]interface{}{{"type": "TRADE", "market": "condition-1", "asset_id": "12345", "side": "BUY", "price": 0.45, "size": 2, "timestamp": 1710000000}})
+		case "/holders":
+			respondJSON(t, w, []map[string]interface{}{{"token": "12345", "holders": []map[string]interface{}{{"proxyWallet": "0xholder", "amount": 3}}}})
+		case "/value":
+			respondJSON(t, w, []map[string]interface{}{{"user": "0xuser", "value": 42}})
+		case "/traded":
+			respondJSON(t, w, map[string]interface{}{"user": "0xuser", "traded": 3})
+		case "/oi":
+			respondJSON(t, w, []map[string]interface{}{{"market": "condition-1", "value": 25}})
+		case "/v1/leaderboard":
+			respondJSON(t, w, []map[string]interface{}{{"rank": "1", "proxyWallet": "0xuser", "vol": 100, "pnl": 5}})
 		case "/live-volume":
 			respondJSON(t, w, map[string]interface{}{"total": 1, "events": []map[string]interface{}{{"event_id": "event-1", "event_slug": "btc-event", "title": "BTC event", "volume": 1000}}})
 		default:
