@@ -99,6 +99,8 @@ polygolem - Safe Polymarket SDK and CLI for Go
     fund - Transfer pUSD from EOA to the deposit wallet
     nonce - Get the current WALLET nonce for the owner
     onboard - Full deposit wallet onboarding: deploy + approve + fund
+    redeem - Redeem winning deposit-wallet positions via the V2 collateral adapter
+    redeemable - List redeemable positions held by the deposit wallet
     status - Check deposit wallet deployment status or transaction state
     swap-pol-pusd - Swap native POL into an exact amount of pUSD via Uniswap V3
   discover - Market discovery via Polymarket Gamma API
@@ -1208,6 +1210,8 @@ polygolem deposit-wallet [flags]
 | `polygolem deposit-wallet fund` | Transfer pUSD from EOA to the deposit wallet |
 | `polygolem deposit-wallet nonce` | Get the current WALLET nonce for the owner |
 | `polygolem deposit-wallet onboard` | Full deposit wallet onboarding: deploy + approve + fund |
+| `polygolem deposit-wallet redeem` | Redeem winning deposit-wallet positions via the V2 collateral adapter |
+| `polygolem deposit-wallet redeemable` | List redeemable positions held by the deposit wallet |
 | `polygolem deposit-wallet status` | Check deposit wallet deployment status or transaction state |
 | `polygolem deposit-wallet swap-pol-pusd` | Swap native POL into an exact amount of pUSD via Uniswap V3 |
 
@@ -1423,6 +1427,64 @@ polygolem deposit-wallet onboard [flags]
 | `--json` | `bool` | `false` | emit JSON output |
 | `--skip-approve` | `bool` | `false` | skip approval batch |
 | `--skip-deploy` | `bool` | `false` | skip WALLET-CREATE (wallet already deployed) |
+
+### polygolem deposit-wallet redeem
+
+Redeem winning deposit-wallet positions via the V2 collateral adapter
+
+Builds a WALLET batch that calls redeemPositions on the V2 collateral
+adapter (CtfCollateralAdapter for binary markets, NegRiskCtfCollateralAdapter
+for neg-risk). The adapter pulls the wallet's CTF tokens, redeems through
+the legacy CT with USDC.e, wraps the proceeds back into pUSD, and sends pUSD
+to the deposit wallet.
+
+Without --submit, prints the calldata JSON for review.
+With --submit, the operator must also pass --confirm REDEEM_WINNERS to
+authorize the live-money WALLET batch.
+
+Pre-check: requires CTF.setApprovalForAll(wallet, adapter) = true for
+every adapter targeted by the redeem set. If any approval is missing,
+fails closed with a pointer to 'deposit-wallet approve-adapters'.
+
+**Usage:**
+
+```bash
+polygolem deposit-wallet redeem [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--confirm` | `string` | `""` | live-money confirmation token; must be 'REDEEM_WINNERS' when --submit is set |
+| `-h, --help` | `bool` | `false` | help for redeem |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--limit` | `int` | `10` | max positions per WALLET batch (deduplicated by conditionID) |
+| `--rpc-url` | `string` | `""` | Polygon RPC URL for the adapter-approval pre-check (default: POLYGON_RPC_URL or public node) |
+| `--submit` | `bool` | `false` | sign and submit the redeem batch (requires --confirm REDEEM_WINNERS) |
+
+### polygolem deposit-wallet redeemable
+
+List redeemable positions held by the deposit wallet
+
+Read-only list of positions where the Data API redeemable=true
+flag is set. The 'user' parameter is the deposit wallet (not the EOA),
+since POLY_1271 positions live in the wallet.
+
+Use this before running 'redeem' to see what would be submitted.
+
+**Usage:**
+
+```bash
+polygolem deposit-wallet redeemable [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | `bool` | `false` | help for redeemable |
+| `--json` | `bool` | `false` | emit JSON output |
 
 ### polygolem deposit-wallet status
 

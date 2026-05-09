@@ -13,8 +13,12 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/internal/relayer"
 	"github.com/TrebuchetDynamics/polygolem/internal/rpc"
 	"github.com/TrebuchetDynamics/polygolem/pkg/contracts"
+	"github.com/TrebuchetDynamics/polygolem/pkg/data"
+	"github.com/TrebuchetDynamics/polygolem/pkg/settlement"
 	"github.com/spf13/cobra"
 )
+
+const defaultDataAPIURL = "https://data-api.polymarket.com"
 
 const defaultRelayerURL = "https://relayer-v2.polymarket.com"
 
@@ -29,6 +33,8 @@ func depositWalletCmd(jsonOut bool) *cobra.Command {
 	cmd.AddCommand(depositWalletBatchCmd(jsonOut))
 	cmd.AddCommand(depositWalletApproveCmd(jsonOut))
 	cmd.AddCommand(depositWalletApproveAdaptersCmd(jsonOut))
+	cmd.AddCommand(depositWalletRedeemableCmd(jsonOut))
+	cmd.AddCommand(depositWalletRedeemCmd(jsonOut))
 	cmd.AddCommand(depositWalletFundCmd(jsonOut))
 	cmd.AddCommand(depositWalletSwapCmd(jsonOut))
 	cmd.AddCommand(depositWalletOnboardCmd(jsonOut))
@@ -900,4 +906,183 @@ func firstEnv(names ...string) string {
 
 func printJSON(cmd *cobra.Command, v interface{}) error {
 	return writeCommandJSON(cmd, v)
+}
+
+// dataAPIClient builds a pkg/data.Client honoring an optional override env.
+// Defaults to the production Data API URL.
+func dataAPIClient() *data.Client {
+	base := firstEnv("POLYMARKET_DATA_API_URL")
+	if base == "" {
+		base = defaultDataAPIURL
+	}
+	return data.NewClient(data.Config{BaseURL: base})
+}
+
+// depositWalletRedeemableCmd lists redeemable positions for the deposit
+// wallet derived from POLYMARKET_PRIVATE_KEY. Read-only — no signing.
+// Positions live in the deposit wallet, not the EOA, so the Data API
+// `user` parameter must be the deposit wallet address.
+func depositWalletRedeemableCmd(jsonOut bool) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "redeemable",
+		Short: "List redeemable positions held by the deposit wallet",
+		Long: `Read-only list of positions where the Data API redeemable=true
+flag is set. The 'user' parameter is the deposit wallet (not the EOA),
+since POLY_1271 positions live in the wallet.
+
+Use this before running 'redeem' to see what would be submitted.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			key, err := requirePrivateKey()
+			if err != nil {
+				return err
+			}
+			signer, err := auth.NewPrivateKeySigner(key, 137)
+			if err != nil {
+				return fmt.Errorf("init signer: %w", err)
+			}
+			wallet, err := auth.MakerAddressForSignatureType(signer.Address(), 137, 3)
+			if err != nil {
+				return fmt.Errorf("derive deposit wallet: %w", err)
+			}
+			rows, err := settlement.FindRedeemable(cmd.Context(), dataAPIClient(), wallet)
+			if err != nil {
+				return fmt.Errorf("find redeemable: %w", err)
+			}
+			return printJSON(cmd, map[string]interface{}{
+				"depositWallet": wallet,
+				"count":         len(rows),
+				"positions":     rows,
+			})
+		},
+	}
+	return cmd
+}
+
+// depositWalletRedeemCmd builds the V2 redeem WALLET batch. Dry-run by
+// default; --submit + --confirm REDEEM_WINNERS together authorize the
+// live signing path. Pre-checks CTF.isApprovedForAll for each adapter
+// the to-redeem set requires and refuses to sign if any approval is
+// missing, pointing the operator at `approve-adapters`.
+func depositWalletRedeemCmd(jsonOut bool) *cobra.Command {
+	var submit bool
+	var confirm string
+	var limit int
+	var rpcURL string
+	cmd := &cobra.Command{
+		Use:   "redeem",
+		Short: "Redeem winning deposit-wallet positions via the V2 collateral adapter",
+		Long: `Builds a WALLET batch that calls redeemPositions on the V2 collateral
+adapter (CtfCollateralAdapter for binary markets, NegRiskCtfCollateralAdapter
+for neg-risk). The adapter pulls the wallet's CTF tokens, redeems through
+the legacy CT with USDC.e, wraps the proceeds back into pUSD, and sends pUSD
+to the deposit wallet.
+
+Without --submit, prints the calldata JSON for review.
+With --submit, the operator must also pass --confirm REDEEM_WINNERS to
+authorize the live-money WALLET batch.
+
+Pre-check: requires CTF.setApprovalForAll(wallet, adapter) = true for
+every adapter targeted by the redeem set. If any approval is missing,
+fails closed with a pointer to 'deposit-wallet approve-adapters'.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			key, err := requirePrivateKey()
+			if err != nil {
+				return err
+			}
+			signer, err := auth.NewPrivateKeySigner(key, 137)
+			if err != nil {
+				return fmt.Errorf("init signer: %w", err)
+			}
+			wallet, err := auth.MakerAddressForSignatureType(signer.Address(), 137, 3)
+			if err != nil {
+				return fmt.Errorf("derive deposit wallet: %w", err)
+			}
+			rows, err := settlement.FindRedeemable(cmd.Context(), dataAPIClient(), wallet)
+			if err != nil {
+				return fmt.Errorf("find redeemable: %w", err)
+			}
+			if len(rows) == 0 {
+				return printJSON(cmd, map[string]interface{}{
+					"depositWallet": wallet,
+					"state":         "nothing_to_redeem",
+					"count":         0,
+				})
+			}
+
+			// Build the calls so we can show the dry-run payload and
+			// also know which adapters are required for the pre-check.
+			calls := make([]relayer.DepositWalletCall, 0, len(rows))
+			adaptersNeeded := make(map[string]struct{})
+			for _, p := range rows {
+				call, err := settlement.BuildRedeemCall(p)
+				if err != nil {
+					return fmt.Errorf("build call: %w", err)
+				}
+				calls = append(calls, call)
+				adaptersNeeded[strings.ToLower(call.Target)] = struct{}{}
+			}
+
+			if !submit {
+				return printJSON(cmd, map[string]interface{}{
+					"depositWallet": wallet,
+					"count":         len(rows),
+					"positions":     rows,
+					"calls":         calls,
+					"note":          "review calldata, then run with --submit --confirm REDEEM_WINNERS to sign and send",
+				})
+			}
+			if confirm != "REDEEM_WINNERS" {
+				return fmt.Errorf("--submit requires --confirm REDEEM_WINNERS (got %q)", confirm)
+			}
+
+			// Adapter approval pre-check (fail-closed).
+			polygonRPC := firstEnv("POLYGON_RPC_URL")
+			if rpcURL != "" {
+				polygonRPC = rpcURL
+			}
+			missing := make([]string, 0, len(adaptersNeeded))
+			for adapter := range adaptersNeeded {
+				ok, err := rpc.IsApprovedForAll(cmd.Context(), contracts.CTF, wallet, adapter, polygonRPC)
+				if err != nil {
+					return fmt.Errorf("check isApprovedForAll(%s): %w", adapter, err)
+				}
+				if !ok {
+					missing = append(missing, adapter)
+				}
+			}
+			if len(missing) > 0 {
+				return printJSON(cmd, map[string]interface{}{
+					"ok":               false,
+					"error":            "deposit wallet has not approved one or more V2 collateral adapters; run `polygolem deposit-wallet approve-adapters --submit --confirm APPROVE_ADAPTERS` first",
+					"missingApprovals": missing,
+					"depositWallet":    wallet,
+				})
+			}
+
+			rc, err := relayerClientFromEnv()
+			if err != nil {
+				return fmt.Errorf("init relayer client: %w", err)
+			}
+			result, err := settlement.SubmitRedeem(cmd.Context(), rc, key, rows, limit)
+			if err != nil {
+				return fmt.Errorf("submit redeem: %w", err)
+			}
+			return printJSON(cmd, map[string]interface{}{
+				"transactionID": result.TransactionID,
+				"state":         result.State,
+				"wallet":        result.Wallet,
+				"nonce":         result.Nonce,
+				"deadline":      result.Deadline,
+				"callCount":     result.CallCount,
+				"redeemed":      result.Redeemed,
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&submit, "submit", false, "sign and submit the redeem batch (requires --confirm REDEEM_WINNERS)")
+	cmd.Flags().StringVar(&confirm, "confirm", "", "live-money confirmation token; must be 'REDEEM_WINNERS' when --submit is set")
+	cmd.Flags().IntVar(&limit, "limit", settlement.DefaultBatchLimit, "max positions per WALLET batch (deduplicated by conditionID)")
+	cmd.Flags().StringVar(&rpcURL, "rpc-url", "", "Polygon RPC URL for the adapter-approval pre-check (default: POLYGON_RPC_URL or public node)")
+	return cmd
 }

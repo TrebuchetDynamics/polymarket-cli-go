@@ -325,3 +325,218 @@ func TestDepositWalletApproveAdaptersSubmitsBatch(t *testing.T) {
 	}
 }
 
+// --- redeemable + redeem tests ---
+
+const redeemTestPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+
+// dataAPIWithOnePosition serves a single redeemable=true position fixture.
+func dataAPIWithOnePosition(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/positions" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode([]map[string]any{{
+			"asset":        "10203228750887270363579341300435494148775390248158812958841180330451031762744",
+			"conditionId":  "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"size":         4.0784,
+			"avgPrice":     0.5099,
+			"redeemable":   true,
+			"mergeable":    false,
+			"negativeRisk": false,
+			"outcome":      "Up",
+			"slug":         "eth-updown-5m-1778316000",
+			"title":        "Ethereum Up or Down - May 9, 4:40AM-4:45AM ET",
+		}})
+	}))
+}
+
+func TestDepositWalletRedeemableJSON(t *testing.T) {
+	dataSrv := dataAPIWithOnePosition(t)
+	defer dataSrv.Close()
+	t.Setenv("POLYMARKET_PRIVATE_KEY", redeemTestPrivateKey)
+	t.Setenv("POLYMARKET_DATA_API_URL", dataSrv.URL)
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "redeemable")
+	if err != nil {
+		t.Fatalf("Execute error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false: %s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := data["count"].(float64); v != 1 {
+		t.Fatalf("count=%v want 1; data=%v", data["count"], data)
+	}
+	if data["depositWallet"] == nil {
+		t.Fatal("depositWallet missing")
+	}
+}
+
+func TestDepositWalletRedeemDryRunPrintsCalls(t *testing.T) {
+	dataSrv := dataAPIWithOnePosition(t)
+	defer dataSrv.Close()
+	t.Setenv("POLYMARKET_PRIVATE_KEY", redeemTestPrivateKey)
+	t.Setenv("POLYMARKET_DATA_API_URL", dataSrv.URL)
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "redeem")
+	if err != nil {
+		t.Fatalf("Execute error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false: %s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	calls, ok := data["calls"].([]any)
+	if !ok || len(calls) != 1 {
+		t.Fatalf("dry-run calls=%v want 1 entry", data["calls"])
+	}
+	note, _ := data["note"].(string)
+	if !strings.Contains(note, "REDEEM_WINNERS") {
+		t.Errorf("note must mention REDEEM_WINNERS confirm token: %q", note)
+	}
+}
+
+func TestDepositWalletRedeemRequiresConfirm(t *testing.T) {
+	dataSrv := dataAPIWithOnePosition(t)
+	defer dataSrv.Close()
+	t.Setenv("POLYMARKET_PRIVATE_KEY", redeemTestPrivateKey)
+	t.Setenv("POLYMARKET_DATA_API_URL", dataSrv.URL)
+
+	_, stderr, err := executeRootForTest("--json", "deposit-wallet", "redeem", "--submit")
+	if err == nil {
+		t.Fatalf("expected error when --submit set without --confirm; stderr=%s", stderr)
+	}
+	if !strings.Contains(err.Error(), "REDEEM_WINNERS") {
+		t.Fatalf("error must mention REDEEM_WINNERS: %v", err)
+	}
+}
+
+func TestDepositWalletRedeemRefusesWithoutAdapterApproval(t *testing.T) {
+	dataSrv := dataAPIWithOnePosition(t)
+	defer dataSrv.Close()
+	// RPC server returns isApprovedForAll=false.
+	rpcSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Method string `json:"method"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if body.Method == "eth_chainId" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": 1, "result": "0x89"})
+			return
+		}
+		// Any eth_call → return false (32 bytes of zero).
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0", "id": 1,
+			"result": "0x0000000000000000000000000000000000000000000000000000000000000000",
+		})
+	}))
+	defer rpcSrv.Close()
+	relaySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/submit" {
+			t.Error("relayer /submit must not be called when adapter approval is missing")
+		}
+		http.NotFound(w, r)
+	}))
+	defer relaySrv.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", redeemTestPrivateKey)
+	t.Setenv("POLYMARKET_DATA_API_URL", dataSrv.URL)
+	t.Setenv("POLYMARKET_RELAYER_URL", relaySrv.URL)
+	t.Setenv("RELAYER_API_KEY", "v2-uuid")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "0xabc")
+	t.Setenv("POLYGON_RPC_URL", rpcSrv.URL)
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "redeem", "--submit", "--confirm", "REDEEM_WINNERS", "--rpc-url", rpcSrv.URL)
+	if err != nil {
+		t.Fatalf("Execute error: %v\nstderr:\n%s", err, stderr)
+	}
+	// The CLI returns ok envelope with an inner ok=false JSON; assert
+	// that the body called out the missing approval.
+	if !strings.Contains(stdout, "missingApprovals") || !strings.Contains(stdout, "approve-adapters") {
+		t.Fatalf("redeem must point to approve-adapters when isApprovedForAll=false; stdout=%s", stdout)
+	}
+}
+
+func TestDepositWalletRedeemHappyPathSubmits(t *testing.T) {
+	dataSrv := dataAPIWithOnePosition(t)
+	defer dataSrv.Close()
+	rpcSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Method string `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Method == "eth_chainId" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": 1, "result": "0x89"})
+			return
+		}
+		// eth_call → return approved=true.
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0", "id": 1,
+			"result": "0x0000000000000000000000000000000000000000000000000000000000000001",
+		})
+	}))
+	defer rpcSrv.Close()
+
+	var submitCalls int
+	relaySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/nonce":
+			_ = json.NewEncoder(w).Encode(map[string]any{"nonce": "9"})
+		case "/submit":
+			submitCalls++
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body["type"] != "WALLET" {
+				t.Errorf("submit type=%v want WALLET", body["type"])
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"transactionID": "redeem-tx-1",
+				"state":         "STATE_NEW",
+				"type":          "WALLET",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer relaySrv.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", redeemTestPrivateKey)
+	t.Setenv("POLYMARKET_DATA_API_URL", dataSrv.URL)
+	t.Setenv("POLYMARKET_RELAYER_URL", relaySrv.URL)
+	t.Setenv("RELAYER_API_KEY", "v2-uuid")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "0xabc")
+	t.Setenv("POLYGON_RPC_URL", rpcSrv.URL)
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "redeem", "--submit", "--confirm", "REDEEM_WINNERS", "--rpc-url", rpcSrv.URL)
+	if err != nil {
+		t.Fatalf("Execute error: %v\nstderr:\n%s", err, stderr)
+	}
+	if submitCalls != 1 {
+		t.Fatalf("relayer /submit called %d times, want 1", submitCalls)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false envelope=%s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if data["transactionID"] != "redeem-tx-1" {
+		t.Fatalf("transactionID=%v", data["transactionID"])
+	}
+}
+
