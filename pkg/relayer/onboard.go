@@ -119,7 +119,11 @@ func OnboardDepositWallet(ctx context.Context, client *Client, privateKey string
 		return result, nil
 	}
 
-	calls := BuildApprovalCalls()
+	// 6-call trading approvals plus 4-call adapter approvals. The latter
+	// is required for V2 split/merge/redeem; baking it into the
+	// post-deploy batch makes new wallets redeem-ready out of the box
+	// and avoids a separate operator step.
+	calls := append(BuildApprovalCalls(), BuildAdapterApprovalCalls()...)
 	nonce, err := client.GetNonce(ctx, owner)
 	if err != nil {
 		return nil, fmt.Errorf("relayer: fetch nonce: %w", err)

@@ -91,6 +91,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
     value - Get total portfolio value for a user
   deposit-wallet - Deposit wallet onboarding (WALLET-CREATE, nonce, batch, status)
     approve - Build and optionally submit approval calls for the deposit wallet
+    approve-adapters - Approve V2 collateral adapters for redeem (one-shot per wallet)
     batch - Sign and submit a deposit wallet WALLET batch
     deploy - Deploy the deposit wallet via relayer WALLET-CREATE
     deploy-onchain - Deploy the deposit wallet directly on-chain from the EOA (no relayer / no builder creds)
@@ -1199,6 +1200,7 @@ polygolem deposit-wallet [flags]
 | Command | Description |
 |---|---|
 | `polygolem deposit-wallet approve` | Build and optionally submit approval calls for the deposit wallet |
+| `polygolem deposit-wallet approve-adapters` | Approve V2 collateral adapters for redeem (one-shot per wallet) |
 | `polygolem deposit-wallet batch` | Sign and submit a deposit wallet WALLET batch |
 | `polygolem deposit-wallet deploy` | Deploy the deposit wallet via relayer WALLET-CREATE |
 | `polygolem deposit-wallet deploy-onchain` | Deploy the deposit wallet directly on-chain from the EOA (no relayer / no builder creds) |
@@ -1238,6 +1240,33 @@ polygolem deposit-wallet approve [flags]
 | `-h, --help` | `bool` | `false` | help for approve |
 | `--json` | `bool` | `false` | emit JSON output |
 | `--submit` | `bool` | `false` | sign and submit the approval batch |
+
+### polygolem deposit-wallet approve-adapters
+
+Approve V2 collateral adapters for redeem (one-shot per wallet)
+
+Submits the 4-call adapter approval batch (pUSD approve + CTF setApprovalForAll
+for CtfCollateralAdapter and NegRiskCtfCollateralAdapter). Required once per
+deposit wallet before V2 redeem will succeed. Idempotent.
+
+Without --submit, prints the calldata JSON for review.
+With --submit, the operator must also pass --confirm APPROVE_ADAPTERS to
+authorize the live-money WALLET batch.
+
+**Usage:**
+
+```bash
+polygolem deposit-wallet approve-adapters [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--confirm` | `string` | `""` | live-money confirmation token; must be 'APPROVE_ADAPTERS' when --submit is set |
+| `-h, --help` | `bool` | `false` | help for approve-adapters |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--submit` | `bool` | `false` | sign and submit the adapter approval batch (requires --confirm APPROVE_ADAPTERS) |
 
 ### polygolem deposit-wallet batch
 

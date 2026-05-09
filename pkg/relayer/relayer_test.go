@@ -185,8 +185,8 @@ func TestOnboardDepositWalletDeploysAndApproves(t *testing.T) {
 				}
 				params, _ := body["depositWalletParams"].(map[string]interface{})
 				calls, _ := params["calls"].([]interface{})
-				if len(calls) != 6 {
-					t.Errorf("approval call count=%d want 6", len(calls))
+				if len(calls) != 10 {
+					t.Errorf("approval call count=%d want 10 (6 trading + 4 adapter)", len(calls))
 				}
 				json.NewEncoder(w).Encode(RelayerTransaction{TransactionID: "approve-1", State: string(StateNew), Type: submitType})
 			default:
@@ -224,7 +224,7 @@ func TestOnboardDepositWalletDeploysAndApproves(t *testing.T) {
 	if got.Deploy == nil || got.Deploy.TransactionID != "deploy-1" || got.Deploy.State != string(StateMined) {
 		t.Fatalf("deploy result=%+v", got.Deploy)
 	}
-	if got.Approve == nil || got.Approve.TransactionID != "approve-1" || got.Approve.CallCount != 6 || got.Approve.Nonce != "7" {
+	if got.Approve == nil || got.Approve.TransactionID != "approve-1" || got.Approve.CallCount != 10 || got.Approve.Nonce != "7" {
 		t.Fatalf("approve result=%+v", got.Approve)
 	}
 	if nonceAddress != signer.Address() {

@@ -28,6 +28,7 @@ func depositWalletCmd(jsonOut bool) *cobra.Command {
 	cmd.AddCommand(depositWalletStatusCmd(jsonOut))
 	cmd.AddCommand(depositWalletBatchCmd(jsonOut))
 	cmd.AddCommand(depositWalletApproveCmd(jsonOut))
+	cmd.AddCommand(depositWalletApproveAdaptersCmd(jsonOut))
 	cmd.AddCommand(depositWalletFundCmd(jsonOut))
 	cmd.AddCommand(depositWalletSwapCmd(jsonOut))
 	cmd.AddCommand(depositWalletOnboardCmd(jsonOut))
@@ -435,6 +436,92 @@ With --submit, signs and submits the WALLET batch via the relayer.`,
 		},
 	}
 	cmd.Flags().BoolVar(&autoApprove, "submit", false, "sign and submit the approval batch")
+	return cmd
+}
+
+// depositWalletApproveAdaptersCmd is the one-shot migration command for
+// existing deposit wallets that ran the original 6-call trading-only
+// approval batch and therefore cannot redeem on V2. It submits the 4-call
+// adapter approval batch (pUSD approve + CTF setApprovalForAll for both
+// CtfCollateralAdapter and NegRiskCtfCollateralAdapter). Idempotent.
+//
+// Live-money safety: dry-run by default (prints calldata only). To submit,
+// the operator must pass BOTH --submit AND --confirm APPROVE_ADAPTERS.
+func depositWalletApproveAdaptersCmd(jsonOut bool) *cobra.Command {
+	var submit bool
+	var confirm string
+	cmd := &cobra.Command{
+		Use:   "approve-adapters",
+		Short: "Approve V2 collateral adapters for redeem (one-shot per wallet)",
+		Long: `Submits the 4-call adapter approval batch (pUSD approve + CTF setApprovalForAll
+for CtfCollateralAdapter and NegRiskCtfCollateralAdapter). Required once per
+deposit wallet before V2 redeem will succeed. Idempotent.
+
+Without --submit, prints the calldata JSON for review.
+With --submit, the operator must also pass --confirm APPROVE_ADAPTERS to
+authorize the live-money WALLET batch.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			callsJSON, err := relayer.BuildAdapterApprovalCallsJSON()
+			if err != nil {
+				return fmt.Errorf("build adapter approval calls: %w", err)
+			}
+			if !submit {
+				raw := json.RawMessage(callsJSON)
+				return printJSON(cmd, map[string]interface{}{
+					"calls":   raw,
+					"adapters": []string{contracts.CtfCollateralAdapter, contracts.NegRiskCtfCollateralAdapter},
+					"note":    "review calldata, then run with --submit --confirm APPROVE_ADAPTERS to sign and send",
+				})
+			}
+			if confirm != "APPROVE_ADAPTERS" {
+				return fmt.Errorf("--submit requires --confirm APPROVE_ADAPTERS (got %q)", confirm)
+			}
+			key, err := requirePrivateKey()
+			if err != nil {
+				return err
+			}
+			signer, err := auth.NewPrivateKeySigner(key, 137)
+			if err != nil {
+				return fmt.Errorf("init signer: %w", err)
+			}
+			owner := signer.Address()
+			walletAddress, err := auth.MakerAddressForSignatureType(owner, 137, 3)
+			if err != nil {
+				return fmt.Errorf("derive deposit wallet: %w", err)
+			}
+			rc, err := relayerClientFromEnv()
+			if err != nil {
+				return fmt.Errorf("init relayer client: %w", err)
+			}
+			nonce, err := rc.GetNonce(cmd.Context(), owner)
+			if err != nil {
+				return fmt.Errorf("fetch nonce: %w", err)
+			}
+			var calls []relayer.DepositWalletCall
+			if err := json.Unmarshal([]byte(callsJSON), &calls); err != nil {
+				return fmt.Errorf("parse adapter approval calls: %w", err)
+			}
+			dl := relayer.BuildDeadline(240)
+			sig, err := relayer.SignWalletBatch(signer, walletAddress, nonce, dl, calls)
+			if err != nil {
+				return fmt.Errorf("sign batch: %w", err)
+			}
+			tx, err := rc.SubmitWalletBatch(cmd.Context(), owner, walletAddress, nonce, sig, dl, calls)
+			if err != nil {
+				return fmt.Errorf("submit adapter approval batch: %w", err)
+			}
+			return printJSON(cmd, map[string]interface{}{
+				"transactionID": tx.TransactionID,
+				"state":         tx.State,
+				"wallet":        walletAddress,
+				"approvals":     len(calls),
+				"adapters":      []string{contracts.CtfCollateralAdapter, contracts.NegRiskCtfCollateralAdapter},
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&submit, "submit", false, "sign and submit the adapter approval batch (requires --confirm APPROVE_ADAPTERS)")
+	cmd.Flags().StringVar(&confirm, "confirm", "", "live-money confirmation token; must be 'APPROVE_ADAPTERS' when --submit is set")
 	return cmd
 }
 

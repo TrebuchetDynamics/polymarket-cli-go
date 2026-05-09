@@ -94,6 +94,20 @@ func BuildApprovalCalls() []DepositWalletCall {
 	return internalrelayer.BuildApprovalCalls()
 }
 
+// BuildAdapterApprovalCalls returns the four wallet calls a deposit
+// wallet must execute to permit V2 split/merge/redeem: pUSD `approve`
+// + CTF `setApprovalForAll` for both V2 collateral adapters
+// (CtfCollateralAdapter and NegRiskCtfCollateralAdapter). Idempotent.
+func BuildAdapterApprovalCalls() []DepositWalletCall {
+	return internalrelayer.BuildAdapterApprovalCalls()
+}
+
+// BuildAdapterApprovalCallsJSON returns the adapter approval calls as
+// a JSON-marshalable slice for CLI dry-run paths.
+func BuildAdapterApprovalCallsJSON() (string, error) {
+	return internalrelayer.BuildAdapterApprovalCallsJSON()
+}
+
 // BuildDeadline returns a unix-seconds deadline string suitable for use
 // in DepositWallet.Batch payloads. Defaults to now+240s when
 // secondsFromNow is non-positive (matches the TypeScript relayer client).

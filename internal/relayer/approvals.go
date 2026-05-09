@@ -15,6 +15,12 @@ const (
 	negRiskExchangeV2 = "0xe2222d279d744050d28e00520010520000310F59"
 	negRiskAdapterV2  = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
 
+	// V2 collateral adapters — split/merge/redeem from a deposit wallet
+	// route through these. Required spenders for the post-trading
+	// readiness batch built by BuildAdapterApprovalCalls.
+	ctfCollateralAdapter        = "0xADa100874d00e3331D00F2007a9c336a65009718"
+	negRiskCtfCollateralAdapter = "0xAdA200001000ef00D07553cEE7006808F895c6F1"
+
 	erc20ApproveSelector        = "095ea7b3"
 	erc1155SetApprovalForAllSel = "a22cb465"
 	maxUint256                  = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -78,6 +84,37 @@ func BuildApprovalCalls() []DepositWalletCall {
 func BuildApprovalCallsJSON() (string, error) {
 	calls := BuildApprovalCalls()
 	raw, err := marshalCalls(calls)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// BuildAdapterApprovalCalls returns the 4 calls a deposit wallet must
+// submit before V2 split/merge/redeem can succeed: pUSD approve and
+// CTF setApprovalForAll for both the standard and neg-risk V2 collateral
+// adapters. Idempotent: re-issuing on a wallet that already approved is
+// a no-op (max-uint approve sticks; setApprovalForAll(true) sticks).
+//
+// Required because CtfCollateralAdapter.redeemPositions calls
+// safeBatchTransferFrom(msg.sender, address(this), ...) on the CTF.
+// Without setApprovalForAll the redeem path reverts.
+func BuildAdapterApprovalCalls() []DepositWalletCall {
+	calls := make([]DepositWalletCall, 0, 4)
+	for _, spender := range []string{ctfCollateralAdapter, negRiskCtfCollateralAdapter} {
+		calls = append(calls,
+			buildApproveCall(pusdAddress, spender),
+			buildCTFApprovalCall(spender),
+		)
+	}
+	return calls
+}
+
+// BuildAdapterApprovalCallsJSON mirrors BuildApprovalCallsJSON for the
+// adapter approval set so a CLI dry-run path can print the calldata
+// without signing.
+func BuildAdapterApprovalCallsJSON() (string, error) {
+	raw, err := marshalCalls(BuildAdapterApprovalCalls())
 	if err != nil {
 		return "", err
 	}
