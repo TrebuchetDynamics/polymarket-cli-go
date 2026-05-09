@@ -1,10 +1,20 @@
 # Deposit Wallet Redeem Validation
 
 > Date: 2026-05-09
-> Status: validation method and stale-doc inventory
+> Status: final source-of-truth for V2 deposit-wallet redeem blockers
 
 This document records the source-of-truth ladder for the Polymarket V2
 deposit-wallet redeem flow. Use it before changing redeem code or docs.
+
+## Where We Landed
+
+| Aspect | State |
+|---|---|
+| Via-EOA path / factory bypass | Removed. Verified impossible at the EVM level: `DepositWalletFactory.proxy(Batch[],bytes[])` is `onlyOperator`; `cast call --from 0x000000000000000000000000000000000000dEaD` reverts with `OnlyOperator()` (`0x27e1f1e5`). |
+| Via-CTF path / raw `ConditionalTokens.redeemPositions` | Rejected. Raw CTF redeem is not the V2 pUSD-native redeem flow and must not be used as a fallback when relayer adapter calls are blocked. |
+| Adapter-via-relayer path | Kept. Polygolem can build and sign adapter approval/redeem WALLET batches, but the production relayer currently rejects adapter calls with HTTP 400 `"not in the allowed list"`. |
+| Live recovery | Blocked by relayer policy. The live SOL position had about 2.86 USDC.e of redeemable value; ETH resolved as a loss. There is no code-side workaround while `proxy()` remains operator-gated and adapter calls remain off the relayer allowlist. |
+| New artifact | This file is the canonical validation ladder: official docs, deployed ABIs, contract source, RPC assertions, stale-doc inventory, and guardrails. |
 
 ## Conclusion
 
@@ -225,6 +235,17 @@ cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
   redeem fallback.
 - If relayer allowlist rejects adapter calls, surface a structured upstream
   blocker and stop.
+
+## Regression Tests
+
+- `pkg/settlement`: unit coverage for redeemable filtering, adapter target
+  selection, calldata encoding, condition de-duplication, batch limits, and
+  successful relayer submission.
+- `internal/cli.TestDepositWalletRedeemHelpRejectsDirectCTFFallback`: CLI
+  long-help must not advertise direct CTF as a fallback.
+- `tests.TestPolygolemSettlementE2EStopsAtRelayerAllowlistBlocker`: public SDK
+  e2e coverage for Data API `redeemable=true`, adapter-only WALLET calls,
+  no raw CTF target, and structured stop on relayer `"not in the allowed list"`.
 
 ## Sources
 

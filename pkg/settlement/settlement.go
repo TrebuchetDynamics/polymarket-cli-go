@@ -29,6 +29,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -190,6 +191,9 @@ func SubmitRedeem(
 	}
 	tx, err := rc.SubmitWalletBatch(ctx, owner, wallet, nonce, sig, deadline, calls)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "not in the allowed list") {
+			return nil, fmt.Errorf("settlement: upstream relayer allowlist blocker: submit redeem batch: %w", err)
+		}
 		return nil, fmt.Errorf("settlement: submit redeem batch: %w", err)
 	}
 	return &RedeemResult{

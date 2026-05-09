@@ -11,7 +11,10 @@ import (
 	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/pkg/clob"
+	"github.com/TrebuchetDynamics/polygolem/pkg/contracts"
+	"github.com/TrebuchetDynamics/polygolem/pkg/data"
 	"github.com/TrebuchetDynamics/polygolem/pkg/relayer"
+	"github.com/TrebuchetDynamics/polygolem/pkg/settlement"
 	"github.com/TrebuchetDynamics/polygolem/pkg/stream"
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 	"github.com/TrebuchetDynamics/polygolem/pkg/universal"
@@ -650,6 +653,61 @@ func TestPolygolemPublicSDKE2EAgainstLocalPolymarket(t *testing.T) {
 	}
 }
 
+func TestPolygolemSettlementE2EStopsAtRelayerAllowlistBlocker(t *testing.T) {
+	rec := newE2ERecorder()
+	dataServer := newE2ESettlementDataServer(t, rec)
+	defer dataServer.Close()
+	relayerServer := newE2EAllowlistRejectingRelayerServer(t, rec)
+	defer relayerServer.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	dataClient := data.NewClient(data.Config{BaseURL: dataServer.URL})
+	positions, err := settlement.FindRedeemable(ctx, dataClient, "0x21999a074344610057c9b2B362332388a44502D4")
+	if err != nil {
+		t.Fatalf("FindRedeemable: %v", err)
+	}
+	if len(positions) != 2 {
+		t.Fatalf("redeemable positions=%d want 2; got %+v", len(positions), positions)
+	}
+	if positions[0].NegativeRisk || !positions[1].NegativeRisk {
+		t.Fatalf("negative-risk flags not preserved: %+v", positions)
+	}
+
+	signer, err := relayer.NewSigner(e2ePrivateKey, 137)
+	if err != nil {
+		t.Fatalf("relayer.NewSigner: %v", err)
+	}
+	relayerClient, err := relayer.NewV2(relayerServer.URL, relayer.V2APIKey{Key: "relayer-key", Address: signer.Address()}, 137)
+	if err != nil {
+		t.Fatalf("relayer.NewV2: %v", err)
+	}
+	result, err := settlement.SubmitRedeem(ctx, relayerClient, e2ePrivateKey, positions, settlement.DefaultBatchLimit)
+	if err == nil {
+		t.Fatalf("SubmitRedeem succeeded: %+v", result)
+	}
+	if result != nil {
+		t.Fatalf("SubmitRedeem result=%+v want nil on rejected relay submit", result)
+	}
+	errText := err.Error()
+	if !strings.Contains(errText, "upstream relayer allowlist blocker") {
+		t.Fatalf("SubmitRedeem error=%q, want upstream blocker classification", errText)
+	}
+	if !strings.Contains(errText, "not in the allowed list") {
+		t.Fatalf("SubmitRedeem error=%q, want relayer allowlist body preserved", errText)
+	}
+	if rec.count("GET /positions") != 1 {
+		t.Fatalf("positions route count=%d want 1", rec.count("GET /positions"))
+	}
+	if rec.count("GET /nonce") != 1 {
+		t.Fatalf("nonce route count=%d want 1", rec.count("GET /nonce"))
+	}
+	if rec.count("POST /submit") != 1 {
+		t.Fatalf("submit route count=%d want 1", rec.count("POST /submit"))
+	}
+}
+
 func TestPolygolemPublicSDKStreamE2EAgainstLocalWebSocket(t *testing.T) {
 	upgrader := websocket.Upgrader{}
 	subscriptions := make(chan map[string]interface{}, 1)
@@ -1150,6 +1208,129 @@ func newE2ERelayerServer(t *testing.T, rec *e2eRecorder) *httptest.Server {
 			respondJSON(t, w, map[string]interface{}{"deployed": true, "address": request.URL.Query().Get("address")})
 		case "/nonce":
 			respondJSON(t, w, map[string]string{"nonce": "7"})
+		default:
+			failRequest(t, w, "relayer unexpected route: %s %s", request.Method, request.URL.String())
+		}
+	}))
+}
+
+func newE2ESettlementDataServer(t *testing.T, rec *e2eRecorder) *httptest.Server {
+	t.Helper()
+	standardCondition := "0x1111111111111111111111111111111111111111111111111111111111111111"
+	negRiskCondition := "0x2222222222222222222222222222222222222222222222222222222222222222"
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		rec.hit(request)
+		if request.Method != http.MethodGet {
+			failRequest(t, w, "settlement data unexpected method: %s %s", request.Method, request.URL.String())
+			return
+		}
+		switch request.URL.Path {
+		case "/positions":
+			respondJSON(t, w, []map[string]interface{}{
+				{
+					"asset":       "non-redeemable-token",
+					"conditionId": standardCondition,
+					"redeemable":  false,
+					"size":        3.0,
+					"outcome":     "No",
+					"title":       "Ignore losing/non-redeemable position",
+				},
+				{
+					"asset":        "standard-winning-token",
+					"conditionId":  standardCondition,
+					"redeemable":   true,
+					"negativeRisk": false,
+					"size":         2.86,
+					"outcome":      "Yes",
+					"title":        "Standard winner",
+					"slug":         "standard-winner",
+				},
+				{
+					"asset":        "neg-risk-winning-token",
+					"conditionId":  negRiskCondition,
+					"redeemable":   true,
+					"negativeRisk": true,
+					"size":         1.25,
+					"outcome":      "Yes",
+					"title":        "Negative-risk winner",
+					"slug":         "neg-risk-winner",
+				},
+			})
+		default:
+			failRequest(t, w, "settlement data unexpected route: %s %s", request.Method, request.URL.String())
+		}
+	}))
+}
+
+func newE2EAllowlistRejectingRelayerServer(t *testing.T, rec *e2eRecorder) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		rec.hit(request)
+		if request.Header.Get("RELAYER_API_KEY") != "relayer-key" || request.Header.Get("RELAYER_API_KEY_ADDRESS") == "" {
+			failRequest(t, w, "missing relayer v2 headers")
+			return
+		}
+		switch request.URL.Path {
+		case "/nonce":
+			respondJSON(t, w, map[string]string{"nonce": "11"})
+		case "/submit":
+			if request.Method != http.MethodPost {
+				failRequest(t, w, "relayer submit method=%s", request.Method)
+				return
+			}
+			var body struct {
+				Type                string `json:"type"`
+				To                  string `json:"to"`
+				DepositWalletParams struct {
+					Calls []struct {
+						Target string `json:"target"`
+						Value  string `json:"value"`
+						Data   string `json:"data"`
+					} `json:"calls"`
+				} `json:"depositWalletParams"`
+			}
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				failRequest(t, w, "decode relayer submit body: %v", err)
+				return
+			}
+			if body.Type != "WALLET" {
+				failRequest(t, w, "relayer submit type=%q want WALLET", body.Type)
+				return
+			}
+			if !strings.EqualFold(body.To, contracts.DepositWalletFactory) {
+				failRequest(t, w, "relayer submit to=%q want factory %s", body.To, contracts.DepositWalletFactory)
+				return
+			}
+			if len(body.DepositWalletParams.Calls) != 2 {
+				failRequest(t, w, "redeem call count=%d want 2", len(body.DepositWalletParams.Calls))
+				return
+			}
+			seenTargets := map[string]bool{}
+			for i, call := range body.DepositWalletParams.Calls {
+				if strings.EqualFold(call.Target, contracts.CTF) {
+					failRequest(t, w, "call %d targets raw CTF %s", i, call.Target)
+					return
+				}
+				if call.Value != "0" {
+					failRequest(t, w, "call %d value=%s want 0", i, call.Value)
+					return
+				}
+				if !strings.HasPrefix(call.Data, "0x01b7037c") {
+					failRequest(t, w, "call %d data selector=%q want redeemPositions", i, call.Data)
+					return
+				}
+				seenTargets[strings.ToLower(call.Target)] = true
+			}
+			if !seenTargets[strings.ToLower(contracts.CtfCollateralAdapter)] {
+				failRequest(t, w, "missing standard collateral adapter target")
+				return
+			}
+			if !seenTargets[strings.ToLower(contracts.NegRiskCtfCollateralAdapter)] {
+				failRequest(t, w, "missing negative-risk collateral adapter target")
+				return
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			respondJSON(t, w, map[string]interface{}{"error": "not in the allowed list", "code": 400})
 		default:
 			failRequest(t, w, "relayer unexpected route: %s %s", request.Method, request.URL.String())
 		}
