@@ -6,6 +6,14 @@
 // token IDs and condition ID needed to place an order. The resolver
 // performs only Gamma reads; it does not sign or mutate anything.
 //
+// Decision-window safety: prefer ResolveTokenIDsForWindow when the
+// caller has a binding window start (the typical live-trading case).
+// It returns StatusWindowMismatch rather than silently substituting a
+// different window, and it never falls through to an unanchored search.
+// ResolveTokenIDsAt and ResolveTokenIDs are best-effort and may return
+// any currently-accepting market; do not use them on the order-placement
+// path.
+//
 // When not to use this package:
 //   - For full Gamma metadata access — use pkg/gamma directly.
 //   - For order book pricing — use pkg/orderbook.
@@ -31,7 +39,9 @@ import (
 // CryptoMarket represents a resolved crypto up/down market with token IDs.
 // Slug and Question come from the Gamma event payload. UpTokenID and
 // DownTokenID may be empty if the market's outcomes do not include both
-// "up"/"yes" and "down"/"no".
+// "up"/"yes" and "down"/"no". StartDate and EndDate come from the Gamma
+// market.startDate/endDate fields, normalized to UTC second-precision so
+// callers can compare against an expected decision window.
 type CryptoMarket struct {
 	ConditionID string
 	Asset       string
@@ -42,6 +52,8 @@ type CryptoMarket struct {
 	Closed      bool
 	Question    string
 	Slug        string
+	StartDate   time.Time
+	EndDate     time.Time
 }
 
 // Resolver finds active markets from the Gamma API.
@@ -121,17 +133,71 @@ func (r *Resolver) ResolveCryptoMarkets(ctx context.Context, asset string) ([]Cr
 // ResolveTokenIDsAt resolves token IDs for a specific crypto window.
 // Crypto up/down markets use deterministic slugs such as
 // btc-updown-5m-1778114700, where the suffix is the UTC window start
-// epoch. Falls back to ResolveTokenIDs when the slug lookup misses.
+// epoch. On slug hit, it verifies the matched market's StartDate equals
+// windowStart; on disagreement it returns StatusWindowMismatch instead
+// of substituting the wrong market. Falls back to ResolveTokenIDs only
+// when the slug itself misses.
 func (r *Resolver) ResolveTokenIDsAt(ctx context.Context, asset, timeframe string, windowStart time.Time) ResolveResult {
 	if slug := cryptoWindowSlug(asset, timeframe, windowStart); slug != "" {
 		if evt, err := r.gamma.EventBySlug(ctx, slug); err == nil {
 			if result, ok := firstAcceptingMarket(asset, timeframe, marketsFromGamma(asset, evt.Markets)); ok {
+				if !windowStart.IsZero() && !result.StartDate.Equal(windowStart.UTC().Truncate(time.Second)) {
+					return ResolveResult{
+						Status:    StatusWindowMismatch,
+						Asset:     asset,
+						Timeframe: timeframe,
+						StartDate: result.StartDate,
+						EndDate:   result.EndDate,
+						Source: fmt.Sprintf("gamma:slug_hit_window_mismatch:%s:got=%s want=%s",
+							slug, result.StartDate.UTC().Format(time.RFC3339),
+							windowStart.UTC().Format(time.RFC3339)),
+					}
+				}
 				result.Source = "gamma:event_slug:" + slug
 				return result
 			}
 		}
 	}
 	return r.ResolveTokenIDs(ctx, asset, timeframe)
+}
+
+// ResolveTokenIDsForWindow returns StatusAvailable only when the matched
+// market's StartDate exactly equals windowStart (UTC, second-precision).
+// Returns StatusUnresolved on slug miss or when the slug event has no
+// accepting market. Returns StatusWindowMismatch when a slug hit is
+// found but its StartDate disagrees with windowStart. Never falls
+// through to an unanchored search — intended as the only resolver
+// entry point on the live order-placement path.
+func (r *Resolver) ResolveTokenIDsForWindow(ctx context.Context, asset, timeframe string, windowStart time.Time) ResolveResult {
+	if windowStart.IsZero() {
+		return ResolveResult{Status: StatusUnresolved, Asset: asset, Timeframe: timeframe, Source: "windowStart_zero"}
+	}
+	slug := cryptoWindowSlug(asset, timeframe, windowStart)
+	if slug == "" {
+		return ResolveResult{Status: StatusUnresolved, Asset: asset, Timeframe: timeframe, Source: "no_slug_for_asset_timeframe"}
+	}
+	evt, err := r.gamma.EventBySlug(ctx, slug)
+	if err != nil {
+		return ResolveResult{Status: StatusUnresolved, Asset: asset, Timeframe: timeframe, Source: fmt.Sprintf("gamma:slug_miss:%s:%v", slug, err)}
+	}
+	result, ok := firstAcceptingMarket(asset, timeframe, marketsFromGamma(asset, evt.Markets))
+	if !ok {
+		return ResolveResult{Status: StatusUnresolved, Asset: asset, Timeframe: timeframe, Source: "gamma:slug_event_no_accepting_market:" + slug}
+	}
+	if !result.StartDate.Equal(windowStart.UTC().Truncate(time.Second)) {
+		return ResolveResult{
+			Status:    StatusWindowMismatch,
+			Asset:     asset,
+			Timeframe: timeframe,
+			StartDate: result.StartDate,
+			EndDate:   result.EndDate,
+			Source: fmt.Sprintf("gamma:slug_hit_window_mismatch:%s:got=%s want=%s",
+				slug, result.StartDate.UTC().Format(time.RFC3339),
+				windowStart.UTC().Format(time.RFC3339)),
+		}
+	}
+	result.Source = "gamma:event_slug_strict:" + slug
+	return result
 }
 
 func (r *Resolver) searchQuery(ctx context.Context, asset, query string) ([]CryptoMarket, error) {
@@ -188,6 +254,8 @@ func marketsFromGamma(asset string, gammaMarkets []polytypes.Market) []CryptoMar
 			Closed:      m.Closed,
 			Question:    m.Question,
 			Slug:        m.Slug,
+			StartDate:   m.StartDate.Time().UTC().Truncate(time.Second),
+			EndDate:     m.EndDate.Time().UTC().Truncate(time.Second),
 		})
 	}
 	return markets
@@ -203,6 +271,8 @@ func firstAcceptingMarket(asset, timeframe string, markets []CryptoMarket) (Reso
 				ConditionID: m.ConditionID,
 				Asset:       asset,
 				Timeframe:   timeframe,
+				StartDate:   m.StartDate,
+				EndDate:     m.EndDate,
 			}, true
 		}
 	}
@@ -335,11 +405,19 @@ const (
 	StatusStaleToken MarketStatus = "stale_token"
 	// StatusUnresolved means no active matching market could be found.
 	StatusUnresolved MarketStatus = "unresolved"
+	// StatusWindowMismatch means a slug hit returned a market whose
+	// StartDate disagrees with the requested windowStart. The caller
+	// must refuse to act on this result; never substitute a different
+	// window for the requested one.
+	StatusWindowMismatch MarketStatus = "window_mismatch"
 )
 
 // ResolveResult is the structured result of a market/token resolution.
 // Source identifies which Gamma path produced the answer (deterministic
-// slug, public search, or an error string).
+// slug, public search, or an error string). StartDate and EndDate are
+// populated whenever the result references a concrete market — including
+// StatusWindowMismatch results, where they record the wrong-window
+// market's bounds for diagnostic logging.
 type ResolveResult struct {
 	Status      MarketStatus `json:"status"`
 	UpTokenID   string       `json:"up_token_id"`
@@ -348,6 +426,8 @@ type ResolveResult struct {
 	Asset       string       `json:"asset"`
 	Timeframe   string       `json:"timeframe"`
 	Source      string       `json:"source"`
+	StartDate   time.Time    `json:"start_date,omitempty"`
+	EndDate     time.Time    `json:"end_date,omitempty"`
 }
 
 // ResolveTokenIDs resolves token IDs for a given asset+timeframe.

@@ -33,7 +33,9 @@ func Example_resolveTokenIDsAt() {
 					"closed": false,
 					"enableOrderBook": true,
 					"acceptingOrders": true,
-					"clobTokenIds": "[\"up-token\", \"down-token\"]"
+					"clobTokenIds": "[\"up-token\", \"down-token\"]",
+					"startDate": "2026-05-07T00:45:00Z",
+					"endDate":   "2026-05-07T00:50:00Z"
 				}]
 			}]`))
 			return
