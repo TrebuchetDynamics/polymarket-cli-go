@@ -236,6 +236,35 @@ cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
 - If relayer allowlist rejects adapter calls, surface a structured upstream
   blocker and stop.
 
+## Upstream Tracker State (2026-05-09)
+
+The exact deposit-wallet redeem blocker is already filed upstream and was
+closed without response. Filing duplicate issues is unlikely to help; treat
+this as a quiet upstream block, not a code task.
+
+- `Polymarket/builder-relayer-client#29` — *"Deposit Wallet redemption path:
+  relayer blocks calls to CtfCollateralAdapter, no documented alternative"*.
+  Filed 2026-05-05 by `fylorn`. Closed 2026-05-06 with zero comments.
+  Reproduction matches ours exactly: HTTP 400 `"calls to
+  0xADa100874d00e3331D00F2007a9c336a65009718 are not permitted"` and
+  `"setApprovalForAll operator … is not in the allowed list"` on a `WALLET`
+  batch from a deposit wallet.
+- `Polymarket/builder-relayer-client#30` — open, server-side precheck bug
+  (`PRECHECK_SKIPPED: zero position balance`) for Safe-wallet NegRisk redeem.
+  Different wallet type and different rejection path; not adjacent to the
+  deposit-wallet allowlist issue.
+
+The official `Polymarket/builder-relayer-client/examples/redeem.ts` covers
+SAFE/PROXY wallets only — `RelayClient.execute()` switches on `relayTxType`
+between `SAFE` and `PROXY`; deposit wallets use the separate
+`executeDepositWalletBatch(...)` path. No deposit-wallet redeem example is
+shipped, which is consistent with the `WALLET`-batch-only adapter route
+being the intended deposit-wallet redeem path.
+
+The relayer allowlist itself is not in any public Polymarket repo
+(`builder-relayer-client`, `py-builder-relayer-client`, `relayer-deposits`,
+and `ctf-exchange-v2` were all checked); there is no upstream PR target.
+
 ## Regression Tests
 
 - `pkg/settlement`: unit coverage for redeemable filtering, adapter target
