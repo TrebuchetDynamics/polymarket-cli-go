@@ -32,6 +32,73 @@ func TestCurrentPositionsWithLimitUsesQueryParams(t *testing.T) {
 	}
 }
 
+// TestCurrentPositionsDecodesV2Schema fixtures the Polymarket Data API
+// camelCase response shape and verifies every redemption-relevant field
+// decodes onto the typed struct. The fixture values mirror the live
+// 2026-05-09 response from deposit wallet 0x21999a07...02D4 for the
+// resolved ETH-Up market.
+func TestCurrentPositionsDecodesV2Schema(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]any{{
+			"asset":              "10203228750887270363579341300435494148775390248158812958841180330451031762744",
+			"conditionId":        "0xcondition",
+			"eventId":            "event-eth",
+			"proxyWallet":        "0x21999a074344610057c9b2B362332388a44502D4",
+			"size":               4.0784,
+			"avgPrice":           0.5099,
+			"curPrice":           0.135,
+			"cashPnl":            -1.5294,
+			"percentPnl":         -73.5,
+			"redeemable":         true,
+			"mergeable":          false,
+			"negativeRisk":       false,
+			"outcome":            "Up",
+			"outcomeIndex":       0,
+			"oppositeOutcome":    "Down",
+			"oppositeAsset":      "10203228750887270363579341300435494148775390248158812958841180330451031762745",
+			"endDate":            "2026-05-09",
+			"title":              "Ethereum Up or Down - May 9, 4:40AM-4:45AM ET",
+			"slug":               "eth-updown-5m-1778316000",
+			"eventSlug":          "eth-updown-5m-1778316000",
+		}})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, transport.New(server.Client(), transport.DefaultConfig(server.URL)))
+	rows, err := client.CurrentPositions(context.Background(), "0x21999a074344610057c9b2B362332388a44502D4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows=%d want 1", len(rows))
+	}
+	p := rows[0]
+	if !p.Redeemable {
+		t.Errorf("redeemable=false, want true")
+	}
+	if p.Mergeable {
+		t.Errorf("mergeable=true, want false")
+	}
+	if p.NegativeRisk {
+		t.Errorf("negativeRisk=true, want false")
+	}
+	if p.Outcome != "Up" || p.OutcomeIndex != 0 || p.OppositeOutcome != "Down" {
+		t.Errorf("outcome fields=%+v", p)
+	}
+	if p.AvgPrice != 0.5099 || p.CurrentPrice != 0.135 {
+		t.Errorf("price fields avg=%v cur=%v", p.AvgPrice, p.CurrentPrice)
+	}
+	if p.Size != 4.0784 {
+		t.Errorf("size=%v want 4.0784", p.Size)
+	}
+	if p.EndDate != "2026-05-09" {
+		t.Errorf("endDate=%q", p.EndDate)
+	}
+	if p.Slug != "eth-updown-5m-1778316000" {
+		t.Errorf("slug=%q", p.Slug)
+	}
+}
+
 func TestClosedPositionsWithLimitUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/closed-positions" {

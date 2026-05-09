@@ -1112,7 +1112,7 @@ func newE2EDataServer(t *testing.T, rec *e2eRecorder) *httptest.Server {
 		case "/":
 			respondJSON(t, w, map[string]string{"data": "ok"})
 		case "/positions":
-			respondJSON(t, w, []map[string]interface{}{{"token_id": "12345", "condition_id": "condition-1", "market_id": "market-1", "side": "BUY", "avg_price": 0.4, "size": 2, "current_price": 0.45, "unrealized_pnl": 0.1}})
+			respondJSON(t, w, []map[string]interface{}{{"asset": "12345", "conditionId": "condition-1", "eventId": "event-1", "size": 2, "avgPrice": 0.4, "curPrice": 0.45, "cashPnl": 0.1, "redeemable": false}})
 		case "/closed-positions":
 			respondJSON(t, w, []map[string]interface{}{{"token_id": "12345", "condition_id": "condition-1", "market_id": "market-1", "side": "BUY", "avg_price_buy": 0.4, "avg_price_sell": 0.55, "size": 2, "realized_pnl": 1.5}})
 		case "/trades":

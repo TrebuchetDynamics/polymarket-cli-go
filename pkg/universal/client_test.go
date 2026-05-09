@@ -124,7 +124,7 @@ func TestCurrentPositionsWithLimitRoutes(t *testing.T) {
 		if r.URL.Query().Get("user") != "0xuser" || r.URL.Query().Get("limit") != "5" {
 			t.Errorf("unexpected query: %s", r.URL.RawQuery)
 		}
-		json.NewEncoder(w).Encode([]map[string]string{{"token_id": "token-1"}})
+		json.NewEncoder(w).Encode([]map[string]string{{"asset": "token-1"}})
 	}))
 	defer srv.Close()
 

@@ -19,10 +19,11 @@ func TestClientCurrentPositionsReturnsPublicTypes(t *testing.T) {
 			t.Fatalf("query=%s", r.URL.RawQuery)
 		}
 		_ = json.NewEncoder(w).Encode([]map[string]any{{
-			"token_id":       "token-1",
-			"condition_id":   "condition-1",
-			"size":           7.5,
-			"unrealized_pnl": 1.25,
+			"asset":       "token-1",
+			"conditionId": "condition-1",
+			"size":        7.5,
+			"cashPnl":     1.25,
+			"redeemable":  true,
 		}})
 	}))
 	defer server.Close()
@@ -33,8 +34,11 @@ func TestClientCurrentPositionsReturnsPublicTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	var publicRows []types.Position = rows
-	if len(publicRows) != 1 || publicRows[0].TokenID != "token-1" || publicRows[0].UnrealizedPnl != 1.25 {
+	if len(publicRows) != 1 || publicRows[0].TokenID != "token-1" || publicRows[0].CashPnl != 1.25 {
 		t.Fatalf("rows=%+v", publicRows)
+	}
+	if !publicRows[0].Redeemable {
+		t.Fatalf("redeemable not threaded: %+v", publicRows[0])
 	}
 }
 

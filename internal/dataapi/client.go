@@ -25,15 +25,37 @@ func NewClient(baseURL string, tc *transport.Client) *Client {
 
 // --- Types ---
 
+// Position is a current Data API position for a user (the proxy/deposit
+// wallet, not the EOA). Field names follow Polymarket's documented camelCase
+// schema; see https://docs.polymarket.com/api-reference/core/get-current-positions-for-a-user.md.
 type Position struct {
-	TokenID       string  `json:"token_id"`
-	ConditionID   string  `json:"condition_id"`
-	MarketID      string  `json:"market_id"`
-	Side          string  `json:"side"`
-	AvgPrice      float64 `json:"avg_price"`
-	Size          float64 `json:"size"`
-	CurrentPrice  float64 `json:"current_price"`
-	UnrealizedPnl float64 `json:"unrealized_pnl"`
+	TokenID         string  `json:"asset"`
+	ConditionID     string  `json:"conditionId"`
+	EventID         string  `json:"eventId"`
+	ProxyWallet     string  `json:"proxyWallet"`
+	Size            float64 `json:"size"`
+	AvgPrice        float64 `json:"avgPrice"`
+	InitialValue    float64 `json:"initialValue"`
+	CurrentValue    float64 `json:"currentValue"`
+	CurrentPrice    float64 `json:"curPrice"`
+	CashPnl         float64 `json:"cashPnl"`
+	PercentPnl      float64 `json:"percentPnl"`
+	TotalBought     float64 `json:"totalBought"`
+	RealizedPnl     float64 `json:"realizedPnl"`
+	PercentRealized float64 `json:"percentRealizedPnl"`
+	// V2 redemption-relevant fields.
+	Redeemable      bool   `json:"redeemable"`
+	Mergeable       bool   `json:"mergeable"`
+	NegativeRisk    bool   `json:"negativeRisk"`
+	Outcome         string `json:"outcome"`
+	OutcomeIndex    int    `json:"outcomeIndex"`
+	OppositeOutcome string `json:"oppositeOutcome"`
+	OppositeAsset   string `json:"oppositeAsset"`
+	EndDate         string `json:"endDate"`
+	Title           string `json:"title"`
+	Slug            string `json:"slug"`
+	EventSlug       string `json:"eventSlug"`
+	Icon            string `json:"icon"`
 }
 
 type ClosedPosition struct {
