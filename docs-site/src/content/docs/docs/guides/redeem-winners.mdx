@@ -30,6 +30,27 @@ Matched, winning, and redeemable are different states:
 
 Do not infer winning status from a matched order. Use Data API positions.
 
+### CLOB vs Data API: which API answers which question
+
+CLOB tells us order/fill status. Data API tells us
+outcome/PnL/redeemable state. Mixing the two is the most common
+runbook bug; route each question to the right endpoint.
+
+| Question | API | Endpoint |
+|---|---|---|
+| Did my order get accepted? Is it open or canceled? | CLOB | [`GET /data/orders`](https://docs.polymarket.com/api-reference/trade/get-user-orders) |
+| Did my order fill? At what price and size? | CLOB | [`GET /data/trades`](https://docs.polymarket.com/api-reference/trade/get-trades) |
+| What positions does my deposit wallet hold? Are any redeemable, mergeable, or negRisk? | Data | [`GET /positions`](https://docs.polymarket.com/api-reference/core/get-current-positions-for-a-user) |
+| What was my realized/unrealized PnL on a closed market? | Data | [`/closed-positions`](https://docs.polymarket.com/api-reference/core/get-current-positions-for-a-user) (same family) |
+
+A `STATE_MATCHED` from `/data/trades` does not mean the market won. The
+authoritative readiness signal is `redeemable=true` on the Data API
+position row. Polymarket's own redeem flow inspects the Data API, not
+the CLOB. Polygolem's `settlement.FindRedeemable` enforces this — it
+queries `/positions` for the deposit wallet and filters
+`redeemable=true`; CLOB order/fill state is never used as a redeem
+trigger.
+
 ## Detection
 
 Query the deposit wallet, not the EOA:
@@ -121,6 +142,53 @@ the owner EOA cannot bypass the relayer, and raw `ConditionalTokens`
 redemption is not a deposit-wallet fallback. SAFE/PROXY relayer examples use
 different wallet types and do not apply to deposit-wallet positions.
 
+## Structured Upstream-Block Stop Signal
+
+Both `approve-adapters --submit` and `redeem --submit` detect three relayer
+allowlist rejection markers — `not in the allowed list`, `are not permitted`,
+and `call blocked` — and emit a structured stop response:
+
+```json
+{
+  "ok": false,
+  "depositWallet": "0x21999a07...",
+  "command": "approve-adapters",
+  "error": {
+    "code": "RELAYER_ALLOWLIST_BLOCKED",
+    "message": "relayer: upstream allowlist block (Polymarket/builder-relayer-client#29) ...",
+    "action": "stop",
+    "reason": "Polymarket relayer rejected the WALLET batch via its allowlist policy. The V2 deposit wallet redeem path is non-negotiable: no EOA bypass, no raw CTF, no SAFE/PROXY shortcut.",
+    "upstream": {
+      "tracker": "Polymarket/builder-relayer-client#29",
+      "state": "closed-without-response",
+      "date": "2026-05-06"
+    }
+  }
+}
+```
+
+Operator runbooks must treat `RELAYER_ALLOWLIST_BLOCKED` as a hard stop and
+escalate via the upstream tracker, not retry on a different path. The CLI
+exits 0 with the structured envelope so wrapper scripts can match on
+`data.error.code`.
+
+SDK consumers detect the same condition with `errors.Is`:
+
+```go
+import (
+    "errors"
+    "github.com/TrebuchetDynamics/polygolem/pkg/relayer"
+    "github.com/TrebuchetDynamics/polygolem/pkg/settlement"
+)
+
+result, err := settlement.SubmitRedeem(ctx, rc, key, positions, settlement.DefaultBatchLimit)
+if errors.Is(err, relayer.ErrRelayerAllowlistBlocked) {
+    return fmt.Errorf("upstream relayer allowlist block: %w", err)
+}
+```
+
+Tracking: [Polymarket/builder-relayer-client#29](https://github.com/Polymarket/builder-relayer-client/issues/29).
+
 ## SDK Flow
 
 go-bot consumes the SDK directly. The CLI is for humans and runbooks;
@@ -139,6 +207,9 @@ if len(positions) == 0 {
 
 result, err := settlement.SubmitRedeem(ctx, relayerClient, privateKey, positions, settlement.DefaultBatchLimit)
 if err != nil {
+    if errors.Is(err, relayer.ErrRelayerAllowlistBlocked) {
+        return fmt.Errorf("relayer allowlist block: %w", err)
+    }
     return err
 }
 log.Printf("redeem tx=%s state=%s redeemed=%d", result.TransactionID, result.State, result.CallCount)

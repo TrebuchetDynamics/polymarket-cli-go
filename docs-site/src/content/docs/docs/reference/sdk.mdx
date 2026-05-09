@@ -377,7 +377,7 @@ func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]types.Lead
 func (c *Client) LiveVolume(ctx context.Context, limit int) (*types.LiveVolumeResponse, error)
 ```
 
-## `pkg/settlement` — V2 Winner Redemption (Planned)
+## `pkg/settlement` — V2 Winner Redemption
 
 ```go
 import "github.com/TrebuchetDynamics/polygolem/pkg/settlement"
@@ -396,18 +396,32 @@ type RedeemablePosition struct {
     TokenID      string
     ConditionID  string
     Size         float64
+    Outcome      string
     NegativeRisk bool
     EndDate      string
     Title        string
+    Slug         string
 }
+
+type RedeemResult struct {
+    TransactionID string
+    State         string
+    Wallet        string
+    Nonce         string
+    Deadline      string
+    CallCount     int
+    Redeemed      []RedeemablePosition
+}
+
+const DefaultBatchLimit = 10
 ```
 
 ### Contract: Functions
 
 ```go
-func FindRedeemable(ctx context.Context, data *data.Client, owner string) ([]RedeemablePosition, error)
+func FindRedeemable(ctx context.Context, dataClient *data.Client, owner string) ([]RedeemablePosition, error)
 func BuildRedeemCall(p RedeemablePosition) (relayer.DepositWalletCall, error)
-func SubmitRedeem(ctx context.Context, rc *relayer.Client, privateKey string, positions []RedeemablePosition) (*relayer.RelayerTransaction, error)
+func SubmitRedeem(ctx context.Context, rc *relayer.Client, privateKey string, positions []RedeemablePosition, limit int) (*RedeemResult, error)
 ```
 
 `BuildRedeemCall` reuses the legacy `redeemPositions(address,bytes32,bytes32,uint256[])`
@@ -416,6 +430,26 @@ calldata shape but targets `CtfCollateralAdapter` or
 caller-supplied collateral address, parent collection, and `indexSets`.
 The relayer submission remains a deposit-wallet `WALLET` batch; SAFE/PROXY
 examples from other wallet types are not interchangeable.
+
+`SubmitRedeem` dedupes positions by `conditionId`, caps the batch at `limit`
+calls (defaulting to `DefaultBatchLimit = 10` when `limit <= 0`), signs the
+EIP-712 WALLET batch, and submits via the relayer. When the relayer rejects
+with an allowlist error (HTTP 400 "not in the allowed list" /
+"are not permitted" / "call blocked"), the returned error wraps
+[`relayer.ErrRelayerAllowlistBlocked`](#contract-error-sentinels). Callers
+must `errors.Is` and stop — the V2 deposit-wallet redeem path is
+non-negotiable; there is no fallback to attempt.
+
+```go
+result, err := settlement.SubmitRedeem(ctx, rc, privateKey, positions, settlement.DefaultBatchLimit)
+if err != nil {
+    if errors.Is(err, relayer.ErrRelayerAllowlistBlocked) {
+        // Surface as upstream block (Polymarket/builder-relayer-client#29) and stop.
+        return err
+    }
+    return err
+}
+```
 
 ## `pkg/universal` — All Market Data, One Client
 
@@ -835,6 +869,20 @@ type OnboardResult struct {
 }
 ```
 
+### Contract: Error Sentinels
+
+```go
+var ErrRelayerAllowlistBlocked = internalrelayer.ErrRelayerAllowlistBlocked
+```
+
+`ErrRelayerAllowlistBlocked` is wrapped via `errors.Join` by every relayer
+submission method (`SubmitWalletCreate`, `SubmitWalletBatch`) when the
+relayer rejects with one of three known markers: `not in the allowed list`,
+`are not permitted`, or `call blocked`. Detect with `errors.Is` and surface
+as a structured upstream block — there is no safe fallback for V2
+deposit-wallet positions. Tracking: `Polymarket/builder-relayer-client#29`
+(closed without response on 2026-05-06).
+
 ### Contract: Constructors and Helpers
 
 ```go
@@ -842,11 +890,19 @@ func New(baseURL string, bc BuilderConfig, chainID int64) (*Client, error)
 func NewV2(baseURL string, key V2APIKey, chainID int64) (*Client, error)
 func NewSigner(privateKeyHex string, chainID int64) (*PrivateKeySigner, error)
 func BuildApprovalCalls() []DepositWalletCall
+func BuildAdapterApprovalCalls() []DepositWalletCall
+func BuildAdapterApprovalCallsJSON() (string, error)
 func BuildDeadline(secondsFromNow int64) string
 func SignWalletBatch(signer *PrivateKeySigner, walletAddress, nonce, deadline string, calls []DepositWalletCall) (string, error)
 func OnboardDepositWallet(ctx context.Context, client *Client, privateKey string, opts OnboardOptions) (*OnboardResult, error)
 func DepositWalletCodeDeployed(ctx context.Context, depositWallet string, rpcURL string) (bool, error) // deprecated: use pkg/contracts
 ```
+
+`BuildApprovalCalls` returns the six trading approvals (pUSD + CTF for
+`CTFExchangeV2`, `NegRiskExchangeV2`, `NegRiskAdapterV2`).
+`BuildAdapterApprovalCalls` returns the four redeem-readiness approvals
+(pUSD `approve` + CTF `setApprovalForAll` for `CtfCollateralAdapter` and
+`NegRiskCtfCollateralAdapter`). Both batches are idempotent.
 
 ### Contract: Client Methods
 

@@ -99,6 +99,15 @@ query the deposit wallet's Data API `/positions` rows and use
 `redeemable=true` as the readiness signal. There is no separate `resolved`
 boolean in the current position schema.
 
+CLOB and Data API answer different questions and are not interchangeable:
+
+- **CLOB** — order/fill status: [`/data/orders`](https://docs.polymarket.com/api-reference/trade/get-user-orders),
+  [`/data/trades`](https://docs.polymarket.com/api-reference/trade/get-trades).
+- **Data API** — outcome, PnL, and redeem readiness: [`/positions`](https://docs.polymarket.com/api-reference/core/get-current-positions-for-a-user) and `/closed-positions`.
+
+Routing a "did the market win?" question to the CLOB is the most common
+runbook bug. See [Redeem Winners › CLOB vs Data API](/docs/guides/redeem-winners#clob-vs-data-api-which-api-answers-which-question).
+
 ### V2 Redeem Readiness
 
 Polymarket V2 routes pUSD-native split, merge, and redeem through collateral
