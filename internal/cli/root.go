@@ -21,6 +21,9 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/internal/preflight"
 	"github.com/TrebuchetDynamics/polygolem/internal/stream"
 	"github.com/TrebuchetDynamics/polygolem/pkg/bridge"
+	sdkclob "github.com/TrebuchetDynamics/polygolem/pkg/clob"
+	sdkdata "github.com/TrebuchetDynamics/polygolem/pkg/data"
+	sdkorderresults "github.com/TrebuchetDynamics/polygolem/pkg/orderresults"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 )
@@ -1010,6 +1013,44 @@ func dataCmd(jsonOut bool) *cobra.Command {
 	addUserLimit(tradesCmd)
 	cmd.AddCommand(tradesCmd)
 
+	var includeCLOB bool
+	orderResultsCmd := &cobra.Command{Use: "order-results", Short: "Join positions, trades, and results for a user", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireUser(); err != nil {
+				return err
+			}
+			source := sdkorderresults.Source{
+				Data: sdkdata.NewClient(sdkdata.Config{BaseURL: dataBaseURL}),
+			}
+			opts := sdkorderresults.Options{Limit: limit}
+			if includeCLOB {
+				key, err := privateKeyFromEnv()
+				if err != nil {
+					return err
+				}
+				opts.IncludeCLOB = true
+				opts.PrivateKey = key
+				cfg := sdkclob.Config{BaseURL: clobBaseURL}
+				if creds, ok := clobL2CredentialsFromEnv(); ok {
+					cfg.Credentials = sdkclob.APIKey{
+						Key:        creds.Key,
+						Secret:     creds.Secret,
+						Passphrase: creds.Passphrase,
+					}
+				}
+				source.CLOB = sdkclob.NewClient(cfg)
+			}
+			report, err := sdkorderresults.BuildReport(cmd.Context(), source, user, opts)
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, report)
+		},
+	}
+	addUserLimit(orderResultsCmd)
+	orderResultsCmd.Flags().BoolVar(&includeCLOB, "include-clob", false, "include authenticated CLOB open orders and trade history")
+	cmd.AddCommand(orderResultsCmd)
+
 	activityCmd := &cobra.Command{Use: "activity", Short: "List public activity for a user", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireUser(); err != nil {
@@ -1256,6 +1297,14 @@ func builderCodeFromFlagOrEnv(flagValue string) string {
 		return value
 	}
 	return firstEnv("POLYMARKET_BUILDER_CODE", "POLYMARKET_CLOB_BUILDER_CODE")
+}
+
+func privateKeyFromEnv() (string, error) {
+	key := strings.TrimSpace(os.Getenv("POLYMARKET_PRIVATE_KEY"))
+	if key == "" {
+		return "", fmt.Errorf("POLYMARKET_PRIVATE_KEY is required")
+	}
+	return key, nil
 }
 
 func clobL2CredentialsFromEnv() (auth.APIKey, bool) {

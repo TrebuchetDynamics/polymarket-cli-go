@@ -34,6 +34,7 @@ import (
     "github.com/TrebuchetDynamics/polygolem/pkg/gamma"
     "github.com/TrebuchetDynamics/polygolem/pkg/pagination"
     "github.com/TrebuchetDynamics/polygolem/pkg/relayer"
+    "github.com/TrebuchetDynamics/polygolem/pkg/settlement"
     "github.com/TrebuchetDynamics/polygolem/pkg/stream"
     "github.com/TrebuchetDynamics/polygolem/pkg/types"
     "github.com/TrebuchetDynamics/polygolem/pkg/universal"
@@ -96,6 +97,30 @@ import (
 client := universal.NewClient(universal.Config{})
 markets, err := client.Markets(ctx, &types.GetMarketsParams{Limit: 10})
 ```
+
+## Gate live trading on settlement readiness
+
+Before a live bot buys another market, prove the deposit wallet can also settle
+winning positions through the official V2 path:
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/settlement"
+
+readiness, err := settlement.CheckReadiness(ctx, dataClient, owner, depositWallet, settlement.ReadinessOptions{
+    RPCURL:             polygonRPCURL,
+    RelayerConfigured: true,
+})
+if err != nil {
+    return err
+}
+if !readiness.Ready {
+    return fmt.Errorf("settlement not ready: %s: %s", readiness.Status, readiness.NextAction)
+}
+```
+
+The check is read-only. It verifies deposit-wallet bytecode, relayer
+credentials supplied by the caller, Data API reachability, and CTF approvals
+for both V2 collateral adapters.
 
 ## Pagination helper
 

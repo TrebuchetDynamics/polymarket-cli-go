@@ -24,8 +24,8 @@
 | **CollateralOnramp** | `0x93070a847efEf7F70739046A929D47a521F5B8ee` | USDC/USDC.e to pUSD onramp |
 | **CollateralOfframp** | `0x2957922Eb93258b93368531d39fAcCA3B4dC5854` | pUSD to USDC/USDC.e offramp |
 | **PermissionedRamp** | `0xebC2459Ec962869ca4c0bd1E06368272732BCb08` | Permissioned collateral ramp |
-| **CtfCollateralAdapter** | `0xADa100874d00e3331D00F2007a9c336a65009718` | V2 split/merge/redeem adapter for standard CTF markets |
-| **NegRiskCtfCollateralAdapter** | `0xAdA200001000ef00D07553cEE7006808F895c6F1` | V2 split/merge/redeem adapter for negative-risk markets |
+| **CtfCollateralAdapter** | `0xAdA100Db00Ca00073811820692005400218FcE1f` | V2 split/merge/redeem adapter for standard CTF markets |
+| **NegRiskCtfCollateralAdapter** | `0xadA2005600Dec949baf300f4C6120000bDB6eAab` | V2 split/merge/redeem adapter for negative-risk markets |
 
 ### 1.2 V2 Collateral Layer
 

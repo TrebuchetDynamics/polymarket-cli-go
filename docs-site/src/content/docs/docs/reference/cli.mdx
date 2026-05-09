@@ -52,6 +52,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
     live-volume - Get live volume summary
     markets-traded - Get total markets traded for a user
     open-interest - Get open interest for a token
+    order-results - Join positions, trades, and results for a user
     positions - List open positions for a user
     trades - List public Data API trades for a user
     value - Get total portfolio value for a user
@@ -60,13 +61,13 @@ polygolem - Safe Polymarket SDK and CLI for Go
     approve-adapters - Approve V2 collateral adapters for redeem (one-shot per wallet)
     batch - Sign and submit a deposit wallet WALLET batch
     deploy - Deploy the deposit wallet via relayer WALLET-CREATE
-    deploy-onchain - Deploy the deposit wallet directly on-chain from the EOA (no relayer / no builder creds)
     derive - Derive the deterministic deposit wallet address
     fund - Transfer pUSD from EOA to the deposit wallet
     nonce - Get the current WALLET nonce for the owner
     onboard - Full deposit wallet onboarding: deploy + approve + fund
     redeem - Redeem winning deposit-wallet positions via the V2 collateral adapter
     redeemable - List redeemable positions held by the deposit wallet
+    settlement-status - Check whether the deposit wallet is ready to redeem V2 winners
     status - Check deposit wallet deployment status or transaction state
     swap-pol-pusd - Swap native POL into an exact amount of pUSD via Uniswap V3
   discover - Market discovery via Polymarket Gamma API

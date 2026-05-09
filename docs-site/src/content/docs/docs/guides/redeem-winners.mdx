@@ -84,8 +84,8 @@ There is no separate `resolved` boolean in the current position schema.
 Addresses:
 
 ```text
-CtfCollateralAdapter        0xADa100874d00e3331D00F2007a9c336a65009718
-NegRiskCtfCollateralAdapter 0xAdA200001000ef00D07553cEE7006808F895c6F1
+CtfCollateralAdapter        0xAdA100Db00Ca00073811820692005400218FcE1f
+NegRiskCtfCollateralAdapter 0xadA2005600Dec949baf300f4C6120000bDB6eAab
 ```
 
 The adapter keeps the legacy CTF redeem ABI:
@@ -118,6 +118,9 @@ the same one-time batch also supports future split flows.
 ## CLI Flow
 
 ```bash
+# Read-only live gate: wallet code, relayer creds, Data API, adapter approvals.
+polygolem deposit-wallet settlement-status --json
+
 # One-time migration for existing wallets.
 polygolem deposit-wallet approve-adapters --submit --confirm APPROVE_ADAPTERS --json
 
@@ -135,6 +138,9 @@ The submit path fails closed when `CTF.isApprovedForAll(wallet, adapter)` is
 false; the JSON output lists the missing adapter addresses and points the
 operator back to `approve-adapters`. The relayer never sees `/submit` when
 the pre-check fails.
+
+`settlement-status` performs the same structural checks without signing or
+submitting. Live bots should refuse new buys unless it reports `ready=true`.
 
 If the relayer rejects adapter approval or redeem calls as "not in the allowed
 list", stop. The production factory `proxy()` entrypoint is `onlyOperator`, so
@@ -196,6 +202,17 @@ production integration should not shell out to Polygolem.
 
 ```go
 import "github.com/TrebuchetDynamics/polygolem/pkg/settlement"
+
+readiness, err := settlement.CheckReadiness(ctx, dataClient, owner, depositWallet, settlement.ReadinessOptions{
+    RPCURL:             polygonRPCURL,
+    RelayerConfigured: true,
+})
+if err != nil {
+    return err
+}
+if !readiness.Ready {
+    return fmt.Errorf("settlement gate blocked: %s: %s", readiness.Status, readiness.NextAction)
+}
 
 positions, err := settlement.FindRedeemable(ctx, dataClient, depositWallet)
 if err != nil {

@@ -36,26 +36,51 @@ type Position struct {
 
 // ClosedPosition is a closed Data API position for a user.
 type ClosedPosition struct {
-	TokenID      string  `json:"token_id"`
-	ConditionID  string  `json:"condition_id"`
-	MarketID     string  `json:"market_id"`
-	Side         string  `json:"side"`
-	AvgPriceBuy  float64 `json:"avg_price_buy"`
-	AvgPriceSell float64 `json:"avg_price_sell"`
-	Size         float64 `json:"size"`
-	RealizedPnl  float64 `json:"realized_pnl"`
+	TokenID         string  `json:"asset"`
+	ConditionID     string  `json:"conditionId"`
+	ProxyWallet     string  `json:"proxyWallet,omitempty"`
+	MarketID        string  `json:"market_id,omitempty"`
+	Side            string  `json:"side,omitempty"`
+	AvgPrice        float64 `json:"avgPrice"`
+	AvgPriceBuy     float64 `json:"avg_price_buy,omitempty"`
+	AvgPriceSell    float64 `json:"avg_price_sell,omitempty"`
+	Size            float64 `json:"size"`
+	TotalBought     float64 `json:"totalBought,omitempty"`
+	RealizedPnl     float64 `json:"realizedPnl"`
+	CurrentPrice    float64 `json:"curPrice,omitempty"`
+	Timestamp       string  `json:"timestamp,omitempty"`
+	Title           string  `json:"title,omitempty"`
+	Slug            string  `json:"slug,omitempty"`
+	Icon            string  `json:"icon,omitempty"`
+	EventSlug       string  `json:"eventSlug,omitempty"`
+	Outcome         string  `json:"outcome,omitempty"`
+	OutcomeIndex    int     `json:"outcomeIndex,omitempty"`
+	OppositeOutcome string  `json:"oppositeOutcome,omitempty"`
+	OppositeAsset   string  `json:"oppositeAsset,omitempty"`
+	EndDate         string  `json:"endDate,omitempty"`
 }
 
 // Trade is a Data API trade row.
 type Trade struct {
-	ID         string  `json:"id"`
-	Market     string  `json:"market"`
-	AssetID    string  `json:"asset_id"`
-	Side       string  `json:"side"`
-	Price      float64 `json:"price"`
-	Size       float64 `json:"size"`
-	FeeRateBps int     `json:"fee_rate_bps"`
-	CreatedAt  string  `json:"created_at"`
+	ID              string  `json:"id"`
+	Market          string  `json:"market"`
+	AssetID         string  `json:"asset_id"`
+	ProxyWallet     string  `json:"proxyWallet,omitempty"`
+	Side            string  `json:"side"`
+	Price           float64 `json:"price"`
+	Size            float64 `json:"size"`
+	FeeRateBps      int     `json:"fee_rate_bps"`
+	Outcome         string  `json:"outcome,omitempty"`
+	OutcomeIndex    int     `json:"outcomeIndex,omitempty"`
+	Title           string  `json:"title,omitempty"`
+	Slug            string  `json:"slug,omitempty"`
+	EventSlug       string  `json:"eventSlug,omitempty"`
+	Icon            string  `json:"icon,omitempty"`
+	Status          string  `json:"status,omitempty"`
+	TransactionHash string  `json:"transaction_hash,omitempty"`
+	TakerOrderID    string  `json:"taker_order_id,omitempty"`
+	TraderSide      string  `json:"trader_side,omitempty"`
+	CreatedAt       string  `json:"created_at"`
 }
 
 // Activity is a Data API user activity row.

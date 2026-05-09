@@ -57,7 +57,7 @@ func TestIsApprovedForAllTrue(t *testing.T) {
 	server := isApprovedForAllServer(t,
 		"0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
 		"0x21999a074344610057c9b2b362332388a44502d4",
-		"0xada100874d00e3331d00f2007a9c336a65009718",
+		"0xada100db00ca00073811820692005400218fce1f",
 		true,
 	)
 	defer server.Close()
@@ -65,7 +65,7 @@ func TestIsApprovedForAllTrue(t *testing.T) {
 	got, err := IsApprovedForAll(t.Context(),
 		"0x4D97DCd97eC945f40cF65F87097ACe5EA0476045",
 		"0x21999a074344610057c9b2B362332388a44502D4",
-		"0xADa100874d00e3331D00F2007a9c336a65009718",
+		"0xAdA100Db00Ca00073811820692005400218FcE1f",
 		server.URL,
 	)
 	if err != nil {
@@ -80,7 +80,7 @@ func TestIsApprovedForAllFalse(t *testing.T) {
 	server := isApprovedForAllServer(t,
 		"0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
 		"0x21999a074344610057c9b2b362332388a44502d4",
-		"0xada100874d00e3331d00f2007a9c336a65009718",
+		"0xada100db00ca00073811820692005400218fce1f",
 		false,
 	)
 	defer server.Close()
@@ -88,7 +88,7 @@ func TestIsApprovedForAllFalse(t *testing.T) {
 	got, err := IsApprovedForAll(t.Context(),
 		"0x4D97DCd97eC945f40cF65F87097ACe5EA0476045",
 		"0x21999a074344610057c9b2B362332388a44502D4",
-		"0xADa100874d00e3331D00F2007a9c336a65009718",
+		"0xAdA100Db00Ca00073811820692005400218FcE1f",
 		server.URL,
 	)
 	if err != nil {

@@ -36,6 +36,7 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
 	"github.com/TrebuchetDynamics/polygolem/pkg/gamma"
 	"github.com/TrebuchetDynamics/polygolem/pkg/orderbook"
+	"github.com/TrebuchetDynamics/polygolem/pkg/orderresults"
 	"github.com/TrebuchetDynamics/polygolem/pkg/relayer"
 	"github.com/TrebuchetDynamics/polygolem/pkg/settlement"
 	sdkstream "github.com/TrebuchetDynamics/polygolem/pkg/stream"
@@ -79,6 +80,10 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var orderbookReader orderbook.Reader = orderbook.NewReader("")
 	var orderbookSnapshot orderbook.OrderBook
 	var orderbookLevel orderbook.Level
+	var orderResultsSource orderresults.Source
+	var orderResultsReport *orderresults.Report
+	var orderResultsOptions orderresults.Options
+	var orderResultsBuild func(context.Context, orderresults.DataReader, string, orderresults.Options) (*orderresults.Report, error) = orderresults.BuildReport
 	var legacyReader bookreader.Reader = bookreader.NewReader("")
 	var contractsRegistry contracts.Registry = contracts.PolygonMainnet()
 	var contractStatus contracts.DeploymentStatus
@@ -87,9 +92,13 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var redeemAdapterFor func(bool) string = contracts.RedeemAdapterFor
 	var settlementPosition settlement.RedeemablePosition
 	var settlementResult *settlement.RedeemResult
+	var settlementReadiness *settlement.Readiness
+	var settlementReadinessOptions settlement.ReadinessOptions
+	var settlementAdapterApproval settlement.AdapterApproval
 	var settlementFind func(context.Context, *data.Client, string) ([]settlement.RedeemablePosition, error) = settlement.FindRedeemable
 	var settlementBuild func(settlement.RedeemablePosition) (relayer.DepositWalletCall, error) = settlement.BuildRedeemCall
 	var settlementSubmit func(context.Context, *relayer.Client, string, []settlement.RedeemablePosition, int) (*settlement.RedeemResult, error) = settlement.SubmitRedeem
+	var settlementCheck func(context.Context, *data.Client, string, string, settlement.ReadinessOptions) (*settlement.Readiness, error) = settlement.CheckReadiness
 	var relayerClient *relayer.Client
 	var relayerV2Key relayer.V2APIKey
 	var relayerOnboardOptions relayer.OnboardOptions
@@ -128,9 +137,10 @@ func TestPublicSDKSignatures(t *testing.T) {
 	_, _, _, _, _, _, _, _, _, _ = clobAPIKey, clobDeriveAPIKey, clobBalanceParams, clobBalance, clobOrders, clobOrder, clobTrades, clobCancel, clobCancelMarketParams, clobCancelMarket
 	_, _, _, _ = clobCreateParams, clobCreate, clobMarketOrderParams, clobMarketOrder
 	_, _, _, _, _, _, _, _, _, _ = streamClient, streamConfig, streamConnect, streamSubscribe, streamClose, streamConnected, streamBook, streamPriceChange, streamLastTrade, streamDeduplicator
-	_, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, legacyReader
+	_, _, _, _, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, orderResultsSource, orderResultsReport, orderResultsOptions, orderResultsBuild
+	_ = legacyReader
 	_, _, _, _, _ = contractsRegistry, contractStatus, contractDeployed, depositWalletDeployed, redeemAdapterFor
-	_, _, _, _, _ = settlementPosition, settlementResult, settlementFind, settlementBuild, settlementSubmit
+	_, _, _, _, _, _, _, _, _ = settlementPosition, settlementResult, settlementReadiness, settlementReadinessOptions, settlementAdapterApproval, settlementFind, settlementBuild, settlementSubmit, settlementCheck
 	_, _, _, _, _ = relayerClient, relayerV2Key, relayerOnboardOptions, relayerOnboard, relayerNewV2
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
 	_, _, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments, universalConfig

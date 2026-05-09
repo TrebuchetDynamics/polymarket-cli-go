@@ -81,8 +81,8 @@ Source: `opensource-projects/repos/ctf-exchange-v2`, remote
 
 The repo README lists the deployed Polygon V2 collateral adapters:
 
-- `CtfCollateralAdapter`: `0xADa100874d00e3331D00F2007a9c336a65009718`
-- `NegRiskCtfCollateralAdapter`: `0xAdA200001000ef00D07553cEE7006808F895c6F1`
+- `CtfCollateralAdapter`: `0xAdA100Db00Ca00073811820692005400218FcE1f`
+- `NegRiskCtfCollateralAdapter`: `0xadA2005600Dec949baf300f4C6120000bDB6eAab`
 
 The standard adapter source shows `redeemPositions(...)`:
 
@@ -104,11 +104,11 @@ Adapter ABIs are available from Sourcify partial matches:
 
 ```bash
 curl -fsSL \
-  'https://repo.sourcify.dev/contracts/partial_match/137/0xADa100874d00e3331D00F2007a9c336a65009718/metadata.json' \
+  'https://repo.sourcify.dev/contracts/partial_match/137/0xAdA100Db00Ca00073811820692005400218FcE1f/metadata.json' \
   | jq -r '.output.abi[] | select(.type=="function") | [.name, (.inputs|map(.type)|join(",")), .stateMutability] | @tsv'
 
 curl -fsSL \
-  'https://repo.sourcify.dev/contracts/partial_match/137/0xAdA200001000ef00D07553cEE7006808F895c6F1/metadata.json' \
+  'https://repo.sourcify.dev/contracts/partial_match/137/0xadA2005600Dec949baf300f4C6120000bDB6eAab/metadata.json' \
   | jq -r '.output.abi[] | select(.type=="function") | [.name, (.inputs|map(.type)|join(",")), .stateMutability] | @tsv'
 ```
 
@@ -171,27 +171,27 @@ Adapter immutables:
 
 ```bash
 cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
-  0xADa100874d00e3331D00F2007a9c336a65009718 \
+  0xAdA100Db00Ca00073811820692005400218FcE1f \
   'CONDITIONAL_TOKENS()(address)'
 # 0x4D97DCd97eC945f40cF65F87097ACe5EA0476045
 
 cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
-  0xADa100874d00e3331D00F2007a9c336a65009718 \
+  0xAdA100Db00Ca00073811820692005400218FcE1f \
   'COLLATERAL_TOKEN()(address)'
 # 0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB
 
 cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
-  0xADa100874d00e3331D00F2007a9c336a65009718 \
+  0xAdA100Db00Ca00073811820692005400218FcE1f \
   'USDCE()(address)'
 # 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
 
 cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
-  0xAdA200001000ef00D07553cEE7006808F895c6F1 \
+  0xadA2005600Dec949baf300f4C6120000bDB6eAab \
   'NEG_RISK_ADAPTER()(address)'
 # 0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296
 
 cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
-  0xAdA200001000ef00D07553cEE7006808F895c6F1 \
+  0xadA2005600Dec949baf300f4C6120000bDB6eAab \
   'WRAPPED_COLLATERAL()(address)'
 # 0x3A3BD7bb9528E159577F7C2e685CC81A765002E2
 ```
@@ -232,8 +232,9 @@ cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
 
 - Keep `pkg/settlement.BuildRedeemCall` targeting V2 collateral adapters.
 - Keep pre-submit checks on `CTF.isApprovedForAll(wallet, adapter)`.
-- Do not add `--via-eoa` for factory `proxy(...)` unless verified deployed
-  source changes and RPC role-gate proof changes.
+- Do not add any EOA-submitted factory `proxy(...)` route for V2
+  deposit-wallet redeem; current verified source gates it behind
+  `onlyOperator`.
 - Do not submit raw `ConditionalTokens.redeemPositions(...)` as a V2 pUSD
   deposit-wallet redeem fallback.
 - Do not add `adapter-pusd`, `ctf-usdce`, or `auto` route switches. The only
@@ -252,7 +253,7 @@ this as a quiet upstream block, not a code task.
   relayer blocks calls to CtfCollateralAdapter, no documented alternative"*.
   Filed 2026-05-05 by `fylorn`. Closed 2026-05-06 with zero comments.
   Reproduction matches ours exactly: HTTP 400 `"calls to
-  0xADa100874d00e3331D00F2007a9c336a65009718 are not permitted"` and
+  0xAdA100Db00Ca00073811820692005400218FcE1f are not permitted"` and
   `"setApprovalForAll operator … is not in the allowed list"` on a `WALLET`
   batch from a deposit wallet.
 - `Polymarket/builder-relayer-client#30` — open, server-side precheck bug
@@ -289,9 +290,9 @@ and `ctf-exchange-v2` were all checked); there is no upstream PR target.
 - CtfCollateralAdapter source: `opensource-projects/repos/ctf-exchange-v2/src/adapters/CtfCollateralAdapter.sol`
 - NegRiskCtfCollateralAdapter source: `opensource-projects/repos/ctf-exchange-v2/src/adapters/NegRiskCtfCollateralAdapter.sol`
 - Sourcify adapter metadata:
-  `https://repo.sourcify.dev/contracts/partial_match/137/0xADa100874d00e3331D00F2007a9c336a65009718/metadata.json`
+  `https://repo.sourcify.dev/contracts/partial_match/137/0xAdA100Db00Ca00073811820692005400218FcE1f/metadata.json`
 - Sourcify neg-risk adapter metadata:
-  `https://repo.sourcify.dev/contracts/partial_match/137/0xAdA200001000ef00D07553cEE7006808F895c6F1/metadata.json`
+  `https://repo.sourcify.dev/contracts/partial_match/137/0xadA2005600Dec949baf300f4C6120000bDB6eAab/metadata.json`
 - Polygonscan factory source:
   `https://polygonscan.com/address/0x00000000000Fb5C9ADea0298D729A0CB3823Cc07#code`
 - Polygonscan deposit wallet implementation source:

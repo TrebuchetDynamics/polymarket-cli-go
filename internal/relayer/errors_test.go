@@ -14,12 +14,12 @@ func TestClassifyAllowlistErrorMatchesUpstreamRejectionStrings(t *testing.T) {
 	}{
 		{
 			name:    "setApprovalForAll operator not in the allowed list",
-			err:     errors.New(`HTTP 400 https://relayer-v2.polymarket.com/submit: {"error":"call blocked: setApprovalForAll operator 0xADa100874d00e3331D00F2007a9c336a65009718 is not in the allowed list"}`),
+			err:     errors.New(`HTTP 400 https://relayer-v2.polymarket.com/submit: {"error":"call blocked: setApprovalForAll operator 0xAdA100Db00Ca00073811820692005400218FcE1f is not in the allowed list"}`),
 			blocked: true,
 		},
 		{
 			name:    "calls to address are not permitted",
-			err:     errors.New(`HTTP 400 https://relayer-v2.polymarket.com/submit: {"error":"call blocked: call[0] blocked: calls to 0xADa100874d00e3331D00F2007a9c336a65009718 are not permitted"}`),
+			err:     errors.New(`HTTP 400 https://relayer-v2.polymarket.com/submit: {"error":"call blocked: call[0] blocked: calls to 0xAdA100Db00Ca00073811820692005400218FcE1f are not permitted"}`),
 			blocked: true,
 		},
 		{

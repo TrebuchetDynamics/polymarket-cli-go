@@ -22,11 +22,9 @@ import (
 // upstreamRelayerBlockJSON is the structured response surfaced when
 // Polymarket's relayer rejects a WALLET batch with an allowlist
 // rejection (HTTP 400 "not in the allowed list" / "are not permitted"
-// / "call blocked"). The V2 deposit wallet redeem path is
-// non-negotiable — no fallback is attempted; the operator stops here.
-//
-// Tracking: Polymarket/builder-relayer-client#29 (closed without
-// response on 2026-05-06). Do not work around.
+// / "call blocked"). The operator must first verify that local contract
+// constants match Polymarket's current contract reference. If they do,
+// the V2 deposit-wallet path is non-negotiable and no fallback is attempted.
 func upstreamRelayerBlockJSON(wallet, command string, err error) map[string]interface{} {
 	return map[string]interface{}{
 		"ok":            false,
@@ -36,11 +34,10 @@ func upstreamRelayerBlockJSON(wallet, command string, err error) map[string]inte
 			"code":    "RELAYER_ALLOWLIST_BLOCKED",
 			"message": err.Error(),
 			"action":  "stop",
-			"reason":  "Polymarket relayer rejected the WALLET batch via its allowlist policy. The V2 deposit wallet redeem path is non-negotiable: no EOA bypass, no raw CTF, no SAFE/PROXY shortcut.",
+			"reason":  "Polymarket relayer rejected the WALLET batch via its allowlist policy. Verify the local V2 adapter constants against Polymarket's current contract reference; if they match, stop. The V2 deposit wallet path has no EOA bypass, raw CTF fallback, or SAFE/PROXY shortcut.",
 			"upstream": map[string]string{
-				"tracker": "Polymarket/builder-relayer-client#29",
-				"state":   "closed-without-response",
-				"date":    "2026-05-06",
+				"state":  "allowlist-rejected",
+				"verify": "https://docs.polymarket.com/resources/contracts",
 			},
 		},
 	}
@@ -55,70 +52,17 @@ func depositWalletCmd(jsonOut bool) *cobra.Command {
 
 	cmd.AddCommand(depositWalletDeriveCmd(jsonOut))
 	cmd.AddCommand(depositWalletDeployCmd(jsonOut))
-	cmd.AddCommand(depositWalletDeployOnchainCmd(jsonOut))
 	cmd.AddCommand(depositWalletNonceCmd(jsonOut))
 	cmd.AddCommand(depositWalletStatusCmd(jsonOut))
 	cmd.AddCommand(depositWalletBatchCmd(jsonOut))
 	cmd.AddCommand(depositWalletApproveCmd(jsonOut))
 	cmd.AddCommand(depositWalletApproveAdaptersCmd(jsonOut))
+	cmd.AddCommand(depositWalletSettlementStatusCmd(jsonOut))
 	cmd.AddCommand(depositWalletRedeemableCmd(jsonOut))
 	cmd.AddCommand(depositWalletRedeemCmd(jsonOut))
 	cmd.AddCommand(depositWalletFundCmd(jsonOut))
 	cmd.AddCommand(depositWalletSwapCmd(jsonOut))
 	cmd.AddCommand(depositWalletOnboardCmd(jsonOut))
-	return cmd
-}
-
-// depositWalletDeployOnchainCmd lets the EOA call the deposit-wallet
-// factory's deploy() function directly on Polygon — no relayer, no builder
-// credentials. With --dry-run, only gas-estimation runs (no tx sent, no gas
-// spent), which is enough to determine whether deploy() accepts EOA callers
-// or is gated to admin/operator only.
-func depositWalletDeployOnchainCmd(jsonOut bool) *cobra.Command {
-	w := newWire(jsonOut)
-	var dryRun bool
-	var rpcURL string
-	cmd := &cobra.Command{
-		Use:   "deploy-onchain",
-		Short: "Deploy the deposit wallet directly on-chain from the EOA (no relayer / no builder creds)",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			key, err := requirePrivateKey()
-			if err != nil {
-				return err
-			}
-			ctx, cancel := context.WithTimeout(cmd.Context(), 60*time.Second)
-			defer cancel()
-
-			if dryRun {
-				gas, err := rpc.DeployDepositWalletEstimate(ctx, key, rpcURL)
-				if err != nil {
-					return err
-				}
-				return w.printJSON(cmd, map[string]interface{}{
-					"dryRun":       true,
-					"estimatedGas": gas,
-					"deployGated":  false,
-					"note":         "EstimateGas succeeded — deploy() accepts EOA callers; on-chain path is available without builder credentials",
-				})
-			}
-
-			txHash, err := rpc.DeployDepositWalletOnchain(ctx, key, rpcURL)
-			if err != nil {
-				if txHash != "" {
-					return fmt.Errorf("deploy-onchain failed (txHash=%s): %w", txHash, err)
-				}
-				return err
-			}
-			return w.printJSON(cmd, map[string]string{
-				"txHash":         txHash,
-				"factoryAddress": "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07",
-				"status":         "deployed",
-			})
-		},
-	}
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "estimate gas only; do not send a transaction (no gas spent)")
-	cmd.Flags().StringVar(&rpcURL, "rpc-url", "", "Polygon RPC URL (default: public node)")
 	return cmd
 }
 
@@ -498,7 +442,9 @@ authorize the live-money WALLET batch.
 NOTE: The V2 deposit-wallet path is non-negotiable: the owner signs an EIP-712
 WALLET batch, the relayer submits it through the deposit-wallet factory, and
 the wallet call targets the V2 collateral adapters. If Polymarket's relayer
-allowlist rejects these calls with HTTP 400 "not in the allowed list", stop.
+allowlist rejects these calls with HTTP 400 "not in the allowed list", first
+verify the adapter addresses against Polymarket's current contract reference;
+if they match, stop.
 The wallet implementation gates execute() behind onlyFactory and the factory
 gates proxy() behind onlyOperator, so a direct EOA bypass is not possible.
 Do not fall back to raw ConditionalTokens.redeemPositions, SAFE, or PROXY;
@@ -739,7 +685,8 @@ func depositWalletOnboardCmd(jsonOut bool) *cobra.Command {
 
 1. Derive the deterministic deposit wallet address
 2. Deploy via WALLET-CREATE (skip with --skip-deploy if already deployed)
-3. Submit the 6-call approval batch for pUSD and CTF (skip with --skip-approve)
+3. Submit the 10-call approval batch for trading and V2 settlement adapters
+   (skip with --skip-approve)
 4. Transfer pUSD from EOA to deposit wallet (requires --fund-amount)
 
 After onboarding, sync CLOB:
@@ -792,14 +739,7 @@ After onboarding, sync CLOB:
 			}
 
 			if !skipApprove {
-				callsJSON, err := relayer.BuildApprovalCallsJSON()
-				if err != nil {
-					return fmt.Errorf("build approval calls: %w", err)
-				}
-				var calls []relayer.DepositWalletCall
-				if err := json.Unmarshal([]byte(callsJSON), &calls); err != nil {
-					return fmt.Errorf("parse approval calls: %w", err)
-				}
+				calls := append(relayer.BuildApprovalCalls(), relayer.BuildAdapterApprovalCalls()...)
 				nonce, err := rc.GetNonce(cmd.Context(), owner)
 				if err != nil {
 					return fmt.Errorf("fetch nonce: %w", err)
@@ -817,6 +757,7 @@ After onboarding, sync CLOB:
 					"transactionID": tx.TransactionID,
 					"state":         tx.State,
 					"callCount":     len(calls),
+					"includes":      []string{"trading", "settlement-adapters"},
 				}
 			}
 
@@ -960,6 +901,58 @@ func dataAPIClient() *data.Client {
 	return data.NewClient(data.Config{BaseURL: base})
 }
 
+// depositWalletSettlementStatusCmd is the read-only readiness gate live
+// trading uses before it is allowed to place more orders. It checks the
+// official V2 settlement path only: deployed deposit wallet, relayer
+// credentials, Data API reachability, and CTF approvals for both V2
+// collateral adapters.
+func depositWalletSettlementStatusCmd(jsonOut bool) *cobra.Command {
+	var rpcURL string
+	cmd := &cobra.Command{
+		Use:   "settlement-status",
+		Short: "Check whether the deposit wallet is ready to redeem V2 winners",
+		Long: `Read-only settlement readiness gate for V2 deposit-wallet trading.
+
+Checks:
+  - Deposit wallet has bytecode on Polygon
+  - Polymarket relayer credentials are configured
+  - Data API positions can be queried for the deposit wallet
+  - CTF.setApprovalForAll(wallet, CtfCollateralAdapter) is true
+  - CTF.setApprovalForAll(wallet, NegRiskCtfCollateralAdapter) is true
+
+This command does not sign, submit, approve, redeem, or try a fallback. V2
+deposit-wallet settlement is relayer + collateral adapter only: no direct EOA
+submission path, no raw ConditionalTokens path, and no SAFE/PROXY shortcut.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			key, err := requirePrivateKey()
+			if err != nil {
+				return err
+			}
+			signer, err := auth.NewPrivateKeySigner(key, 137)
+			if err != nil {
+				return fmt.Errorf("init signer: %w", err)
+			}
+			owner := signer.Address()
+			wallet, err := auth.MakerAddressForSignatureType(owner, 137, 3)
+			if err != nil {
+				return fmt.Errorf("derive deposit wallet: %w", err)
+			}
+			_, relayerErr := relayerClientFromEnv()
+			status, err := settlement.CheckReadiness(cmd.Context(), dataAPIClient(), owner, wallet, settlement.ReadinessOptions{
+				RPCURL:            firstNonEmptyCLI(rpcURL, os.Getenv("POLYGON_RPC_URL")),
+				RelayerConfigured: relayerErr == nil,
+			})
+			if err != nil {
+				return err
+			}
+			return printJSON(cmd, status)
+		},
+	}
+	cmd.Flags().StringVar(&rpcURL, "rpc-url", "", "Polygon RPC URL for code and adapter-approval checks (default: POLYGON_RPC_URL or public node)")
+	return cmd
+}
+
 // depositWalletRedeemableCmd lists redeemable positions for the deposit
 // wallet derived from POLYMARKET_PRIVATE_KEY. Read-only — no signing.
 // Positions live in the deposit wallet, not the EOA, so the Data API
@@ -1032,9 +1025,11 @@ NOTE: The V2 deposit-wallet redeem path is non-negotiable: the owner signs an
 EIP-712 WALLET batch, the relayer submits it through the deposit-wallet
 factory, and the wallet call targets CtfCollateralAdapter or
 NegRiskCtfCollateralAdapter. If Polymarket's relayer rejects adapter approval
-or redeem calls with "not in the allowed list", stop and surface an upstream
-blocker. There is no direct EOA bypass, no raw ConditionalTokens fallback, and
-no SAFE/PROXY shortcut for deposit-wallet positions.`,
+or redeem calls with "not in the allowed list", first verify the adapter
+addresses against Polymarket's current contract reference; if they match, stop
+and surface an upstream blocker. There is no direct EOA bypass, no raw
+ConditionalTokens fallback, and no SAFE/PROXY shortcut for deposit-wallet
+positions.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, err := requirePrivateKey()

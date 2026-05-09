@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `pkg/settlement.CheckReadiness` and `Readiness` DTOs for a read-only V2
+  settlement gate: deposit-wallet bytecode, relayer credential presence, Data
+  API positions reachability, and CTF approvals for both V2 collateral
+  adapters.
+- `polygolem deposit-wallet settlement-status`, the operator CLI wrapper for
+  the settlement gate.
+
+### Changed
+
+- Deposit-wallet redeem docs and CLI help now hard-disable fallback thinking:
+  V2 settlement is relayer + collateral adapter only, with no direct EOA, raw
+  CTF, SAFE, or PROXY route.
+
+### Fixed
+
+- Updated `CtfCollateralAdapter` and `NegRiskCtfCollateralAdapter` to the
+  current official Polygon addresses from Polymarket's contracts reference.
+  The previous constants pointed at stale adapter addresses and caused the
+  relayer to reject adapter approvals as not allowlisted.
+
 ## [v2026.5.9] — 2026-05-09
 
 Release version: `v0.1.0`.

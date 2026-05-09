@@ -177,14 +177,28 @@ func closedPositionsFromInternal(rows []dataapi.ClosedPosition) []types.ClosedPo
 	out := make([]types.ClosedPosition, len(rows))
 	for i, row := range rows {
 		out[i] = types.ClosedPosition{
-			TokenID:      row.TokenID,
-			ConditionID:  row.ConditionID,
-			MarketID:     row.MarketID,
-			Side:         row.Side,
-			AvgPriceBuy:  row.AvgPriceBuy,
-			AvgPriceSell: row.AvgPriceSell,
-			Size:         row.Size,
-			RealizedPnl:  row.RealizedPnl,
+			TokenID:         row.TokenID,
+			ConditionID:     row.ConditionID,
+			ProxyWallet:     row.ProxyWallet,
+			MarketID:        row.MarketID,
+			Side:            row.Side,
+			AvgPrice:        row.AvgPrice,
+			AvgPriceBuy:     row.AvgPriceBuy,
+			AvgPriceSell:    row.AvgPriceSell,
+			Size:            row.Size,
+			TotalBought:     row.TotalBought,
+			RealizedPnl:     row.RealizedPnl,
+			CurrentPrice:    row.CurrentPrice,
+			Timestamp:       row.Timestamp,
+			Title:           row.Title,
+			Slug:            row.Slug,
+			Icon:            row.Icon,
+			EventSlug:       row.EventSlug,
+			Outcome:         row.Outcome,
+			OutcomeIndex:    row.OutcomeIndex,
+			OppositeOutcome: row.OppositeOutcome,
+			OppositeAsset:   row.OppositeAsset,
+			EndDate:         row.EndDate,
 		}
 	}
 	return out
@@ -194,14 +208,25 @@ func tradesFromInternal(rows []dataapi.Trade) []types.Trade {
 	out := make([]types.Trade, len(rows))
 	for i, row := range rows {
 		out[i] = types.Trade{
-			ID:         row.ID,
-			Market:     row.Market,
-			AssetID:    row.AssetID,
-			Side:       row.Side,
-			Price:      row.Price,
-			Size:       row.Size,
-			FeeRateBps: row.FeeRateBps,
-			CreatedAt:  row.CreatedAt,
+			ID:              row.ID,
+			Market:          row.Market,
+			AssetID:         row.AssetID,
+			ProxyWallet:     row.ProxyWallet,
+			Side:            row.Side,
+			Price:           row.Price,
+			Size:            row.Size,
+			FeeRateBps:      row.FeeRateBps,
+			Outcome:         row.Outcome,
+			OutcomeIndex:    row.OutcomeIndex,
+			Title:           row.Title,
+			Slug:            row.Slug,
+			EventSlug:       row.EventSlug,
+			Icon:            row.Icon,
+			Status:          row.Status,
+			TransactionHash: row.TransactionHash,
+			TakerOrderID:    row.TakerOrderID,
+			TraderSide:      row.TraderSide,
+			CreatedAt:       row.CreatedAt,
 		}
 	}
 	return out

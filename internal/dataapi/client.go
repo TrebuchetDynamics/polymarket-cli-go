@@ -59,25 +59,212 @@ type Position struct {
 }
 
 type ClosedPosition struct {
-	TokenID      string  `json:"token_id"`
-	ConditionID  string  `json:"condition_id"`
-	MarketID     string  `json:"market_id"`
-	Side         string  `json:"side"`
-	AvgPriceBuy  float64 `json:"avg_price_buy"`
-	AvgPriceSell float64 `json:"avg_price_sell"`
-	Size         float64 `json:"size"`
-	RealizedPnl  float64 `json:"realized_pnl"`
+	TokenID         string  `json:"asset"`
+	ConditionID     string  `json:"conditionId"`
+	ProxyWallet     string  `json:"proxyWallet,omitempty"`
+	MarketID        string  `json:"market_id,omitempty"`
+	Side            string  `json:"side,omitempty"`
+	AvgPrice        float64 `json:"avgPrice"`
+	AvgPriceBuy     float64 `json:"avg_price_buy,omitempty"`
+	AvgPriceSell    float64 `json:"avg_price_sell,omitempty"`
+	Size            float64 `json:"size"`
+	TotalBought     float64 `json:"totalBought,omitempty"`
+	RealizedPnl     float64 `json:"realizedPnl"`
+	CurrentPrice    float64 `json:"curPrice,omitempty"`
+	Timestamp       string  `json:"timestamp,omitempty"`
+	Title           string  `json:"title,omitempty"`
+	Slug            string  `json:"slug,omitempty"`
+	Icon            string  `json:"icon,omitempty"`
+	EventSlug       string  `json:"eventSlug,omitempty"`
+	Outcome         string  `json:"outcome,omitempty"`
+	OutcomeIndex    int     `json:"outcomeIndex,omitempty"`
+	OppositeOutcome string  `json:"oppositeOutcome,omitempty"`
+	OppositeAsset   string  `json:"oppositeAsset,omitempty"`
+	EndDate         string  `json:"endDate,omitempty"`
 }
 
 type Trade struct {
-	ID         string  `json:"id"`
-	Market     string  `json:"market"`
-	AssetID    string  `json:"asset_id"`
-	Side       string  `json:"side"`
-	Price      float64 `json:"price"`
-	Size       float64 `json:"size"`
-	FeeRateBps int     `json:"fee_rate_bps"`
-	CreatedAt  string  `json:"created_at"`
+	ID              string  `json:"id"`
+	Market          string  `json:"market"`
+	AssetID         string  `json:"asset_id"`
+	ProxyWallet     string  `json:"proxyWallet,omitempty"`
+	Side            string  `json:"side"`
+	Price           float64 `json:"price"`
+	Size            float64 `json:"size"`
+	FeeRateBps      int     `json:"fee_rate_bps"`
+	Outcome         string  `json:"outcome,omitempty"`
+	OutcomeIndex    int     `json:"outcomeIndex,omitempty"`
+	Title           string  `json:"title,omitempty"`
+	Slug            string  `json:"slug,omitempty"`
+	EventSlug       string  `json:"eventSlug,omitempty"`
+	Icon            string  `json:"icon,omitempty"`
+	Status          string  `json:"status,omitempty"`
+	TransactionHash string  `json:"transaction_hash,omitempty"`
+	TakerOrderID    string  `json:"taker_order_id,omitempty"`
+	TraderSide      string  `json:"trader_side,omitempty"`
+	CreatedAt       string  `json:"created_at"`
+}
+
+func (p *ClosedPosition) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		TokenID          string          `json:"asset"`
+		TokenIDSnake     string          `json:"token_id"`
+		ConditionID      string          `json:"conditionId"`
+		ConditionIDSnake string          `json:"condition_id"`
+		ProxyWallet      string          `json:"proxyWallet"`
+		MarketID         string          `json:"market_id"`
+		Side             string          `json:"side"`
+		AvgPrice         json.RawMessage `json:"avgPrice"`
+		AvgPriceBuy      json.RawMessage `json:"avg_price_buy"`
+		AvgPriceSell     json.RawMessage `json:"avg_price_sell"`
+		Size             json.RawMessage `json:"size"`
+		TotalBought      json.RawMessage `json:"totalBought"`
+		RealizedPnl      json.RawMessage `json:"realizedPnl"`
+		RealizedPnlSnake json.RawMessage `json:"realized_pnl"`
+		CurrentPrice     json.RawMessage `json:"curPrice"`
+		Timestamp        json.RawMessage `json:"timestamp"`
+		Title            string          `json:"title"`
+		Slug             string          `json:"slug"`
+		Icon             string          `json:"icon"`
+		EventSlug        string          `json:"eventSlug"`
+		Outcome          string          `json:"outcome"`
+		OutcomeIndex     int             `json:"outcomeIndex"`
+		OppositeOutcome  string          `json:"oppositeOutcome"`
+		OppositeAsset    string          `json:"oppositeAsset"`
+		EndDate          string          `json:"endDate"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	avgPrice, err := jsonFloatOrZero(aux.AvgPrice)
+	if err != nil {
+		return fmt.Errorf("decode closed position avgPrice: %w", err)
+	}
+	avgPriceBuy, err := jsonFloatOrZero(aux.AvgPriceBuy)
+	if err != nil {
+		return fmt.Errorf("decode closed position avg_price_buy: %w", err)
+	}
+	avgPriceSell, err := jsonFloatOrZero(aux.AvgPriceSell)
+	if err != nil {
+		return fmt.Errorf("decode closed position avg_price_sell: %w", err)
+	}
+	size, err := jsonFloatOrZero(aux.Size)
+	if err != nil {
+		return fmt.Errorf("decode closed position size: %w", err)
+	}
+	totalBought, err := jsonFloatOrZero(aux.TotalBought)
+	if err != nil {
+		return fmt.Errorf("decode closed position totalBought: %w", err)
+	}
+	realizedPnl, err := jsonFloatOrZero(firstRaw(aux.RealizedPnl, aux.RealizedPnlSnake))
+	if err != nil {
+		return fmt.Errorf("decode closed position realizedPnl: %w", err)
+	}
+	currentPrice, err := jsonFloatOrZero(aux.CurrentPrice)
+	if err != nil {
+		return fmt.Errorf("decode closed position curPrice: %w", err)
+	}
+	if avgPrice == 0 {
+		avgPrice = avgPriceBuy
+	}
+	if size == 0 {
+		size = totalBought
+	}
+	*p = ClosedPosition{
+		TokenID:         firstNonEmpty(aux.TokenID, aux.TokenIDSnake),
+		ConditionID:     firstNonEmpty(aux.ConditionID, aux.ConditionIDSnake),
+		ProxyWallet:     aux.ProxyWallet,
+		MarketID:        aux.MarketID,
+		Side:            aux.Side,
+		AvgPrice:        avgPrice,
+		AvgPriceBuy:     avgPriceBuy,
+		AvgPriceSell:    avgPriceSell,
+		Size:            size,
+		TotalBought:     totalBought,
+		RealizedPnl:     realizedPnl,
+		CurrentPrice:    currentPrice,
+		Timestamp:       jsonStringOrNumber(aux.Timestamp),
+		Title:           aux.Title,
+		Slug:            aux.Slug,
+		Icon:            aux.Icon,
+		EventSlug:       aux.EventSlug,
+		Outcome:         aux.Outcome,
+		OutcomeIndex:    aux.OutcomeIndex,
+		OppositeOutcome: aux.OppositeOutcome,
+		OppositeAsset:   aux.OppositeAsset,
+		EndDate:         aux.EndDate,
+	}
+	return nil
+}
+
+func (t *Trade) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		ID                   string          `json:"id"`
+		Market               string          `json:"market"`
+		ConditionID          string          `json:"conditionId"`
+		AssetID              string          `json:"asset_id"`
+		AssetIDCamel         string          `json:"assetId"`
+		Asset                string          `json:"asset"`
+		ProxyWallet          string          `json:"proxyWallet"`
+		Side                 string          `json:"side"`
+		Price                json.RawMessage `json:"price"`
+		Size                 json.RawMessage `json:"size"`
+		FeeRateBps           json.RawMessage `json:"fee_rate_bps"`
+		FeeRateBpsCamel      json.RawMessage `json:"feeRateBps"`
+		Outcome              string          `json:"outcome"`
+		OutcomeIndex         int             `json:"outcomeIndex"`
+		Title                string          `json:"title"`
+		Slug                 string          `json:"slug"`
+		EventSlug            string          `json:"eventSlug"`
+		Icon                 string          `json:"icon"`
+		Status               string          `json:"status"`
+		TransactionHash      string          `json:"transaction_hash"`
+		TransactionHashCamel string          `json:"transactionHash"`
+		TakerOrderID         string          `json:"taker_order_id"`
+		TakerOrderIDCamel    string          `json:"takerOrderId"`
+		TraderSide           string          `json:"trader_side"`
+		TraderSideCamel      string          `json:"traderSide"`
+		CreatedAt            json.RawMessage `json:"created_at"`
+		Timestamp            json.RawMessage `json:"timestamp"`
+		MatchTime            json.RawMessage `json:"match_time"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	price, err := jsonFloatOrZero(aux.Price)
+	if err != nil {
+		return fmt.Errorf("decode trade price: %w", err)
+	}
+	size, err := jsonFloatOrZero(aux.Size)
+	if err != nil {
+		return fmt.Errorf("decode trade size: %w", err)
+	}
+	feeRateBps, err := jsonIntOrZero(firstRaw(aux.FeeRateBps, aux.FeeRateBpsCamel))
+	if err != nil {
+		return fmt.Errorf("decode trade fee_rate_bps: %w", err)
+	}
+	*t = Trade{
+		ID:              aux.ID,
+		Market:          firstNonEmpty(aux.Market, aux.ConditionID),
+		AssetID:         firstNonEmpty(aux.AssetID, aux.AssetIDCamel, aux.Asset),
+		ProxyWallet:     aux.ProxyWallet,
+		Side:            aux.Side,
+		Price:           price,
+		Size:            size,
+		FeeRateBps:      feeRateBps,
+		Outcome:         aux.Outcome,
+		OutcomeIndex:    aux.OutcomeIndex,
+		Title:           aux.Title,
+		Slug:            aux.Slug,
+		EventSlug:       aux.EventSlug,
+		Icon:            aux.Icon,
+		Status:          aux.Status,
+		TransactionHash: firstNonEmpty(aux.TransactionHash, aux.TransactionHashCamel),
+		TakerOrderID:    firstNonEmpty(aux.TakerOrderID, aux.TakerOrderIDCamel),
+		TraderSide:      firstNonEmpty(aux.TraderSide, aux.TraderSideCamel),
+		CreatedAt:       firstNonEmpty(jsonStringOrNumber(aux.CreatedAt), jsonStringOrNumber(aux.Timestamp), jsonStringOrNumber(aux.MatchTime)),
+	}
+	return nil
 }
 
 type Activity struct {
@@ -375,6 +562,43 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstRaw(values ...json.RawMessage) json.RawMessage {
+	for _, value := range values {
+		if len(value) == 0 {
+			continue
+		}
+		if strings.TrimSpace(string(value)) == "" || strings.TrimSpace(string(value)) == "null" {
+			continue
+		}
+		return value
+	}
+	return nil
+}
+
+func jsonFloatOrZero(raw json.RawMessage) (float64, error) {
+	value := jsonStringOrNumber(raw)
+	if value == "" {
+		return 0, nil
+	}
+	n, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+func jsonIntOrZero(raw json.RawMessage) (int, error) {
+	value := jsonStringOrNumber(raw)
+	if value == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func jsonStringOrNumber(raw json.RawMessage) string {

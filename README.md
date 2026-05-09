@@ -200,12 +200,16 @@ six-call trading approval batch need a separate adapter-approval migration
 before their first V2 redeem.
 
 The first-class SDK/CLI settlement surface is `pkg/settlement` plus
-`deposit-wallet redeemable` / `deposit-wallet redeem`. These commands build
-the V2 adapter path and fail closed on missing adapter approvals. If the
-relayer rejects adapter calls as not allowlisted, stop; the production factory
-does not expose a direct EOA fallback and raw `ConditionalTokens` redeem is
-not a deposit-wallet fallback. SAFE/PROXY relayer examples do not apply to
-deposit-wallet positions. See [docs/SAFETY.md](docs/SAFETY.md),
+`deposit-wallet settlement-status`, `deposit-wallet redeemable`, and
+`deposit-wallet redeem`. `settlement-status` is the read-only readiness gate:
+it checks wallet bytecode, relayer credentials, Data API reachability, and
+adapter approvals before a live bot should place more orders. The redeem
+commands build the V2 adapter path and fail closed on missing adapter
+approvals. If the relayer rejects adapter calls as not allowlisted, stop; the
+production factory does not expose a direct EOA fallback and raw
+`ConditionalTokens` redeem is not a deposit-wallet fallback. SAFE/PROXY
+relayer examples do not apply to deposit-wallet positions. See
+[docs/SAFETY.md](docs/SAFETY.md),
 [docs/CONTRACTS.md](docs/CONTRACTS.md), and
 [docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md](docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md).
 
@@ -223,6 +227,7 @@ is a thin wrapper around importable `pkg/` packages:
 | [`pkg/gamma`](pkg/gamma) | Read-only Gamma market discovery (26 methods) |
 | [`pkg/stream`](pkg/stream) | Public CLOB WebSocket market stream |
 | [`pkg/relayer`](pkg/relayer) | V2 Relayer client — WALLET-CREATE, batch, nonce |
+| [`pkg/settlement`](pkg/settlement) | V2 winner redemption planning, adapter calls, and readiness gates |
 
 ```go
 import (

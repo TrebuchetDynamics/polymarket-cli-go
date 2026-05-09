@@ -86,6 +86,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
     live-volume - Get live volume summary
     markets-traded - Get total markets traded for a user
     open-interest - Get open interest for a token
+    order-results - Join positions, trades, and results for a user
     positions - List open positions for a user
     trades - List public Data API trades for a user
     value - Get total portfolio value for a user
@@ -94,13 +95,13 @@ polygolem - Safe Polymarket SDK and CLI for Go
     approve-adapters - Approve V2 collateral adapters for redeem (one-shot per wallet)
     batch - Sign and submit a deposit wallet WALLET batch
     deploy - Deploy the deposit wallet via relayer WALLET-CREATE
-    deploy-onchain - Deploy the deposit wallet directly on-chain from the EOA (no relayer / no builder creds)
     derive - Derive the deterministic deposit wallet address
     fund - Transfer pUSD from EOA to the deposit wallet
     nonce - Get the current WALLET nonce for the owner
     onboard - Full deposit wallet onboarding: deploy + approve + fund
     redeem - Redeem winning deposit-wallet positions via the V2 collateral adapter
     redeemable - List redeemable positions held by the deposit wallet
+    settlement-status - Check whether the deposit wallet is ready to redeem V2 winners
     status - Check deposit wallet deployment status or transaction state
     swap-pol-pusd - Swap native POL into an exact amount of pUSD via Uniswap V3
   discover - Market discovery via Polymarket Gamma API
@@ -991,6 +992,7 @@ polygolem data [flags]
 | `polygolem data live-volume` | Get live volume summary |
 | `polygolem data markets-traded` | Get total markets traded for a user |
 | `polygolem data open-interest` | Get open interest for a token |
+| `polygolem data order-results` | Join positions, trades, and results for a user |
 | `polygolem data positions` | List open positions for a user |
 | `polygolem data trades` | List public Data API trades for a user |
 | `polygolem data value` | Get total portfolio value for a user |
@@ -1131,6 +1133,26 @@ polygolem data open-interest [flags]
 | `--json` | `bool` | `false` | emit JSON output |
 | `--token-id` | `string` | `""` | CLOB token ID |
 
+### polygolem data order-results
+
+Join positions, trades, and results for a user
+
+**Usage:**
+
+```bash
+polygolem data order-results [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | `bool` | `false` | help for order-results |
+| `--include-clob` | `bool` | `false` | include authenticated CLOB open orders and trade history |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--limit` | `int` | `20` | max rows |
+| `--user` | `string` | `""` | user wallet address |
+
 ### polygolem data positions
 
 List open positions for a user
@@ -1205,13 +1227,13 @@ polygolem deposit-wallet [flags]
 | `polygolem deposit-wallet approve-adapters` | Approve V2 collateral adapters for redeem (one-shot per wallet) |
 | `polygolem deposit-wallet batch` | Sign and submit a deposit wallet WALLET batch |
 | `polygolem deposit-wallet deploy` | Deploy the deposit wallet via relayer WALLET-CREATE |
-| `polygolem deposit-wallet deploy-onchain` | Deploy the deposit wallet directly on-chain from the EOA (no relayer / no builder creds) |
 | `polygolem deposit-wallet derive` | Derive the deterministic deposit wallet address |
 | `polygolem deposit-wallet fund` | Transfer pUSD from EOA to the deposit wallet |
 | `polygolem deposit-wallet nonce` | Get the current WALLET nonce for the owner |
 | `polygolem deposit-wallet onboard` | Full deposit wallet onboarding: deploy + approve + fund |
 | `polygolem deposit-wallet redeem` | Redeem winning deposit-wallet positions via the V2 collateral adapter |
 | `polygolem deposit-wallet redeemable` | List redeemable positions held by the deposit wallet |
+| `polygolem deposit-wallet settlement-status` | Check whether the deposit wallet is ready to redeem V2 winners |
 | `polygolem deposit-wallet status` | Check deposit wallet deployment status or transaction state |
 | `polygolem deposit-wallet swap-pol-pusd` | Swap native POL into an exact amount of pUSD via Uniswap V3 |
 
@@ -1260,7 +1282,9 @@ authorize the live-money WALLET batch.
 NOTE: The V2 deposit-wallet path is non-negotiable: the owner signs an EIP-712
 WALLET batch, the relayer submits it through the deposit-wallet factory, and
 the wallet call targets the V2 collateral adapters. If Polymarket's relayer
-allowlist rejects these calls with HTTP 400 "not in the allowed list", stop.
+allowlist rejects these calls with HTTP 400 "not in the allowed list", first
+verify the adapter addresses against Polymarket's current contract reference;
+if they match, stop.
 The wallet implementation gates execute() behind onlyFactory and the factory
 gates proxy() behind onlyOperator, so a direct EOA bypass is not possible.
 Do not fall back to raw ConditionalTokens.redeemPositions, SAFE, or PROXY;
@@ -1330,25 +1354,6 @@ polygolem deposit-wallet deploy [flags]
 | `--timeout` | `duration` | `2m0s` | max wait time for --wait |
 | `--wait` | `bool` | `false` | poll until transaction reaches terminal state |
 
-### polygolem deposit-wallet deploy-onchain
-
-Deploy the deposit wallet directly on-chain from the EOA (no relayer / no builder creds)
-
-**Usage:**
-
-```bash
-polygolem deposit-wallet deploy-onchain [flags]
-```
-
-**Flags:**
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--dry-run` | `bool` | `false` | estimate gas only; do not send a transaction (no gas spent) |
-| `-h, --help` | `bool` | `false` | help for deploy-onchain |
-| `--json` | `bool` | `false` | emit JSON output |
-| `--rpc-url` | `string` | `""` | Polygon RPC URL (default: public node) |
-
 ### polygolem deposit-wallet derive
 
 Derive the deterministic deposit wallet address
@@ -1415,7 +1420,8 @@ Run the complete deposit wallet setup sequence:
 
 1. Derive the deterministic deposit wallet address
 2. Deploy via WALLET-CREATE (skip with --skip-deploy if already deployed)
-3. Submit the 6-call approval batch for pUSD and CTF (skip with --skip-approve)
+3. Submit the 10-call approval batch for trading and V2 settlement adapters
+   (skip with --skip-approve)
 4. Transfer pUSD from EOA to deposit wallet (requires --fund-amount)
 
 After onboarding, sync CLOB:
@@ -1459,9 +1465,11 @@ NOTE: The V2 deposit-wallet redeem path is non-negotiable: the owner signs an
 EIP-712 WALLET batch, the relayer submits it through the deposit-wallet
 factory, and the wallet call targets CtfCollateralAdapter or
 NegRiskCtfCollateralAdapter. If Polymarket's relayer rejects adapter approval
-or redeem calls with "not in the allowed list", stop and surface an upstream
-blocker. There is no direct EOA bypass, no raw ConditionalTokens fallback, and
-no SAFE/PROXY shortcut for deposit-wallet positions.
+or redeem calls with "not in the allowed list", first verify the adapter
+addresses against Polymarket's current contract reference; if they match, stop
+and surface an upstream blocker. There is no direct EOA bypass, no raw
+ConditionalTokens fallback, and no SAFE/PROXY shortcut for deposit-wallet
+positions.
 
 **Usage:**
 
@@ -1502,6 +1510,37 @@ polygolem deposit-wallet redeemable [flags]
 |---|---|---|---|
 | `-h, --help` | `bool` | `false` | help for redeemable |
 | `--json` | `bool` | `false` | emit JSON output |
+
+### polygolem deposit-wallet settlement-status
+
+Check whether the deposit wallet is ready to redeem V2 winners
+
+Read-only settlement readiness gate for V2 deposit-wallet trading.
+
+Checks:
+  - Deposit wallet has bytecode on Polygon
+  - Polymarket relayer credentials are configured
+  - Data API positions can be queried for the deposit wallet
+  - CTF.setApprovalForAll(wallet, CtfCollateralAdapter) is true
+  - CTF.setApprovalForAll(wallet, NegRiskCtfCollateralAdapter) is true
+
+This command does not sign, submit, approve, redeem, or try a fallback. V2
+deposit-wallet settlement is relayer + collateral adapter only: no direct EOA
+submission path, no raw ConditionalTokens path, and no SAFE/PROXY shortcut.
+
+**Usage:**
+
+```bash
+polygolem deposit-wallet settlement-status [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | `bool` | `false` | help for settlement-status |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--rpc-url` | `string` | `""` | Polygon RPC URL for code and adapter-approval checks (default: POLYGON_RPC_URL or public node) |
 
 ### polygolem deposit-wallet status
 

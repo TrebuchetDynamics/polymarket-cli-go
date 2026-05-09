@@ -18,8 +18,8 @@ const (
 	// V2 collateral adapters — split/merge/redeem from a deposit wallet
 	// route through these. Required spenders for the post-trading
 	// readiness batch built by BuildAdapterApprovalCalls.
-	ctfCollateralAdapter        = "0xADa100874d00e3331D00F2007a9c336a65009718"
-	negRiskCtfCollateralAdapter = "0xAdA200001000ef00D07553cEE7006808F895c6F1"
+	ctfCollateralAdapter        = "0xAdA100Db00Ca00073811820692005400218FcE1f"
+	negRiskCtfCollateralAdapter = "0xadA2005600Dec949baf300f4C6120000bDB6eAab"
 
 	erc20ApproveSelector        = "095ea7b3"
 	erc1155SetApprovalForAllSel = "a22cb465"

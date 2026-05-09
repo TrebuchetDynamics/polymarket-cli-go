@@ -52,6 +52,102 @@ func TestFindRedeemableFiltersNonRedeemable(t *testing.T) {
 	}
 }
 
+func TestCheckReadinessBlocksMissingAdapterApproval(t *testing.T) {
+	dataSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/positions" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode([]map[string]any{{
+			"asset":        "tok-1",
+			"conditionId":  "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"redeemable":   true,
+			"negativeRisk": false,
+			"size":         2.5,
+			"outcome":      "Up",
+		}})
+	}))
+	defer dataSrv.Close()
+	rpcSrv := settlementRPCServer(t, "0x60016000", false)
+	defer rpcSrv.Close()
+
+	status, err := CheckReadiness(context.Background(), data.NewClient(data.Config{BaseURL: dataSrv.URL}), "0xowner", "0x21999a074344610057c9b2B362332388a44502D4", ReadinessOptions{
+		RPCURL:            rpcSrv.URL,
+		RelayerConfigured: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Ready {
+		t.Fatalf("ready=true want false: %+v", status)
+	}
+	if status.Status != StatusMissingAdapterApproval {
+		t.Fatalf("status=%q want %q: %+v", status.Status, StatusMissingAdapterApproval, status)
+	}
+	if len(status.MissingApprovals) != 2 {
+		t.Fatalf("missingApprovals=%v want both adapters", status.MissingApprovals)
+	}
+	if status.RedeemableCount != 1 {
+		t.Fatalf("redeemableCount=%d want 1", status.RedeemableCount)
+	}
+}
+
+func TestCheckReadinessReadyWhenDeployedRelayerAndAdaptersApproved(t *testing.T) {
+	dataSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/positions" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode([]map[string]any{})
+	}))
+	defer dataSrv.Close()
+	rpcSrv := settlementRPCServer(t, "0x60016000", true)
+	defer rpcSrv.Close()
+
+	status, err := CheckReadiness(context.Background(), data.NewClient(data.Config{BaseURL: dataSrv.URL}), "0xowner", "0x21999a074344610057c9b2B362332388a44502D4", ReadinessOptions{
+		RPCURL:            rpcSrv.URL,
+		RelayerConfigured: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Ready {
+		t.Fatalf("ready=false want true: %+v", status)
+	}
+	if status.Status != StatusReady {
+		t.Fatalf("status=%q want %q", status.Status, StatusReady)
+	}
+	if len(status.AdapterApprovals) != 2 {
+		t.Fatalf("adapterApprovals=%v want two adapter checks", status.AdapterApprovals)
+	}
+}
+
+func settlementRPCServer(t *testing.T, code string, approved bool) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Method string `json:"method"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode rpc request: %v", err)
+		}
+		switch body.Method {
+		case "eth_getCode":
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": 1, "result": code})
+		case "eth_chainId":
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": 1, "result": "0x89"})
+		case "eth_call":
+			result := "0x0000000000000000000000000000000000000000000000000000000000000000"
+			if approved {
+				result = "0x0000000000000000000000000000000000000000000000000000000000000001"
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": 1, "result": result})
+		default:
+			t.Fatalf("unexpected rpc method %q", body.Method)
+		}
+	}))
+}
+
 func TestBuildRedeemCallBinaryTargetsCtfCollateralAdapter(t *testing.T) {
 	cid := common.HexToHash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
 	p := RedeemablePosition{ConditionID: cid.Hex(), NegativeRisk: false}

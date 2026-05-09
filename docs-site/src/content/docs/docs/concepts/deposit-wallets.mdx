@@ -127,6 +127,11 @@ Existing wallets that only ran the six-call trading approval batch must run a
 one-time adapter approval batch before first redeem. New wallet onboarding
 should include both trading approvals and adapter-readiness approvals.
 
+Use `polygolem deposit-wallet settlement-status` as the read-only gate before
+live trading. It proves the wallet is deployed, relayer credentials are loaded,
+the Data API positions path works, and both V2 collateral adapters are
+approved.
+
 There is no raw CTF fallback, direct EOA bypass, or SAFE/PROXY shortcut for
 deposit-wallet positions. If the relayer rejects the adapter-targeted WALLET
 batch as not allowlisted, the correct state is upstream blocked.

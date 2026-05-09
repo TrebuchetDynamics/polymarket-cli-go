@@ -364,8 +364,8 @@ The required remediation path is:
   `negativeRisk`, `outcome`, `outcomeIndex`, `oppositeOutcome`,
   `oppositeAsset`, and `endDate`; there is no separate `resolved` field.
 - `pkg/contracts` must expose the V2 collateral adapters and ramp addresses:
-  `CtfCollateralAdapter=0xADa100874d00e3331D00F2007a9c336a65009718`,
-  `NegRiskCtfCollateralAdapter=0xAdA200001000ef00D07553cEE7006808F895c6F1`.
+  `CtfCollateralAdapter=0xAdA100Db00Ca00073811820692005400218FcE1f`,
+  `NegRiskCtfCollateralAdapter=0xadA2005600Dec949baf300f4C6120000bDB6eAab`.
 - Existing deposit wallets need a one-shot adapter-approval WALLET batch
   before V2 split/merge/redeem. New wallet onboarding should include both the
   six trading approvals and the four adapter-readiness approvals.

@@ -9,21 +9,17 @@ import (
 // submission methods when Polymarket's relayer rejects a WALLET batch
 // because one of the targeted contracts is not on its allowlist.
 //
-// Callers should detect this with errors.Is and stop. The V2 deposit
-// wallet redeem path is non-negotiable: signed EIP-712 WALLET batch →
-// CtfCollateralAdapter / NegRiskCtfCollateralAdapter → relayer
-// executeDepositWalletBatch. There is no safe direct EOA bypass and no
-// raw ConditionalTokens fallback. When the relayer rejects with "not in
-// the allowed list" / "are not permitted" / "call blocked", the only
-// correct response is to surface it as an upstream block.
-//
-// This is filed upstream as Polymarket/builder-relayer-client#29
-// (closed without response on 2026-05-06). Do not work around it.
-var ErrRelayerAllowlistBlocked = errors.New("relayer: upstream allowlist block (Polymarket/builder-relayer-client#29)")
+// Callers should detect this with errors.Is, verify that local contract
+// constants match Polymarket's current contract reference, and stop if they
+// do. The V2 deposit-wallet path is non-negotiable: signed EIP-712 WALLET
+// batch -> CtfCollateralAdapter / NegRiskCtfCollateralAdapter -> relayer
+// executeDepositWalletBatch. There is no safe direct EOA bypass and no raw
+// ConditionalTokens fallback.
+var ErrRelayerAllowlistBlocked = errors.New("relayer: allowlist block")
 
 // allowlistRejectionMarkers are the case-insensitive substrings the
 // Polymarket relayer returns in HTTP 400 bodies when it refuses a call
-// in a WALLET batch. Sourced from issue #29:
+// in a WALLET batch:
 //   - "calls to 0x… are not permitted"
 //   - "setApprovalForAll operator 0x… is not in the allowed list"
 //   - "call blocked: call[i] blocked: …"

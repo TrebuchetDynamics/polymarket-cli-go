@@ -67,11 +67,10 @@ const (
 // ErrRelayerAllowlistBlocked is the sentinel returned when Polymarket's
 // relayer rejects a WALLET batch because a targeted contract is not on
 // its allowlist. Submission methods wrap their underlying error with
-// errors.Join, so callers should detect with errors.Is and stop —
-// there is no safe workaround for the V2 deposit wallet redeem path.
-//
-// Filed upstream as Polymarket/builder-relayer-client#29 (closed
-// without response on 2026-05-06). Surface as an upstream block.
+// errors.Join, so callers should detect with errors.Is, verify the local
+// contract registry against Polymarket's current contract reference, and
+// stop if the registry is current. There is no safe workaround for the V2
+// deposit-wallet path.
 var ErrRelayerAllowlistBlocked = internalrelayer.ErrRelayerAllowlistBlocked
 
 // New constructs a relayer Client. baseURL defaults to the production

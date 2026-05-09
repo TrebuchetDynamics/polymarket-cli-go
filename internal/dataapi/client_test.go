@@ -140,6 +140,44 @@ func TestActivityAcceptsNumericMarketFields(t *testing.T) {
 	}
 }
 
+func TestTradesDecodeCurrentDataAPIShape(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/trades" {
+			t.Fatalf("path=%s want /trades", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[{
+			"proxyWallet":"0xwallet",
+			"side":"BUY",
+			"asset":"token-sol-up",
+			"conditionId":"0xsol",
+			"size":2.862744,
+			"price":0.5099998463013109,
+			"timestamp":1778314880,
+			"title":"Solana Up or Down",
+			"slug":"sol-updown-5m-1778329200",
+			"outcome":"Up",
+			"transactionHash":"0xsoltx"
+		}]`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, transport.New(server.Client(), transport.DefaultConfig(server.URL)))
+	rows, err := client.Trades(context.Background(), "0xwallet", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows=%d want 1", len(rows))
+	}
+	row := rows[0]
+	if row.Market != "0xsol" || row.AssetID != "token-sol-up" || row.TransactionHash != "0xsoltx" {
+		t.Fatalf("row identifiers not decoded: %+v", row)
+	}
+	if row.CreatedAt != "1778314880" || row.Outcome != "Up" {
+		t.Fatalf("row metadata not decoded: %+v", row)
+	}
+}
+
 func TestOpenInterestUsesCurrentOIEndpoint(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/oi" {

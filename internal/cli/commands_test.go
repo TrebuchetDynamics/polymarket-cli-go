@@ -21,3 +21,25 @@ func TestHelpListsPhaseOneCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestDataCommandExposesOrderResultsAudit(t *testing.T) {
+	root := NewRootCommand(Options{Version: "test", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	cmd, _, err := root.Find([]string{"data", "order-results"})
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	if cmd == nil || cmd.Name() != "order-results" {
+		t.Fatalf("data order-results command missing, got %v", cmd)
+	}
+}
+
+func TestDepositWalletCommandExposesSettlementStatus(t *testing.T) {
+	root := NewRootCommand(Options{Version: "test", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	cmd, _, err := root.Find([]string{"deposit-wallet", "settlement-status"})
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	if cmd == nil || cmd.Name() != "settlement-status" {
+		t.Fatalf("deposit-wallet settlement-status command missing, got %v", cmd)
+	}
+}

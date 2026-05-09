@@ -339,16 +339,86 @@ func TestDepositWalletRedeemHelpRejectsDirectCTFFallback(t *testing.T) {
 	if strings.Contains(stdout, "via-ctf") {
 		t.Fatalf("redeem help must not advertise a raw CTF fallback:\n%s", stdout)
 	}
+	for _, forbidden := range []string{"--via-eoa", "via-eoa", "EOA pays POL"} {
+		if strings.Contains(stdout, forbidden) {
+			t.Fatalf("redeem help must not advertise an EOA submission path %q:\n%s", forbidden, stdout)
+		}
+	}
 	for _, want := range []string{
 		"EIP-712 WALLET batch",
 		"no direct EOA bypass",
-		"raw ConditionalTokens",
+		"ConditionalTokens fallback",
 		"no SAFE/PROXY shortcut",
 		"CtfCollateralAdapter",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("redeem help missing %q:\n%s", want, stdout)
 		}
+	}
+}
+
+func TestDepositWalletSettlementStatusReportsMissingAdapterApproval(t *testing.T) {
+	dataSrv := dataAPIWithOnePosition(t)
+	defer dataSrv.Close()
+	rpcSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Method string `json:"method"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		switch body.Method {
+		case "eth_getCode":
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": 1, "result": "0x60016000"})
+		case "eth_chainId":
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": 1, "result": "0x89"})
+		case "eth_call":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"result":  "0x0000000000000000000000000000000000000000000000000000000000000000",
+			})
+		default:
+			t.Errorf("unexpected rpc method=%q", body.Method)
+			http.NotFound(w, r)
+		}
+	}))
+	defer rpcSrv.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", redeemTestPrivateKey)
+	t.Setenv("POLYMARKET_DATA_API_URL", dataSrv.URL)
+	t.Setenv("POLYGON_RPC_URL", rpcSrv.URL)
+	t.Setenv("RELAYER_API_KEY", "v2-uuid")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "0xabc")
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "settlement-status")
+	if err != nil {
+		t.Fatalf("Execute error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false: %s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if data["ready"] != false {
+		t.Fatalf("ready=%v want false; data=%v", data["ready"], data)
+	}
+	if data["status"] != "missing_adapter_approval" {
+		t.Fatalf("status=%v want missing_adapter_approval; data=%v", data["status"], data)
+	}
+	if data["nextAction"] == "" || !strings.Contains(data["nextAction"].(string), "approve-adapters") {
+		t.Fatalf("nextAction must point to approve-adapters; data=%v", data)
+	}
+	missing, ok := data["missingApprovals"].([]any)
+	if !ok || len(missing) != 2 {
+		t.Fatalf("missingApprovals=%v want 2 adapter addresses", data["missingApprovals"])
+	}
+	if v, _ := data["redeemableCount"].(float64); v != 1 {
+		t.Fatalf("redeemableCount=%v want 1", data["redeemableCount"])
 	}
 }
 
@@ -608,7 +678,7 @@ func TestDepositWalletRedeemSurfacesUpstreamAllowlistBlock(t *testing.T) {
 		case "/nonce":
 			_ = json.NewEncoder(w).Encode(map[string]any{"nonce": "9"})
 		case "/submit":
-			http.Error(w, `{"error":"call blocked: calls to 0xADa100874d00e3331D00F2007a9c336a65009718 are not permitted"}`, http.StatusBadRequest)
+			http.Error(w, `{"error":"call blocked: calls to 0xAdA100Db00Ca00073811820692005400218FcE1f are not permitted"}`, http.StatusBadRequest)
 		default:
 			http.NotFound(w, r)
 		}
@@ -647,7 +717,14 @@ func TestDepositWalletRedeemSurfacesUpstreamAllowlistBlock(t *testing.T) {
 	if innerErr["action"] != "stop" {
 		t.Fatalf("error.action=%v want stop", innerErr["action"])
 	}
-	if upstream, ok := innerErr["upstream"].(map[string]any); !ok || upstream["tracker"] != "Polymarket/builder-relayer-client#29" {
-		t.Fatalf("error.upstream missing tracker; got %v", innerErr["upstream"])
+	upstream, ok := innerErr["upstream"].(map[string]any)
+	if !ok {
+		t.Fatalf("error.upstream=%T want map", innerErr["upstream"])
+	}
+	if upstream["state"] != "allowlist-rejected" {
+		t.Fatalf("error.upstream.state=%v want allowlist-rejected", upstream["state"])
+	}
+	if _, ok := upstream["tracker"]; ok {
+		t.Fatalf("deprecated upstream tracker present: %v", upstream)
 	}
 }
