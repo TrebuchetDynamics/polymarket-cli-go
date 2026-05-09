@@ -62,7 +62,10 @@ The wallet is deployed via the Polymarket relayer. The factory's `deploy()` is r
 polygolem deposit-wallet deploy --wait
 ```
 
-After deployment, the wallet's `proxy()` function is **ungated** — anyone can submit EOA-signed batches on behalf of a deployed wallet.
+After deployment, WALLET batches still route through the Polymarket relayer.
+The factory's `proxy()` function validates owner-signed batches, but the
+production factory also gates `proxy()` with `onlyOperator`. A direct owner EOA
+cannot use the factory as a permissionless fallback submitter.
 
 The relayer's `/deployed` endpoint can become a false-negative when a
 `WALLET-CREATE` row is marked `STATE_FAILED` despite the underlying

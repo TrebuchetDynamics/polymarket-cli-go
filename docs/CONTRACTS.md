@@ -2,7 +2,7 @@
 
 > **Date:** 2026-05-07
 > **Status:** Complete — investigation confirms all-on-chain deployment is impossible
-> **Last verified:** Live on-chain against Polygon mainnet (chainID 137), 2026-05-09
+> **Last verified:** Live on-chain against Polygon mainnet (chainID 137) and Polygonscan verified source, 2026-05-09
 
 ---
 
@@ -141,7 +141,7 @@ submitting `WALLET-CREATE`; if code already exists, it returns
 
 ```
 deploy(address[] _owners, bytes32[] _ids)
-proxy(Batch[] _batches, bytes[] _signatures)           ← UNGATED
+proxy(Batch[] _batches, bytes[] _signatures)           ← OPERATOR-GATED + signature-validated
 predictWalletAddress(address _implementation, bytes32 _id)
 implementation()
 authorizedImplementation(address)
@@ -166,13 +166,38 @@ Presence of `OnlyAdmin` and `OnlyOperator` errors confirms role-gated functions.
 
 **Conclusion:** Only the Polymarket relayer can deploy deposit wallets. Direct EOA deployment is impossible.
 
-### 2.5 proxy(Batch[], bytes[]) is Ungated
+### 2.5 proxy(Batch[], bytes[]) is Operator-Gated
 
-The `proxy()` function uses internal signature validation — it does not check caller roles:
+Polygonscan verified source for `DepositWalletFactory` shows both deployment
+and batch proxying are restricted to the factory operator role:
 
-> *proxy(Batch[], bytes[]) appears UNGATED (signature validation internal). This means after a wallet is deployed, anyone can submit signed batches on its behalf — including the wallet owner directly from their EOA.*
+```solidity
+function deploy(address[] calldata _owners, bytes32[] calldata _ids) external onlyOperator
+function proxy(Batch[] calldata _batches, bytes[] calldata _signatures) external onlyOperator
+```
 
-**This is the key permissionless path.** Post-deployment, the wallet owner controls everything via EOA-signed batches.
+The `proxy()` path still validates each wallet owner's EOA signature, but the
+transaction submitter must also be a factory operator. A direct owner EOA call
+to `proxy()` is therefore not a valid fallback path.
+
+2026-05-09 Polygon RPC proof:
+
+```bash
+cast sig 'OnlyOperator()'
+# 0x27e1f1e5
+
+cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
+  --from 0x000000000000000000000000000000000000dEaD \
+  0x00000000000Fb5C9ADea0298D729A0CB3823Cc07 \
+  'proxy((address,uint256,uint256,(address,uint256,bytes)[])[],bytes[])' \
+  '[]' '[]'
+# execution reverted, data: "0x27e1f1e5"
+```
+
+**Operational conclusion:** post-deployment wallet mutations still go through
+Polymarket's relayer/operator surface. The wallet owner controls authorization
+with EOA-signed batches, but the factory does not expose a permissionless
+submission route.
 
 ### 2.6 predictWalletAddress() — View Function
 
@@ -275,7 +300,7 @@ These systems are **independent**. Builder credentials cannot be substituted for
 | Type | Gated By | Purpose |
 |------|----------|---------|
 | `WALLET-CREATE` | Factory `deploy()` role-gate (relayer only) | Deploy deposit wallet |
-| `WALLET` batch | EOA signature validation (internal to `proxy()`) | Execute calls from wallet |
+| `WALLET` batch | Factory `proxy()` operator gate plus EOA signature validation | Execute calls from wallet |
 | `SAFE` deploy | Relayer | Deploy Gnosis Safe |
 | `PROXY` deploy | Relayer | Deploy POLY_PROXY |
 
@@ -285,8 +310,8 @@ The relayer pays gas for all on-chain operations. Users need pUSD for trading am
 
 - Wallet deployment: gas-sponsored
 - Trading approval batch: gas-sponsored
-- Adapter approval batch: gas-sponsored
-- CTF split/merge/redeem through V2 collateral adapters: gas-sponsored
+- Adapter approval batch: gas-sponsored when accepted by the relayer allowlist
+- CTF split/merge/redeem through V2 collateral adapters: gas-sponsored when accepted by the relayer allowlist
 - Deposit-wallet WALLET batches: gas-sponsored
 - EOA-to-wallet funding transfer: user pays Polygon gas
 
@@ -333,6 +358,9 @@ POLYMARKET_BUILDER_PASSPHRASE="..." \
 | Path | Investigated | Verdict |
 |------|-------------|---------|
 | Direct EOA call to `deploy()` | Live on-chain test | ❌ Reverts (role-gated) |
+| Direct EOA call to `proxy()` | Polygonscan verified source + live `eth_call` | ❌ Reverts with `OnlyOperator()` unless caller has operator role |
+| Direct EOA call to wallet `execute()` | Verified call context | ❌ Wallet execution is factory-mediated |
+| Raw `ConditionalTokens.redeemPositions` fallback | V2 adapter source review | ❌ Not the pUSD-native V2 redeem path |
 | Old ProxyFactory `proxy()` | Source code review | ❌ Creates type 1 wallets, not type 3 |
 | Self-deploy on implementation | Polygonscan source check | ❌ No such function; implementation unverified |
 | Separate permissionless factory | Full contract search | ❌ Only one DepositWalletFactory exists |
@@ -354,10 +382,10 @@ POLYMARKET_BUILDER_PASSPHRASE="..." \
 - [Polymarket GitHub — ctf-exchange](https://github.com/Polymarket/ctf-exchange)
 - [Polymarket GitHub — builder-relayer-client](https://github.com/Polymarket/builder-relayer-client)
 - [Polymarket GitHub — builder-signing-sdk](https://github.com/Polymarket/builder-signing-sdk)
-- Polygonscan: `0x00000000000Fb5C9ADea0298D729A0CB3823Cc07` (DepositWalletFactory)
+- Polygonscan verified source: `0x00000000000Fb5C9ADea0298D729A0CB3823Cc07` (DepositWalletFactory; `deploy()` and `proxy()` are `onlyOperator`)
 - Polygonscan: `0xb6F9C7E68A38c21BeDfD873bC5a378236f7ba987` (DepositWalletFactory — alternate address)
 - Polygonscan: `0x21999a074344610057c9b2B362332388a44502D4` (example deposit wallet)
 
 ---
 
-*This document is the definitive reference for Polymarket's deposit wallet architecture and the deployment pipeline. It reflects live on-chain reality as of 2026-05-07.*
+*This document is the definitive reference for Polymarket's deposit wallet architecture and the deployment pipeline. It reflects live on-chain reality as of 2026-05-09.*

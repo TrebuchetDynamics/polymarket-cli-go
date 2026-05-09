@@ -198,10 +198,16 @@ split support. Existing live wallets that only ran the trading approval batch
 need a one-shot adapter-approval migration before their first V2 redeem.
 
 The first-class `polygolem deposit-wallet approve-adapters`, `redeemable`,
-and `redeem` commands are live (commits `c77e735` and `0593991`). Every
-signing path defaults to dry-run; submission requires both `--submit` and a
-typed `--confirm` token (`APPROVE_ADAPTERS` for adapter approvals,
-`REDEEM_WINNERS` for redeem). The redeem command runs an
+and `redeem` commands build the V2 adapter path (commits `c77e735` and
+`0593991`). Every signing path defaults to dry-run; submission requires both
+`--submit` and a typed `--confirm` token (`APPROVE_ADAPTERS` for adapter
+approvals, `REDEEM_WINNERS` for redeem). The redeem command runs an
 `isApprovedForAll(wallet, adapter)` pre-check via `eth_call` and refuses to
 sign if any approval is missing — the relayer never sees `/submit` when the
 pre-check fails.
+
+If the relayer rejects adapter approval or redeem calls as "not in the allowed
+list", stop and treat it as an upstream relayer allowlist blocker. The
+production `DepositWalletFactory.proxy()` entrypoint is `onlyOperator`, so the
+owner EOA cannot bypass the relayer, and raw `ConditionalTokens.redeemPositions`
+is not the V2 pUSD-native redeem path.

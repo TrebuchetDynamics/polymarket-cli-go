@@ -197,11 +197,14 @@ negative-risk markets use `NegRiskCtfCollateralAdapter`. Existing deposit
 wallets that only ran the six-call trading approval batch need a separate
 adapter-approval migration before their first V2 redeem.
 
-The first-class SDK/CLI settlement surface is being added as
-`pkg/settlement` plus deposit-wallet redeem commands. Until those commands
-ship in the generated CLI reference, treat winner redemption as documented
-process, not an operator-ready command path. See [docs/SAFETY.md](docs/SAFETY.md)
-and [docs/CONTRACTS.md](docs/CONTRACTS.md).
+The first-class SDK/CLI settlement surface is `pkg/settlement` plus
+`deposit-wallet redeemable` / `deposit-wallet redeem`. These commands build
+the V2 adapter path and fail closed on missing adapter approvals. If the
+relayer rejects adapter calls as not allowlisted, stop; the production factory
+does not expose a direct EOA fallback and raw `ConditionalTokens` redeem is
+not the pUSD-native V2 path. See [docs/SAFETY.md](docs/SAFETY.md),
+[docs/CONTRACTS.md](docs/CONTRACTS.md), and
+[docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md](docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md).
 
 ---
 

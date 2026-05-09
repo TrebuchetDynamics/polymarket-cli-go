@@ -40,6 +40,7 @@ This directory contains the canonical documentation for polygolem. For a single 
 | [INTEGRATION_PLAN.md](../opensource-projects/INTEGRATION_PLAN.md) | Ecosystem survey, 7 gap implementations, headless onboarding blocker analysis. | **Canonical** |
 | [LIVE-TRADING-BLOCKER-REPORT.md](./LIVE-TRADING-BLOCKER-REPORT.md) | Empirical live trading test results with real funds. | **Canonical** |
 | [LIVE-TRADE-WALKTHROUGH.md](./LIVE-TRADE-WALKTHROUGH.md) | End-to-end 2026-05-08 reference run: every tx hash, gas figure, and pUSD movement from EOA private key to a filled buy + sell. | **Canonical** |
+| [DEPOSIT-WALLET-REDEEM-VALIDATION.md](./DEPOSIT-WALLET-REDEEM-VALIDATION.md) | Scientific validation ladder for V2 deposit-wallet redeem: official docs, deployed ABIs, contract source, RPC assertions, and stale-doc inventory. | **Canonical** |
 
 ## Deleted Docs
 
@@ -60,4 +61,4 @@ These docs contained outdated or false claims and have been removed:
 
 ---
 
-*Last updated: 2026-05-08*
+*Last updated: 2026-05-09*

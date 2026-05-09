@@ -142,7 +142,7 @@ The factory deploys per-user deposit wallets via CREATE2. Each wallet is an ERC-
 
 ```
 deploy(address[] _owners, bytes32[] _ids)          — ROLE-GATED (relayer only)
-proxy(Batch[] _batches, bytes[] _signatures)       — UNGATED (signature-validated)
+proxy(Batch[] _batches, bytes[] _signatures)       — ROLE-GATED (relayer only) + signature-validated
 predictWalletAddress(address _impl, bytes32 _id)   — UNGATED (view function)
 implementation()                                    — UNGATED (view)
 authorizedImplementation(address)                   — admin-gated
@@ -155,11 +155,25 @@ grantRoles / revokeRoles / hasAllRoles / hasAnyRole
 | Function | Gated By | Who Can Call |
 |----------|----------|-------------|
 | `deploy()` | Operator role | Polymarket relayer EOA only |
-| `proxy()` | Signature validation | Anyone with a valid EOA signature |
+| `proxy()` | Operator role plus wallet-owner signature validation | Polymarket relayer EOA only |
 | `predictWalletAddress()` | Ungated | Anyone |
 | `implementation()` | Ungated | Anyone |
 
-**Key insight:** `deploy()` is role-gated to the relayer. `proxy()` is permissionless — anyone can submit signed batches on behalf of a deployed wallet.
+**Key insight:** both `deploy()` and `proxy()` are role-gated to the relayer/operator surface. The wallet owner still authorizes WALLET batches with EOA signatures, but a direct owner EOA cannot bypass the relayer by calling the factory `proxy()` function.
+
+Polygon RPC proof from 2026-05-09:
+
+```bash
+cast sig 'OnlyOperator()'
+# 0x27e1f1e5
+
+cast call --rpc-url https://polygon-bor-rpc.publicnode.com \
+  --from 0x000000000000000000000000000000000000dEaD \
+  0x00000000000Fb5C9ADea0298D729A0CB3823Cc07 \
+  'proxy((address,uint256,uint256,(address,uint256,bytes)[])[],bytes[])' \
+  '[]' '[]'
+# execution reverted, data: "0x27e1f1e5"
+```
 
 ### ABI Errors
 
@@ -168,7 +182,7 @@ OnlyAdmin, OnlyOperator, OnlyRoles
 Unauthorized, UnauthorizedCallContext
 ```
 
-Presence of `OnlyAdmin` and `OnlyOperator` confirms role-gated functions. The operator is Polymarket's relayer EOA.
+Presence of `OnlyAdmin` and `OnlyOperator` confirms role-gated functions. Polygonscan verified source for the production factory shows `proxy(Batch[], bytes[]) external onlyOperator`. The operator is Polymarket's relayer EOA.
 
 ## CREATE2 Address Derivation
 
@@ -221,10 +235,17 @@ interface IDepositWallet {
 
     // The EOA that owns this wallet
     function owner() external view returns (address);
+
+    // Verified implementation gates this with onlyFactory.
+    function execute(Batch calldata batch, bytes calldata signature) external;
 }
 ```
 
 The wallet has no private key. The EOA signs messages; the wallet validates via `isValidSignature()`. This is the ERC-1271 pattern — the CLOB Exchange calls `isValidSignature()` on the deposit wallet to verify POLY_1271 typed orders.
+
+The verified implementation at `0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB`
+uses `modifier onlyFactory() { require(msg.sender == factory(), OnlyFactory()); _; }`
+on `execute(...)`, so direct EOA calls to the wallet are not a recovery path.
 
 ## Relayer v2
 
@@ -254,10 +275,10 @@ The relayer at `relayer-v2.polymarket.com` provides gas-sponsored transaction su
 |-----------|---------|-------------|
 | Wallet deploy (WALLET-CREATE) | Polymarket relayer | FREE |
 | Trading approve batch | Polymarket relayer | FREE |
-| Adapter approve batch | Polymarket relayer | FREE |
+| Adapter approve batch | Polymarket relayer, when accepted by its allowlist | FREE |
 | Order placement | No user transaction; posted to CLOB | No user gas |
 | Trade settlement | CLOB executor / exchange settlement path | No user-submitted gas transaction |
-| CTF split/merge/redeem through V2 collateral adapters | Polymarket relayer | FREE |
+| CTF split/merge/redeem through V2 collateral adapters | Polymarket relayer, when accepted by its allowlist | FREE |
 | **Fund wallet (pUSD transfer)** | **User** | **~$0.01 POL** |
 
 The only transaction you pay gas for is the initial pUSD transfer from EOA to deposit wallet.
@@ -267,6 +288,9 @@ The only transaction you pay gas for is the initial pUSD transfer from EOA to de
 | Path | Verdict |
 |------|---------|
 | Direct EOA call to `deploy()` | ❌ Reverts — role-gated |
+| Direct EOA call to factory `proxy()` | ❌ Reverts with `OnlyOperator()` unless caller has operator role |
+| Direct EOA call to wallet `execute()` | ❌ Wallet execution is factory-mediated |
+| Raw `ConditionalTokens.redeemPositions` fallback | ❌ Not the pUSD-native V2 redeem path |
 | Old ProxyFactory `proxy()` | ❌ Creates type 1 wallets, not type 3 |
 | Self-deploy on implementation | ❌ No such function |
 | Separate permissionless factory | ❌ Only one DepositWalletFactory |

@@ -113,6 +113,11 @@ false; the JSON output lists the missing adapter addresses and points the
 operator back to `approve-adapters`. The relayer never sees `/submit` when
 the pre-check fails.
 
+If the relayer rejects adapter approval or redeem calls as "not in the allowed
+list", stop. The production factory `proxy()` entrypoint is `onlyOperator`, so
+the owner EOA cannot bypass the relayer, and raw `ConditionalTokens`
+redemption is not the V2 pUSD-native redeem path.
+
 ## SDK Flow
 
 go-bot consumes the SDK directly. The CLI is for humans and runbooks;

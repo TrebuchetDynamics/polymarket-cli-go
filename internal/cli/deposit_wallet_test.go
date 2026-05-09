@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/TrebuchetDynamics/polygolem/pkg/contracts"
 )
 
 // relayerClientFromEnv prefers the V2 RELAYER_API_KEY scheme when both
@@ -329,6 +331,25 @@ func TestDepositWalletApproveAdaptersSubmitsBatch(t *testing.T) {
 
 const redeemTestPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
 
+func TestDepositWalletRedeemHelpRejectsDirectCTFFallback(t *testing.T) {
+	stdout, stderr, err := executeRootForTest("deposit-wallet", "redeem", "--help")
+	if err != nil {
+		t.Fatalf("Execute error: %v\nstderr:\n%s", err, stderr)
+	}
+	if strings.Contains(stdout, "via-ctf") {
+		t.Fatalf("redeem help must not advertise a raw CTF fallback:\n%s", stdout)
+	}
+	for _, want := range []string{
+		"no safe direct EOA bypass",
+		"raw ConditionalTokens",
+		"not the V2 pUSD-native redeem path",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("redeem help missing %q:\n%s", want, stdout)
+		}
+	}
+}
+
 // dataAPIWithOnePosition serves a single redeemable=true position fixture.
 func dataAPIWithOnePosition(t *testing.T) *httptest.Server {
 	t.Helper()
@@ -399,6 +420,20 @@ func TestDepositWalletRedeemDryRunPrintsCalls(t *testing.T) {
 	calls, ok := data["calls"].([]any)
 	if !ok || len(calls) != 1 {
 		t.Fatalf("dry-run calls=%v want 1 entry", data["calls"])
+	}
+	call, ok := calls[0].(map[string]any)
+	if !ok {
+		t.Fatalf("dry-run call shape=%T want object", calls[0])
+	}
+	target, _ := call["target"].(string)
+	if !strings.EqualFold(target, contracts.CtfCollateralAdapter) {
+		t.Fatalf("redeem dry-run target=%q want V2 collateral adapter %s", target, contracts.CtfCollateralAdapter)
+	}
+	if strings.EqualFold(target, contracts.CTF) {
+		t.Fatalf("redeem dry-run must not target raw ConditionalTokens")
+	}
+	if data["path"] != "relayer-adapter" {
+		t.Fatalf("path=%v want relayer-adapter", data["path"])
 	}
 	note, _ := data["note"].(string)
 	if !strings.Contains(note, "REDEEM_WINNERS") {
@@ -537,5 +572,8 @@ func TestDepositWalletRedeemHappyPathSubmits(t *testing.T) {
 	}
 	if data["transactionID"] != "redeem-tx-1" {
 		t.Fatalf("transactionID=%v", data["transactionID"])
+	}
+	if data["path"] != "relayer-adapter" || data["proceedsToken"] != "pUSD" {
+		t.Fatalf("redeem path/proceeds=%v/%v want relayer-adapter/pUSD", data["path"], data["proceedsToken"])
 	}
 }

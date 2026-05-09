@@ -373,11 +373,17 @@ The required remediation path is:
   find `redeemable=true` positions, build adapter-targeted redeem calls, and
   submit a capped WALLET batch only after adapter approvals are present.
 
-The process is now documented in `docs/SAFETY.md`, `docs/CONTRACTS.md`, the
-README, and the Starlight guide set.
+The process is now documented in `docs/SAFETY.md`, `docs/CONTRACTS.md`,
+`docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md`, the README, and the Starlight
+guide set.
 
-**Implementation status (2026-05-09 PM):** all code and CLI work has landed
-on `main`. The blocker is now an operator runbook rather than a code task.
+**Implementation status (2026-05-09 PM):** the SDK/CLI can build the V2
+adapter approval and redeem WALLET batches, but live recovery still depends on
+Polymarket's relayer accepting those adapter calls. Verified factory source and
+Polygon RPC show `DepositWalletFactory.proxy(...)` is `onlyOperator`; direct EOA
+submission is not a fallback. If the relayer returns "not in the allowed list",
+the remaining blocker is upstream relayer allowlist support or an official
+Polymarket redeem route.
 
 Commits:
 
@@ -415,6 +421,9 @@ polygolem deposit-wallet redeem --json
 #    isApprovedForAll(wallet, adapter) is false.
 polygolem deposit-wallet redeem --submit --confirm REDEEM_WINNERS --json
 ```
+
+If step 1 or step 4 fails with a relayer allowlist rejection, stop. Do not use
+raw `ConditionalTokens.redeemPositions` as a V2 pUSD redeem workaround.
 
 ### B-9 — Builder credentials configured
 

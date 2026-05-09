@@ -118,6 +118,11 @@ Adapter readiness is separate from trading readiness. Existing wallets that
 only ran the six-call trading approval batch need a one-shot adapter approval
 batch before their first V2 redeem.
 
+If relayer submission rejects the adapter approval or redeem call as "not in
+the allowed list", stop. The production factory `proxy()` entrypoint is
+`onlyOperator`, so there is no direct owner-EOA fallback, and raw
+`ConditionalTokens.redeemPositions` is not the V2 pUSD-native redeem path.
+
 ### Relayer Auth vs Trading Auth
 
 - **Relayer auth**: V2 relayer key or builder HMAC credentials → wallet lifecycle operations

@@ -465,7 +465,14 @@ deposit wallet before V2 redeem will succeed. Idempotent.
 
 Without --submit, prints the calldata JSON for review.
 With --submit, the operator must also pass --confirm APPROVE_ADAPTERS to
-authorize the live-money WALLET batch.`,
+authorize the live-money WALLET batch.
+
+NOTE: If Polymarket's relayer allowlist rejects these calls with HTTP 400
+"not in the allowed list", the wallet implementation gates execute() behind
+onlyFactory and the factory gates proxy() behind onlyOperator, so a direct EOA
+bypass is not possible. Do not fall back to raw ConditionalTokens.redeemPositions;
+V2 redeem must route through the collateral adapters. Treat relayer allowlist
+rejection as an upstream execution blocker until Polymarket allows adapter calls.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			callsJSON, err := relayer.BuildAdapterApprovalCallsJSON()
@@ -496,6 +503,11 @@ authorize the live-money WALLET batch.`,
 			if err != nil {
 				return fmt.Errorf("derive deposit wallet: %w", err)
 			}
+			var calls []relayer.DepositWalletCall
+			if err := json.Unmarshal([]byte(callsJSON), &calls); err != nil {
+				return fmt.Errorf("parse adapter approval calls: %w", err)
+			}
+
 			rc, err := relayerClientFromEnv()
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
@@ -503,10 +515,6 @@ authorize the live-money WALLET batch.`,
 			nonce, err := rc.GetNonce(cmd.Context(), owner)
 			if err != nil {
 				return fmt.Errorf("fetch nonce: %w", err)
-			}
-			var calls []relayer.DepositWalletCall
-			if err := json.Unmarshal([]byte(callsJSON), &calls); err != nil {
-				return fmt.Errorf("parse adapter approval calls: %w", err)
 			}
 			dl := relayer.BuildDeadline(240)
 			sig, err := relayer.SignWalletBatch(signer, walletAddress, nonce, dl, calls)
@@ -523,6 +531,7 @@ authorize the live-money WALLET batch.`,
 				"wallet":        walletAddress,
 				"approvals":     len(calls),
 				"adapters":      []string{contracts.CtfCollateralAdapter, contracts.NegRiskCtfCollateralAdapter},
+				"path":          "relayer",
 			})
 		},
 	}
@@ -984,7 +993,12 @@ authorize the live-money WALLET batch.
 
 Pre-check: requires CTF.setApprovalForAll(wallet, adapter) = true for
 every adapter targeted by the redeem set. If any approval is missing,
-fails closed with a pointer to 'deposit-wallet approve-adapters'.`,
+fails closed with a pointer to 'deposit-wallet approve-adapters'.
+
+NOTE: If Polymarket's relayer rejects adapter approval or redeem calls
+with "not in the allowed list", there is no safe direct EOA bypass. The
+factory proxy() entrypoint is onlyOperator, and raw ConditionalTokens
+redeem is not the V2 pUSD-native redeem path.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, err := requirePrivateKey()
@@ -1012,7 +1026,7 @@ fails closed with a pointer to 'deposit-wallet approve-adapters'.`,
 			}
 
 			// Build the calls so we can show the dry-run payload and
-			// also know which adapters are required for the pre-check.
+			// also know which adapters require the pre-check.
 			calls := make([]relayer.DepositWalletCall, 0, len(rows))
 			adaptersNeeded := make(map[string]struct{})
 			for _, p := range rows {
@@ -1030,6 +1044,7 @@ fails closed with a pointer to 'deposit-wallet approve-adapters'.`,
 					"count":         len(rows),
 					"positions":     rows,
 					"calls":         calls,
+					"path":          "relayer-adapter",
 					"note":          "review calldata, then run with --submit --confirm REDEEM_WINNERS to sign and send",
 				})
 			}
@@ -1077,6 +1092,8 @@ fails closed with a pointer to 'deposit-wallet approve-adapters'.`,
 				"deadline":      result.Deadline,
 				"callCount":     result.CallCount,
 				"redeemed":      result.Redeemed,
+				"path":          "relayer-adapter",
+				"proceedsToken": "pUSD",
 			})
 		},
 	}
