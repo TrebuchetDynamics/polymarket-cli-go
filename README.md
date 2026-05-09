@@ -184,6 +184,7 @@ is a thin wrapper around an importable `pkg/` package:
 |---|---|
 | [`pkg/universal`](pkg/universal) | One typed client over Gamma + CLOB + Data API + Stream + Discovery (70+ methods) |
 | [`pkg/clob`](pkg/clob) | CLOB V2 — market data, orders, balances, builder fees |
+| [`pkg/contracts`](pkg/contracts) | Polygon contract registry and deposit-wallet bytecode deployment checks |
 | [`pkg/gamma`](pkg/gamma) | Read-only Gamma market discovery (26 methods) |
 | [`pkg/data`](pkg/data) | Data API — positions, volume, leaderboards |
 | [`pkg/stream`](pkg/stream) | Public CLOB WebSocket market stream |
@@ -254,7 +255,7 @@ call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
 | [Onboarding](docs/ONBOARDING.md) | Single source of truth — complete deposit wallet flow, troubleshooting. |
 | [Browser Setup](docs/BROWSER-SETUP.md) | One-time browser login for new users; security guidance. |
 | [Safety](docs/SAFETY.md) | Risk controls, deposit-wallet-only enforcement, circuit breakers. |
-| [Contracts](docs/CONTRACTS.md) | All contract addresses, factory ABI, CREATE2 derivation. |
+| [Contracts](docs/CONTRACTS.md) | Contract addresses, factory ABI, CREATE2 derivation, and deployment status source-of-truth rules. |
 | [Architecture](docs/ARCHITECTURE.md) | Package boundaries and dependency direction. |
 | [Commands](docs/COMMANDS.md) | Auto-generated CLI reference. |
 | [Deposit Wallet Migration](docs/DEPOSIT-WALLET-MIGRATION.md) | V1→V2 survival guide for older bots. |

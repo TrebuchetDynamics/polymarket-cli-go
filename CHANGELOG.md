@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Deposit-wallet deploy false-negative trap.** The relayer `/deployed`
+  endpoint can return `false` after a stale `WALLET-CREATE` row is marked
+  `STATE_FAILED` even when the deposit wallet is fully deployed on Polygon.
+  Polygolem and the go-bot SDK now treat `eth_getCode` at the derived
+  deposit-wallet address as the source of truth.
+  - `polygolem deposit-wallet status` falls back to `eth_getCode` when the
+    relayer reports not deployed; the JSON envelope adds
+    `relayerDeployed`, `onchainCodeDeployed`, and `deploymentStatusSource`,
+    and renames the long-standing `wallerNonce` typo to `walletNonce`.
+  - `polygolem deposit-wallet deploy --wait` checks `eth_getCode` before
+    submitting `WALLET-CREATE` and exits with `state=already_deployed` when
+    the wallet already has code. New `--rpc-url` flag overrides the
+    Polygon RPC endpoint (default: `POLYGON_RPC_URL` env, then public node).
+  - `pkg/relayer.DepositWalletAddress` and
+    `pkg/relayer.DepositWalletCodeDeployed` (wraps `internal/rpc.HasCode`)
+    expose the dual-source check to SDK consumers.
+  - `go-bot/internal/polygolem.Client.DepositWalletStatus` treats on-chain
+    code as the source of truth when the relayer reports false.
+
 ## [0.1.0] — 2026-05-07
 
 First tagged release. Includes everything shipped through Phase 0–E plus

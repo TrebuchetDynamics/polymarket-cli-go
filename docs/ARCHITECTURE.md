@@ -13,6 +13,7 @@ Stable interfaces for downstream Go consumers (e.g., `go-bot`).
 | Package | Purpose |
 |---|---|
 | `pkg/clob` | CLOB market-data plus authenticated account/order DTOs. |
+| `pkg/contracts` | Polygon contract registry and contract-code deployment checks. |
 | `pkg/orderbook` | Read-only CLOB order-book reader. |
 | `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook`. |
 | `pkg/bridge` | Bridge API client — supported assets, deposit addresses, quotes. |
@@ -48,7 +49,7 @@ Implementation. Not part of the public SDK contract.
 | `internal/preflight` | Local and remote readiness checks. |
 | `internal/relayer` | Builder relayer client — WALLET-CREATE, WALLET batch, nonce, polling. |
 | `internal/risk` | Per-trade caps, daily loss limits, circuit breaker. |
-| `internal/rpc` | Direct on-chain transfers (e.g., ERC-20 pUSD from EOA). |
+| `internal/rpc` | Low-level Polygon RPC helpers: bytecode checks, direct transfers, swaps, deploy estimates. |
 | `internal/stream` | WebSocket market stream implementation behind `pkg/stream`. |
 | `internal/transport` | HTTP retry, rate limiter, circuit breaker, redaction. |
 | `internal/wallet` | Deposit-wallet primitives — derive, deploy, status, batch signing. |
@@ -68,7 +69,7 @@ internal/{auth, transport, polytypes}                   ← cross-cutting primit
         |
 internal/{wallet, orders, execution, risk, paper, marketdiscovery}
         |
-pkg/{bookreader, bridge, clob, data, gamma, marketresolver, orderbook, pagination, relayer, stream, types, universal}   ← public re-exposed surface
+pkg/{bookreader, bridge, clob, contracts, data, gamma, marketresolver, orderbook, pagination, relayer, stream, types, universal}   ← public re-exposed surface
 ```
 
 Command handlers parse flags, call package APIs, and render output via
@@ -120,13 +121,14 @@ relayer. Order attribution uses the on-order `builder` bytes32 field (V2).
 proves stable enough to expose. Do not move code into `pkg/` without an
 SDK-level commitment to keep its API stable across minor versions.
 
-Gamma, Data API, CLOB market/account/order DTOs, and public market stream DTOs
-are promoted public DTO families. `pkg/gamma`, `pkg/data`, `pkg/clob`,
-`pkg/stream`, and the corresponding
+Gamma, Data API, CLOB market/account/order DTOs, contract registry/readiness
+helpers, and public market stream DTOs are promoted public DTO families.
+`pkg/gamma`, `pkg/data`, `pkg/clob`, `pkg/contracts`, `pkg/stream`, and the corresponding
 `pkg/universal` methods return `pkg/types` for markets, events, tags, series,
 comments, profiles, positions, trades, holders, leaderboards, open interest,
 live volume, CLOB market data, books, prices, and price history, or
-`pkg/clob` types for authenticated CLOB account/trading operations and
+`pkg/clob` types for authenticated CLOB account/trading operations,
+`pkg/contracts` types for on-chain deployment checks, and
 `pkg/stream` types for WebSocket market events. Rewards, enrichment, and
 user-stream types still need dedicated public-contract slices.
 

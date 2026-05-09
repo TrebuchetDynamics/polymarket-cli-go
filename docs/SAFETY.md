@@ -98,7 +98,9 @@ When `signature_type = 3` (deposit), the CLOB balance endpoint returns the
 **deposit wallet's pUSD balance**, not the EOA's. Live readiness must:
 
 1. Check the CLOB balance with `signature_type = 3`
-2. Verify the deposit wallet is deployed (relayer `/deployed` endpoint)
+2. Verify the deposit wallet is deployed. Polygon `eth_getCode` is the source
+   of truth; relayer `/deployed` is advisory and can return false while the
+   contract already has bytecode.
 3. Verify collateral allowances are non-zero
 4. Block before order submission if any check fails
 
@@ -141,7 +143,8 @@ operations. These rules apply.
    `clob market-order` sign with the deposit
    wallet's POLY_1271 path. Orders signed without the deposit signature
    type after the May 2026 cutoff will be rejected by Polymarket for
-   new accounts.
+   new accounts. Readiness must verify non-empty bytecode at the deposit
+   wallet address before order submission.
 
 7. **Builder attribution does not bypass safety.** Setting builder
    credentials enables deposit-wallet operations; it does not relax any

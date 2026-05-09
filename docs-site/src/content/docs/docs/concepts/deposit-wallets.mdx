@@ -64,6 +64,16 @@ polygolem deposit-wallet deploy --wait
 
 After deployment, the wallet's `proxy()` function is **ungated** — anyone can submit EOA-signed batches on behalf of a deployed wallet.
 
+The relayer's `/deployed` endpoint can become a false-negative when a
+`WALLET-CREATE` row is marked `STATE_FAILED` despite the underlying
+transaction landing on Polygon. Polygolem and the go-bot SDK therefore use
+**Polygon `eth_getCode` as the source of truth**: if bytecode exists at the
+derived deposit-wallet address, the wallet is treated as deployed and
+`WALLET-CREATE` is skipped. See
+[Deposit Wallet Lifecycle / Phase 2](/docs/guides/deposit-wallet-lifecycle/#phase-2-deploy-relayer-idempotent)
+for the full rule and the `deposit-wallet status --json` fields
+(`relayerDeployed`, `onchainCodeDeployed`, `deploymentStatusSource`).
+
 ## Signing Flow (POLY_1271)
 
 1. App builds V2 order typed data (`Polymarket CTF Exchange`, version `"2"`)

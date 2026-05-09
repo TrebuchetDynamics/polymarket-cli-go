@@ -12,6 +12,7 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
 	"github.com/TrebuchetDynamics/polygolem/internal/relayer"
 	"github.com/TrebuchetDynamics/polygolem/internal/rpc"
+	"github.com/TrebuchetDynamics/polygolem/pkg/contracts"
 	"github.com/spf13/cobra"
 )
 
@@ -117,6 +118,7 @@ func depositWalletDeriveCmd(jsonOut bool) *cobra.Command {
 func depositWalletDeployCmd(jsonOut bool) *cobra.Command {
 	var wait bool
 	var timeout time.Duration
+	var rpcURL string
 	cmd := &cobra.Command{
 		Use:   "deploy",
 		Short: "Deploy the deposit wallet via relayer WALLET-CREATE",
@@ -131,6 +133,24 @@ func depositWalletDeployCmd(jsonOut bool) *cobra.Command {
 				return fmt.Errorf("init signer: %w", err)
 			}
 			owner := signer.Address()
+			wallet, err := auth.MakerAddressForSignatureType(owner, 137, 3)
+			if err != nil {
+				return fmt.Errorf("derive deposit wallet address: %w", err)
+			}
+			codeStatus, err := contracts.DepositWalletDeployed(cmd.Context(), wallet, firstNonEmptyCLI(rpcURL, os.Getenv("POLYGON_RPC_URL")))
+			if err != nil {
+				return fmt.Errorf("check on-chain deposit wallet code before WALLET-CREATE: %w", err)
+			}
+			if codeStatus.Deployed {
+				return printJSON(cmd, map[string]interface{}{
+					"state":               "already_deployed",
+					"owner":               owner,
+					"depositWallet":       wallet,
+					"onchainCodeDeployed": true,
+					"deploymentSource":    codeStatus.Source,
+					"note":                "deposit wallet already has code on Polygon; skipped WALLET-CREATE",
+				})
+			}
 			rc, err := relayerClientFromEnv()
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
@@ -155,10 +175,6 @@ func depositWalletDeployCmd(jsonOut bool) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("WALLET-CREATE poll: %w", err)
 			}
-			wallet, err := auth.MakerAddressForSignatureType(owner, 137, 3)
-			if err != nil {
-				return fmt.Errorf("derive deposit wallet address: %w", err)
-			}
 			return printJSON(cmd, map[string]interface{}{
 				"transactionID": final.TransactionID,
 				"state":         final.State,
@@ -169,6 +185,7 @@ func depositWalletDeployCmd(jsonOut bool) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&wait, "wait", false, "poll until transaction reaches terminal state")
 	cmd.Flags().DurationVar(&timeout, "timeout", 2*time.Minute, "max wait time for --wait")
+	cmd.Flags().StringVar(&rpcURL, "rpc-url", "", "Polygon RPC URL (default: public node)")
 	return cmd
 }
 
@@ -233,7 +250,7 @@ func depositWalletStatusCmd(jsonOut bool) *cobra.Command {
 				}
 				return printJSON(cmd, tx)
 			}
-			deployed, err := rc.IsDeployed(cmd.Context(), owner)
+			relayerDeployed, err := rc.IsDeployed(cmd.Context(), owner)
 			if err != nil {
 				return fmt.Errorf("deployed check: %w", err)
 			}
@@ -241,15 +258,26 @@ func depositWalletStatusCmd(jsonOut bool) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("derive deposit wallet address: %w", err)
 			}
+			onchainDeployed := relayerDeployed
+			if !relayerDeployed {
+				codeStatus, err := contracts.DepositWalletDeployed(cmd.Context(), wallet, os.Getenv("POLYGON_RPC_URL"))
+				if err != nil {
+					return fmt.Errorf("on-chain deposit wallet code check: %w", err)
+				}
+				onchainDeployed = codeStatus.Deployed
+			}
 			nonce, err := rc.GetNonce(cmd.Context(), owner)
 			if err != nil {
 				nonce = "error: " + err.Error()
 			}
 			return printJSON(cmd, map[string]interface{}{
-				"owner":         owner,
-				"depositWallet": wallet,
-				"deployed":      deployed,
-				"wallerNonce":   nonce,
+				"owner":                  owner,
+				"depositWallet":          wallet,
+				"deployed":               relayerDeployed || onchainDeployed,
+				"relayerDeployed":        relayerDeployed,
+				"onchainCodeDeployed":    onchainDeployed,
+				"deploymentStatusSource": deploymentStatusSource(relayerDeployed, onchainDeployed),
+				"walletNonce":            nonce,
 			})
 		},
 	}
@@ -606,7 +634,7 @@ After onboarding, sync CLOB:
 			}
 
 			if !skipDeploy {
-				deployed, err := rc.IsDeployed(cmd.Context(), owner)
+				deployed, err := depositWalletDeployed(cmd.Context(), rc, owner, wallet)
 				if err != nil {
 					return fmt.Errorf("check deployed: %w", err)
 				}
@@ -688,6 +716,31 @@ After onboarding, sync CLOB:
 	cmd.Flags().BoolVar(&skipApprove, "skip-approve", false, "skip approval batch")
 	cmd.Flags().StringVar(&fundAmount, "fund-amount", "", "pUSD amount to transfer from EOA to deposit wallet (e.g. 0.71)")
 	return cmd
+}
+
+func depositWalletDeployed(ctx context.Context, rc *relayer.Client, owner string, wallet string) (bool, error) {
+	relayerDeployed, err := rc.IsDeployed(ctx, owner)
+	if err != nil {
+		return false, err
+	}
+	if relayerDeployed {
+		return true, nil
+	}
+	status, err := contracts.DepositWalletDeployed(ctx, wallet, os.Getenv("POLYGON_RPC_URL"))
+	if err != nil {
+		return false, fmt.Errorf("relayer reported not deployed and on-chain code check failed: %w", err)
+	}
+	return status.Deployed, nil
+}
+
+func deploymentStatusSource(relayerDeployed bool, onchainDeployed bool) string {
+	if relayerDeployed {
+		return "relayer"
+	}
+	if onchainDeployed {
+		return "polygon_code"
+	}
+	return "relayer_and_polygon_code"
 }
 
 func parsePUSDAmount(s string) (*big.Int, error) {

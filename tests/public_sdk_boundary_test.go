@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	sdkclob "github.com/TrebuchetDynamics/polygolem/pkg/clob"
+	"github.com/TrebuchetDynamics/polygolem/pkg/contracts"
 	"github.com/TrebuchetDynamics/polygolem/pkg/data"
 	"github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
 	"github.com/TrebuchetDynamics/polygolem/pkg/gamma"
@@ -78,6 +79,10 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var orderbookSnapshot orderbook.OrderBook
 	var orderbookLevel orderbook.Level
 	var legacyReader bookreader.Reader = bookreader.NewReader("")
+	var contractsRegistry contracts.Registry = contracts.PolygonMainnet()
+	var contractStatus contracts.DeploymentStatus
+	var contractDeployed func(context.Context, string, string) (contracts.DeploymentStatus, error) = contracts.ContractDeployed
+	var depositWalletDeployed func(context.Context, string, string) (contracts.DeploymentStatus, error) = contracts.DepositWalletDeployed
 	var relayerClient *relayer.Client
 	var relayerV2Key relayer.V2APIKey
 	var relayerOnboardOptions relayer.OnboardOptions
@@ -117,6 +122,7 @@ func TestPublicSDKSignatures(t *testing.T) {
 	_, _, _, _ = clobCreateParams, clobCreate, clobMarketOrderParams, clobMarketOrder
 	_, _, _, _, _, _, _, _, _, _ = streamClient, streamConfig, streamConnect, streamSubscribe, streamClose, streamConnected, streamBook, streamPriceChange, streamLastTrade, streamDeduplicator
 	_, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, legacyReader
+	_, _, _, _ = contractsRegistry, contractStatus, contractDeployed, depositWalletDeployed
 	_, _, _, _, _ = relayerClient, relayerV2Key, relayerOnboardOptions, relayerOnboard, relayerNewV2
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
 	_, _, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments, universalConfig

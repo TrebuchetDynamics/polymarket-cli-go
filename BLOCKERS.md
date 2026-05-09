@@ -186,6 +186,79 @@ function verifyPoly1271Signature(address signer, address maker, bytes32 hash, by
 
 ## Open
 
+### B-10 — 2026-05-09 live readiness blockers
+
+Live account:
+
+```
+EOA:            0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C
+depositWallet: 0x21999a074344610057c9b2B362332388a44502D4
+```
+
+Current read-only state:
+
+- Deposit wallet is deployed on-chain. `eth_getCode` at
+  `0x21999a074344610057c9b2B362332388a44502D4` returns non-empty bytecode
+  (`0x363d3d37...`), even though the relayer `/deployed` endpoint returns
+  `false`.
+- CLOB collateral balance is `0.939926` pUSD.
+- EOA on-chain pUSD is `0.022208` pUSD.
+- EOA gas balance is `38.050244` POL.
+- CLOB pUSD/CTF allowances are present for three exchange spenders.
+- Open CLOB orders are empty.
+
+Current hard blockers:
+
+1. Deposit-wallet relayer deploy status is a false-negative trap:
+
+   ```
+   tx_id=019e0ab5-166e-7aca-81a9-2f7bbd7463a7
+   type=WALLET-CREATE
+   state=STATE_FAILED
+   from=0x33e4ad5a1367fbf7004c637f628a5b78c44fa76c
+   to=0x00000000000fb5c9adea0298d729a0cb3823cc07
+   nonce=0
+   ```
+
+   The current source of truth must be Polygon `eth_getCode`, not
+   relayer `/deployed`. Tooling should skip another `WALLET-CREATE` when the
+   derived deposit wallet already has code.
+
+2. `go-bot swap pol-to-pusd --amount 1` is blocked by the reserve guard:
+
+   ```
+   balance=38050244057901668653
+   required=51000000000000000000
+   ```
+
+   This is expected because the default `MINIMUM_POL` reserve is `50`, while
+   the EOA only has `38.050244` POL.
+
+3. A lower-reserve dry run proves the swap route can quote, but it was not
+   broadcast because lowering the reserve is a live-money policy override:
+
+   ```
+   go-bot swap pol-to-pusd --amount 1 --min-pol-reserve 30
+   quote_out_raw=103209
+   min_out_raw=102176
+   fee_tier=500
+   ```
+
+4. The configured `LIVE_ORDER_ALLOCATION_PCT=5` makes the order budget about
+   `0.046996` pUSD from the current CLOB balance, which is below the practical
+   5-share minimum at common prices.
+
+5. Evidence gates are not green: W02-W06 are stale and W08-W12 are empty.
+
+Required decision before continuing:
+
+- Either fund POL above the default `MINIMUM_POL=50`, or explicitly lower the
+  reserve for this account.
+- Resolve the relayer `WALLET-CREATE` failure or switch to an already-deployed
+  deposit wallet path.
+- Only after the deposit wallet is deployed should pUSD be transferred to the
+  deposit wallet and CLOB balance refreshed.
+
 ### B-9 — Builder credentials not configured
 
 `go-bot/.env` is missing builder credentials. The live loop now fails early

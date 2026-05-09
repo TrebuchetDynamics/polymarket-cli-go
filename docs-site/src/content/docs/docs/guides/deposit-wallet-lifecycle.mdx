@@ -41,6 +41,16 @@ the deployment gas. The go-bot checks deployment status before submitting.
 WALLET-CREATE { from: <EOA>, to: <factory> }
 ```
 
+> **On-chain code is the source of truth.** The relayer's `/deployed`
+> endpoint can return `false` even when the deposit wallet is fully deployed
+> on Polygon (for example, after a stale `WALLET-CREATE` row marked
+> `STATE_FAILED` despite the underlying transaction landing). Polygolem and
+> the go-bot SDK both fall back to `eth_getCode` at the derived address; if
+> bytecode exists, the wallet is treated as deployed and `WALLET-CREATE` is
+> skipped. `polygolem deposit-wallet status --json` exposes which path
+> answered via `relayerDeployed`, `onchainCodeDeployed`, and
+> `deploymentStatusSource`.
+
 ### Phase 3: Fund (onchain)
 
 pUSD must be transferred from the EOA to the deposit wallet. The EOA's pUSD
@@ -69,12 +79,14 @@ is idempotent — running it twice on an already-ready wallet is a no-op.
 
 | State on Restart | What Happens |
 |------------------|-------------|
-| **No deployment** | `IsDeployed()` → false → `WALLET-CREATE` → poll until mined |
-| **Deployed, no pUSD** | `IsDeployed()` → true, balance zero → fund EOA pUSD → transfer to wallet |
+| **No deployment** | `IsDeployed()` → false **and** `eth_getCode` empty → `WALLET-CREATE` → poll until mined |
+| **Deployed (relayer says so)** | `IsDeployed()` → true → skip deploy |
+| **Deployed (relayer false-negative)** | `IsDeployed()` → false **but** `eth_getCode` non-empty → treat as deployed, skip `WALLET-CREATE` |
+| **Deployed, no pUSD** | Wallet has code, balance zero → fund EOA pUSD → transfer to wallet |
 | **Deployed, pUSD present, no approvals** | Balance OK, allowances empty → `SubmitWalletBatchSafe` with fresh nonce |
 | **Fully operational** | All checks pass → skip to live trading loop |
 | **Nonce conflict** (lost response after a previous batch) | `SubmitWalletBatchSafe` re-fetches nonce from relayer, signs with new nonce, retries |
-| **Wallet lost** (never happens — it's a contract on Polygon) | Re-derive address (same result) → check `IsDeployed` → still true → skip deploy |
+| **Wallet lost** (never happens — it's a contract on Polygon) | Re-derive address (same result) → on-chain code still present → skip deploy |
 
 ## Nonce Safety
 
@@ -138,7 +150,7 @@ go-bot's `live` command automates the full lifecycle at startup:
 ```
 go-bot live startup:
   1. derive deposit wallet address (offline)
-  2. check IsDeployed() → deploy if needed
+  2. check IsDeployed(); if false, fall back to eth_getCode → deploy only when both say not deployed
   3. check deposit wallet pUSD balance → fund if needed
   4. check collateral allowances → approve if needed
   5. update CLOB balance cache
@@ -148,15 +160,23 @@ go-bot live startup:
 With persistence, a restart after a crash recovers cleanly:
 
 ```
-crash → restart → derive (same address) → IsDeployed=true → skip deploy
-→ balance OK → skip fund → allowances OK → skip approve → start trading
+crash → restart → derive (same address) → IsDeployed or eth_getCode=true
+→ skip deploy → balance OK → skip fund → allowances OK → skip approve
+→ start trading
 ```
 
 ## Checking Status
 
 ```bash
-# Is the wallet deployed?
-polygolem deposit-wallet status
+# Is the wallet deployed? (relayer + on-chain dual-source check)
+polygolem deposit-wallet status --json
+# {
+#   "deployed": true,
+#   "deploymentStatusSource": "polygon_code",
+#   "relayerDeployed": false,
+#   "onchainCodeDeployed": true,
+#   "depositWallet": "0x21999a..."
+# }
 
 # What's the deposit wallet balance?
 polygolem clob balance --asset-type collateral
@@ -164,6 +184,16 @@ polygolem clob balance --asset-type collateral
 # Check EOA onchain funds with wallet/RPC tooling; CLOB balance reads use
 # the deposit wallet cache.
 ```
+
+`deploymentStatusSource` is one of:
+
+- `relayer` — relayer `/deployed` returned true (normal happy path).
+- `polygon_code` — relayer said false, but `eth_getCode` returned non-empty
+  bytecode. The wallet is deployed; the relayer row is stale.
+- `relayer_and_polygon_code` — both reported not deployed. Real first-deploy
+  state; `polygolem deposit-wallet deploy --wait` will submit `WALLET-CREATE`
+  (and itself skips the call if `eth_getCode` becomes non-empty before the
+  request is made, e.g. mid-retry).
 
 > pUSD held by the EOA and pUSD held by the deposit wallet are **separate
 > balances**. Only the deposit wallet balance counts for POLY_1271 trading.

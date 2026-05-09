@@ -51,6 +51,20 @@ type OnboardResult struct {
 	NextSteps     []string               `json:"nextSteps,omitempty"`
 }
 
+// DepositWalletAddress returns the controlling EOA address and deterministic
+// Polymarket V2 deposit-wallet address for privateKey.
+func DepositWalletAddress(privateKey string) (owner string, depositWallet string, err error) {
+	signer, err := NewSigner(privateKey, 137)
+	if err != nil {
+		return "", "", fmt.Errorf("relayer: init signer: %w", err)
+	}
+	wallet, err := auth.MakerAddressForSignatureType(signer.Address(), signer.ChainID(), 3)
+	if err != nil {
+		return "", "", fmt.Errorf("relayer: derive deposit wallet: %w", err)
+	}
+	return signer.Address(), wallet, nil
+}
+
 // OnboardDepositWallet derives the deposit wallet address, deploys it through
 // the relayer when needed, and submits the standard V2 pUSD + CTF approval
 // batch. It does not transfer pUSD; callers must fund explicitly.
@@ -62,10 +76,9 @@ func OnboardDepositWallet(ctx context.Context, client *Client, privateKey string
 	if err != nil {
 		return nil, fmt.Errorf("relayer: init signer: %w", err)
 	}
-	owner := signer.Address()
-	wallet, err := auth.MakerAddressForSignatureType(owner, signer.ChainID(), 3)
+	owner, wallet, err := DepositWalletAddress(privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("relayer: derive deposit wallet: %w", err)
+		return nil, err
 	}
 	result := &OnboardResult{
 		Owner:         owner,

@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -75,5 +78,44 @@ func TestRelayerClientFromEnvIgnoresPartialV2(t *testing.T) {
 
 	if _, err := relayerClientFromEnv(); err == nil {
 		t.Fatal("expected error when V2 is partial and legacy is missing")
+	}
+}
+
+func TestDepositWalletStatusOutputsWalletNonce(t *testing.T) {
+	const privateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/deployed":
+			_ = json.NewEncoder(w).Encode(map[string]any{"deployed": true})
+		case "/nonce":
+			_ = json.NewEncoder(w).Encode(map[string]any{"nonce": "7"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", privateKey)
+	t.Setenv("POLYMARKET_RELAYER_URL", server.URL)
+	t.Setenv("RELAYER_API_KEY", "relayer-key")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "0xabc")
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "status")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false, want true\nenvelope=%s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("data decode: %v\n%s", err, got.Data)
+	}
+	if data["walletNonce"] != "7" {
+		t.Fatalf("walletNonce=%v want 7; data=%v", data["walletNonce"], data)
+	}
+	if _, ok := data["wallerNonce"]; ok {
+		t.Fatalf("deprecated wallerNonce key present: %v", data)
 	}
 }

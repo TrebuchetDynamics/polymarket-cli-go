@@ -114,8 +114,8 @@ polygolem clob create-order --token <TOKEN_ID> --side buy --price 0.5 --size 10
 |-----------|-----------|-------|
 | SIWE login | ✅ Yes | `auth headless-onboard` |
 | Relayer key mint | ✅ Yes | `auth headless-onboard` |
-| Deposit wallet deploy | ✅ Yes | `deposit-wallet deploy` |
-| Deposit wallet status | ✅ Yes | `deposit-wallet status` |
+| Deposit wallet deploy | ✅ Yes | `deposit-wallet deploy`; skips `WALLET-CREATE` when Polygon bytecode already exists |
+| Deposit wallet status | ✅ Yes | `deposit-wallet status`; reports both relayer and Polygon bytecode status |
 | **Deposit-wallet CLOB API key** | ❌ **No** | **Requires browser login for new users** |
 | Balance check | ✅ Yes | After API key exists |
 | Order creation | ✅ Yes | After API key exists |
@@ -157,7 +157,17 @@ You're trying to place a deposit-wallet order with an EOA-owned API key. Deposit
 
 ### "Deposit wallet not deployed"
 
-Run `polygolem deposit-wallet deploy --wait` first. The wallet must exist on-chain before browser signup.
+Run `polygolem deposit-wallet status` first. If `onchainCodeDeployed` is
+`true`, the wallet exists even when `relayerDeployed` is `false`.
+
+If both are false, run:
+
+```bash
+polygolem deposit-wallet deploy --wait
+```
+
+The wallet must exist on-chain before browser signup and POLY_1271 order
+signing.
 
 ### "Insufficient balance"
 

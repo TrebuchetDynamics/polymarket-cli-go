@@ -1284,6 +1284,7 @@ polygolem deposit-wallet deploy [flags]
 |---|---|---|---|
 | `-h, --help` | `bool` | `false` | help for deploy |
 | `--json` | `bool` | `false` | emit JSON output |
+| `--rpc-url` | `string` | `""` | Polygon RPC URL (default: public node) |
 | `--timeout` | `duration` | `2m0s` | max wait time for --wait |
 | `--wait` | `bool` | `false` | poll until transaction reaches terminal state |
 

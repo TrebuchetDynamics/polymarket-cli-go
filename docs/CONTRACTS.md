@@ -2,7 +2,7 @@
 
 > **Date:** 2026-05-07
 > **Status:** Complete — investigation confirms all-on-chain deployment is impossible
-> **Last verified:** Live on-chain against Polygon mainnet (chainID 137)
+> **Last verified:** Live on-chain against Polygon mainnet (chainID 137), 2026-05-09
 
 ---
 
@@ -26,6 +26,58 @@
 
 **New API users (post-May 2026):** Deposit wallet (type 3 / POLY_1271) only. EOA is blocked by CLOB V2.
 **Grandfathered users:** Proxy (type 1) or Safe (type 2) still work.
+
+### 1.3 Deployment Status Source of Truth
+
+There are two different deployment signals:
+
+| Signal | Source | Meaning |
+|---|---|---|
+| Relayer deployed flag | `GET /deployed?address=<owner>` | Relayer/indexer view used by Polymarket's wallet lifecycle API |
+| Contract bytecode | Polygon `eth_getCode(<depositWallet>)` | Chain truth: whether the deposit wallet has deployed code |
+
+For trading safety, **on-chain bytecode wins**. The CTF Exchange V2
+POLY_1271 path checks `maker.code.length > 0` before validating the ERC-1271
+signature, so a deposit wallet with non-empty bytecode is deployed for
+order-signing purposes even if the relayer `/deployed` endpoint returns a
+false negative.
+
+2026-05-09 live account evidence:
+
+```text
+owner:         0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C
+depositWallet: 0x21999a074344610057c9b2B362332388a44502D4
+relayer:       deployed=false
+polygon code:  0x363d3d373d3d363d7f360894a13ba1a3210667c828492db...
+status:        deployed for POLY_1271
+```
+
+Polygolem exposes this as the public SDK contract primitive:
+
+```go
+status, err := contracts.DepositWalletDeployed(ctx, depositWallet, "")
+if err != nil {
+    return err
+}
+if status.Deployed {
+    // Safe to skip WALLET-CREATE; continue approvals/funding/readiness.
+}
+```
+
+`polygolem deposit-wallet status` reports both fields:
+
+```json
+{
+  "deployed": true,
+  "deploymentStatusSource": "polygon_code",
+  "relayerDeployed": false,
+  "onchainCodeDeployed": true
+}
+```
+
+`polygolem deposit-wallet deploy --wait` also checks bytecode before
+submitting `WALLET-CREATE`; if code already exists, it returns
+`state=already_deployed` and skips the relayer mutation.
 
 ---
 
@@ -172,7 +224,7 @@ These systems are **independent**. Builder credentials cannot be substituted for
 | `relayer-v2.polymarket.com` | `POST /submit` | Builder HMAC | WALLET-CREATE, WALLET batch |
 | `relayer-v2.polymarket.com` | `GET /nonce` | Builder HMAC | Current WALLET nonce |
 | `relayer-v2.polymarket.com` | `GET /transaction` | Builder HMAC | Poll transaction status |
-| `relayer-v2.polymarket.com` | `GET /deployed` | Builder HMAC | Check if wallet deployed |
+| `relayer-v2.polymarket.com` | `GET /deployed` | Builder HMAC | Relayer/indexer deployment view; use Polygon bytecode as fallback/source of truth |
 
 ### 5.2 Transaction Types
 
@@ -205,12 +257,13 @@ The relayer pays gas for all on-chain operations. Users need pUSD for trading am
 ### 6.2 Wallet Lifecycle Automation
 
 1. Wallet address prediction (`derive`) — local CREATE2 computation
-2. Wallet deployment (`deploy`) — POST to relayer with builder creds
-3. Token approvals (`approve`) — build 6-call batch, EOA signs, relayer submits
-4. Wallet funding (`fund`) — ERC-20 transfer EOA → deposit wallet
-5. Order creation → signing → submission — full CLOB flow
-6. Balance checks, orderbook reads — all read-only CLOB/Gamma endpoints
-7. Entire onboarding: `deploy → approve → fund` as one command
+2. Wallet deployment status (`status`) — relayer view plus Polygon `eth_getCode`
+3. Wallet deployment (`deploy`) — skip when bytecode exists; otherwise POST to relayer with builder creds
+4. Token approvals (`approve`) — build 6-call batch, EOA signs, relayer submits
+5. Wallet funding (`fund`) — ERC-20 transfer EOA → deposit wallet
+6. Order creation → signing → submission — full CLOB flow
+7. Balance checks, orderbook reads — all read-only CLOB/Gamma endpoints
+8. Entire onboarding: `deploy → approve → fund` as one command
 
 ### 6.3 The polygolem Flow
 
