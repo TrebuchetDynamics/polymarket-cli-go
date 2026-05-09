@@ -37,6 +37,7 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/pkg/gamma"
 	"github.com/TrebuchetDynamics/polygolem/pkg/orderbook"
 	"github.com/TrebuchetDynamics/polygolem/pkg/relayer"
+	"github.com/TrebuchetDynamics/polygolem/pkg/settlement"
 	sdkstream "github.com/TrebuchetDynamics/polygolem/pkg/stream"
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 	"github.com/TrebuchetDynamics/polygolem/pkg/universal"
@@ -84,6 +85,11 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var contractDeployed func(context.Context, string, string) (contracts.DeploymentStatus, error) = contracts.ContractDeployed
 	var depositWalletDeployed func(context.Context, string, string) (contracts.DeploymentStatus, error) = contracts.DepositWalletDeployed
 	var redeemAdapterFor func(bool) string = contracts.RedeemAdapterFor
+	var settlementPosition settlement.RedeemablePosition
+	var settlementResult *settlement.RedeemResult
+	var settlementFind func(context.Context, *data.Client, string) ([]settlement.RedeemablePosition, error) = settlement.FindRedeemable
+	var settlementBuild func(settlement.RedeemablePosition) (relayer.DepositWalletCall, error) = settlement.BuildRedeemCall
+	var settlementSubmit func(context.Context, *relayer.Client, string, []settlement.RedeemablePosition, int) (*settlement.RedeemResult, error) = settlement.SubmitRedeem
 	var relayerClient *relayer.Client
 	var relayerV2Key relayer.V2APIKey
 	var relayerOnboardOptions relayer.OnboardOptions
@@ -124,6 +130,7 @@ func TestPublicSDKSignatures(t *testing.T) {
 	_, _, _, _, _, _, _, _, _, _ = streamClient, streamConfig, streamConnect, streamSubscribe, streamClose, streamConnected, streamBook, streamPriceChange, streamLastTrade, streamDeduplicator
 	_, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, legacyReader
 	_, _, _, _, _ = contractsRegistry, contractStatus, contractDeployed, depositWalletDeployed, redeemAdapterFor
+	_, _, _, _, _ = settlementPosition, settlementResult, settlementFind, settlementBuild, settlementSubmit
 	_, _, _, _, _ = relayerClient, relayerV2Key, relayerOnboardOptions, relayerOnboard, relayerNewV2
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
 	_, _, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments, universalConfig

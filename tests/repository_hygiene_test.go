@@ -66,6 +66,9 @@ func TestRepositoryHygiene(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "pkg/contracts")); err != nil {
 		t.Fatalf("pkg/contracts public boundary is missing: %v", err)
 	}
+	if _, err := os.Stat(filepath.Join(root, "pkg/settlement")); err != nil {
+		t.Fatalf("pkg/settlement public boundary is missing: %v", err)
+	}
 	if _, err := os.Stat(filepath.Join(root, "pkg/orderbook")); err != nil {
 		t.Fatalf("pkg/orderbook public boundary is missing: %v", err)
 	}
