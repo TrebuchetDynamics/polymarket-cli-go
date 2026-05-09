@@ -18,6 +18,7 @@ opensource-projects/
 
 *.local
 .env
+.env.*
 
 CLAUDE.md
 # compiled binaries (keep cmd/*/ source tracked)
