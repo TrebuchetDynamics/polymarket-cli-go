@@ -22,36 +22,73 @@ const (
 	NegRiskExchangeV2 = "0xe2222d279d744050d28e00520010520000310F59"
 	NegRiskAdapterV2  = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
 
+	// V2 collateral adapters — split/merge/redeem from a deposit wallet
+	// must route through these. The adapter pulls the wallet's CTF
+	// position tokens, executes the underlying CT call with USDC.e, then
+	// wraps the proceeds back into pUSD and sends pUSD to the wallet.
+	// Source: opensource-projects/repos/ctf-exchange-v2/README.md.
+	CtfCollateralAdapter        = "0xADa100874d00e3331D00F2007a9c336a65009718"
+	NegRiskCtfCollateralAdapter = "0xAdA200001000ef00D07553cEE7006808F895c6F1"
+
+	// V2 collateral ramps — convert between USDC/USDC.e and pUSD.
+	CollateralOnramp  = "0x93070a847efEf7F70739046A929D47a521F5B8ee"
+	CollateralOfframp = "0x2957922Eb93258b93368531d39fAcCA3B4dC5854"
+	PermissionedRamp  = "0xebC2459Ec962869ca4c0bd1E06368272732BCb08"
+
 	PUSD = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
 	CTF  = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 )
 
 // Registry is the Polymarket Polygon contract registry used by polygolem.
 type Registry struct {
-	ChainID              int    `json:"chainID"`
-	DepositWalletFactory string `json:"depositWalletFactory"`
-	ProxyFactory         string `json:"proxyFactory"`
-	GnosisSafeFactory    string `json:"gnosisSafeFactory"`
-	CTFExchangeV2        string `json:"ctfExchangeV2"`
-	NegRiskExchangeV2    string `json:"negRiskExchangeV2"`
-	NegRiskAdapterV2     string `json:"negRiskAdapterV2"`
-	PUSD                 string `json:"pusd"`
-	CTF                  string `json:"ctf"`
+	ChainID                     int    `json:"chainID"`
+	DepositWalletFactory        string `json:"depositWalletFactory"`
+	ProxyFactory                string `json:"proxyFactory"`
+	GnosisSafeFactory           string `json:"gnosisSafeFactory"`
+	CTFExchangeV2               string `json:"ctfExchangeV2"`
+	NegRiskExchangeV2           string `json:"negRiskExchangeV2"`
+	NegRiskAdapterV2            string `json:"negRiskAdapterV2"`
+	CtfCollateralAdapter        string `json:"ctfCollateralAdapter"`
+	NegRiskCtfCollateralAdapter string `json:"negRiskCtfCollateralAdapter"`
+	CollateralOnramp            string `json:"collateralOnramp"`
+	CollateralOfframp           string `json:"collateralOfframp"`
+	PermissionedRamp            string `json:"permissionedRamp"`
+	PUSD                        string `json:"pusd"`
+	CTF                         string `json:"ctf"`
 }
 
 // PolygonMainnet returns the contract registry for Polymarket on Polygon.
 func PolygonMainnet() Registry {
 	return Registry{
-		ChainID:              PolygonChainID,
-		DepositWalletFactory: DepositWalletFactory,
-		ProxyFactory:         ProxyFactory,
-		GnosisSafeFactory:    GnosisSafeFactory,
-		CTFExchangeV2:        CTFExchangeV2,
-		NegRiskExchangeV2:    NegRiskExchangeV2,
-		NegRiskAdapterV2:     NegRiskAdapterV2,
-		PUSD:                 PUSD,
-		CTF:                  CTF,
+		ChainID:                     PolygonChainID,
+		DepositWalletFactory:        DepositWalletFactory,
+		ProxyFactory:                ProxyFactory,
+		GnosisSafeFactory:           GnosisSafeFactory,
+		CTFExchangeV2:               CTFExchangeV2,
+		NegRiskExchangeV2:           NegRiskExchangeV2,
+		NegRiskAdapterV2:            NegRiskAdapterV2,
+		CtfCollateralAdapter:        CtfCollateralAdapter,
+		NegRiskCtfCollateralAdapter: NegRiskCtfCollateralAdapter,
+		CollateralOnramp:            CollateralOnramp,
+		CollateralOfframp:           CollateralOfframp,
+		PermissionedRamp:            PermissionedRamp,
+		PUSD:                        PUSD,
+		CTF:                         CTF,
 	}
+}
+
+// RedeemAdapterFor returns the V2 collateral adapter address that a
+// deposit wallet must call redeemPositions on for a given market kind.
+// The adapter pulls the wallet's CTF tokens, redeems through legacy
+// ConditionalTokens with USDC.e, wraps proceeds into pUSD, and sends
+// pUSD to the wallet. The adapter ignores the caller-supplied
+// collateralToken arg, parentCollectionId arg, and indexSets array;
+// only conditionId is used.
+func RedeemAdapterFor(negRisk bool) string {
+	if negRisk {
+		return NegRiskCtfCollateralAdapter
+	}
+	return CtfCollateralAdapter
 }
 
 // DeploymentStatus reports whether a contract address has bytecode on-chain.

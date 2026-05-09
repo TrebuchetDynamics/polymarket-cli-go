@@ -83,6 +83,7 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var contractStatus contracts.DeploymentStatus
 	var contractDeployed func(context.Context, string, string) (contracts.DeploymentStatus, error) = contracts.ContractDeployed
 	var depositWalletDeployed func(context.Context, string, string) (contracts.DeploymentStatus, error) = contracts.DepositWalletDeployed
+	var redeemAdapterFor func(bool) string = contracts.RedeemAdapterFor
 	var relayerClient *relayer.Client
 	var relayerV2Key relayer.V2APIKey
 	var relayerOnboardOptions relayer.OnboardOptions
@@ -122,7 +123,7 @@ func TestPublicSDKSignatures(t *testing.T) {
 	_, _, _, _ = clobCreateParams, clobCreate, clobMarketOrderParams, clobMarketOrder
 	_, _, _, _, _, _, _, _, _, _ = streamClient, streamConfig, streamConnect, streamSubscribe, streamClose, streamConnected, streamBook, streamPriceChange, streamLastTrade, streamDeduplicator
 	_, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, legacyReader
-	_, _, _, _ = contractsRegistry, contractStatus, contractDeployed, depositWalletDeployed
+	_, _, _, _, _ = contractsRegistry, contractStatus, contractDeployed, depositWalletDeployed, redeemAdapterFor
 	_, _, _, _, _ = relayerClient, relayerV2Key, relayerOnboardOptions, relayerOnboard, relayerNewV2
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
 	_, _, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments, universalConfig

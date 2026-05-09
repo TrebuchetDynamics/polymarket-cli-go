@@ -20,6 +20,31 @@ func TestPolygonMainnetRegistry(t *testing.T) {
 	}
 }
 
+func TestPolygonMainnetIncludesV2Adapters(t *testing.T) {
+	r := PolygonMainnet()
+	cases := map[string]struct{ got, want string }{
+		"CtfCollateralAdapter":        {r.CtfCollateralAdapter, "0xADa100874d00e3331D00F2007a9c336a65009718"},
+		"NegRiskCtfCollateralAdapter": {r.NegRiskCtfCollateralAdapter, "0xAdA200001000ef00D07553cEE7006808F895c6F1"},
+		"CollateralOnramp":            {r.CollateralOnramp, "0x93070a847efEf7F70739046A929D47a521F5B8ee"},
+		"CollateralOfframp":           {r.CollateralOfframp, "0x2957922Eb93258b93368531d39fAcCA3B4dC5854"},
+		"PermissionedRamp":            {r.PermissionedRamp, "0xebC2459Ec962869ca4c0bd1E06368272732BCb08"},
+	}
+	for name, c := range cases {
+		if c.got != c.want {
+			t.Errorf("%s = %q, want %q", name, c.got, c.want)
+		}
+	}
+}
+
+func TestRedeemAdapterFor(t *testing.T) {
+	if got := RedeemAdapterFor(false); got != CtfCollateralAdapter {
+		t.Errorf("RedeemAdapterFor(false) = %q, want %q", got, CtfCollateralAdapter)
+	}
+	if got := RedeemAdapterFor(true); got != NegRiskCtfCollateralAdapter {
+		t.Errorf("RedeemAdapterFor(true) = %q, want %q", got, NegRiskCtfCollateralAdapter)
+	}
+}
+
 func TestDepositWalletDeployedUsesEthGetCode(t *testing.T) {
 	server := codeServer(t, "0x60016000")
 	defer server.Close()

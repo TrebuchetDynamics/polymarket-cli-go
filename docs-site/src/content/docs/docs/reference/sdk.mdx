@@ -7,6 +7,10 @@ Public packages for consumption by `go-bot` and other Go projects. This page
 records the current exported contract: packages, methods, and the exact types
 in their signatures.
 
+Sections marked **planned** describe the public SDK contract that downstream
+code should target next, but that is not part of the generated command
+surface until the matching package lands.
+
 The `internal/` packages are implementation detail. They are documented in
 [Internal Packages](/reference/internal-packages), but they do not carry the
 same semver promise as the `pkg/` packages below.
@@ -373,6 +377,42 @@ func (c *Client) TraderLeaderboard(ctx context.Context, limit int) ([]types.Lead
 func (c *Client) LiveVolume(ctx context.Context, limit int) (*types.LiveVolumeResponse, error)
 ```
 
+## `pkg/settlement` — V2 Winner Redemption (Planned)
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/settlement"
+```
+
+go-bot must consume settlement through this SDK package, not by shelling out to
+the CLI. The package turns Data API `redeemable=true` positions into
+deposit-wallet WALLET calls that target the V2 collateral adapters.
+
+### Contract: Types
+
+```go
+type RedeemablePosition struct {
+    TokenID      string
+    ConditionID  string
+    Size         float64
+    NegativeRisk bool
+    EndDate      string
+    Title        string
+}
+```
+
+### Contract: Functions
+
+```go
+func FindRedeemable(ctx context.Context, data *data.Client, owner string) ([]RedeemablePosition, error)
+func BuildRedeemCall(p RedeemablePosition) (relayer.DepositWalletCall, error)
+func SubmitRedeem(ctx context.Context, rc *relayer.Client, privateKey string, positions []RedeemablePosition) (*relayer.RelayerTransaction, error)
+```
+
+`BuildRedeemCall` reuses the legacy `redeemPositions(address,bytes32,bytes32,uint256[])`
+calldata shape but targets `CtfCollateralAdapter` or
+`NegRiskCtfCollateralAdapter`. The adapter uses `conditionId` and ignores the
+caller-supplied collateral address, parent collection, and `indexSets`.
+
 ## `pkg/universal` — All Market Data, One Client
 
 ```go
@@ -591,6 +631,19 @@ func (r *Resolver) ResolveTokenIDs(ctx context.Context, asset, timeframe string)
 func (r *Resolver) ValidateToken(ctx context.Context, tokenID string) MarketStatus
 ```
 
+### Planned Exact-Window Extension
+
+Live trading callers should move to a strict resolver that carries market
+`startDate`/`endDate` through the result and returns `window_mismatch` when the
+matched market does not start at the requested decision window:
+
+```go
+func (r *Resolver) ResolveTokenIDsForWindow(ctx context.Context, asset, timeframe string, windowStart time.Time) ResolveResult
+```
+
+This is the guard required to prevent a 5m strategy signal from buying a
+future 5m market with the same asset and timeframe.
+
 ## `pkg/bridge` — Cross-Chain Deposits
 
 ```go
@@ -655,6 +708,77 @@ These helpers only build calldata and deterministic IDs. They do not submit
 transactions, bypass deposit-wallet gates, or perform split/merge/redeem
 execution.
 
+## `pkg/contracts` — Polygon Contract Registry and Code Checks
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/contracts"
+```
+
+### Contract: Constants and Types
+
+```go
+const PolygonChainID = 137
+const PolygonRPC = "https://polygon-bor-rpc.publicnode.com"
+const DepositWalletFactory = "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07"
+const CTFExchangeV2 = "0xE111180000d2663C0091e4f400237545B87B996B"
+const NegRiskExchangeV2 = "0xe2222d279d744050d28e00520010520000310F59"
+const NegRiskAdapterV2 = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
+// V2 collateral adapters — split/merge/redeem from a deposit wallet
+// must route through these.
+const CtfCollateralAdapter = "0xADa100874d00e3331D00F2007a9c336a65009718"
+const NegRiskCtfCollateralAdapter = "0xAdA200001000ef00D07553cEE7006808F895c6F1"
+// V2 collateral ramps — convert between USDC/USDC.e and pUSD.
+const CollateralOnramp  = "0x93070a847efEf7F70739046A929D47a521F5B8ee"
+const CollateralOfframp = "0x2957922Eb93258b93368531d39fAcCA3B4dC5854"
+const PermissionedRamp  = "0xebC2459Ec962869ca4c0bd1E06368272732BCb08"
+const PUSD = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
+const CTF = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+
+type Registry struct {
+    ChainID int
+    DepositWalletFactory string
+    ProxyFactory string
+    GnosisSafeFactory string
+    CTFExchangeV2 string
+    NegRiskExchangeV2 string
+    NegRiskAdapterV2 string
+    CtfCollateralAdapter string
+    NegRiskCtfCollateralAdapter string
+    CollateralOnramp string
+    CollateralOfframp string
+    PermissionedRamp string
+    PUSD string
+    CTF string
+}
+
+type DeploymentStatus struct {
+    Address string
+    Deployed bool
+    Source string
+}
+```
+
+### Contract: Functions
+
+```go
+func PolygonMainnet() Registry
+func ContractDeployed(ctx context.Context, address string, rpcURL string) (DeploymentStatus, error)
+func DepositWalletDeployed(ctx context.Context, depositWallet string, rpcURL string) (DeploymentStatus, error)
+func RedeemAdapterFor(negRisk bool) string
+```
+
+`DepositWalletDeployed` uses Polygon `eth_getCode` and is the source of truth
+when relayer `/deployed` returns a false negative. POLY_1271 order validation
+depends on the wallet's bytecode existing on-chain.
+
+`RedeemAdapterFor(negRisk bool)` returns the V2 collateral adapter address
+that a deposit wallet must call `redeemPositions` on for the given market
+kind. The adapter pulls the wallet's CTF position tokens, redeems through
+legacy `ConditionalTokens` with USDC.e, wraps proceeds back into pUSD, and
+sends pUSD to the wallet. The adapter ignores caller-supplied
+`collateralToken`, `parentCollectionId`, and `indexSets`; only `conditionId`
+is used.
+
 ## `pkg/relayer` — Builder Relayer and Deposit Wallet Onboard
 
 ```go
@@ -717,6 +841,7 @@ func BuildApprovalCalls() []DepositWalletCall
 func BuildDeadline(secondsFromNow int64) string
 func SignWalletBatch(signer *PrivateKeySigner, walletAddress, nonce, deadline string, calls []DepositWalletCall) (string, error)
 func OnboardDepositWallet(ctx context.Context, client *Client, privateKey string, opts OnboardOptions) (*OnboardResult, error)
+func DepositWalletCodeDeployed(ctx context.Context, depositWallet string, rpcURL string) (bool, error) // deprecated: use pkg/contracts
 ```
 
 ### Contract: Client Methods
