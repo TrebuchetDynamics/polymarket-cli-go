@@ -432,7 +432,7 @@ Examples:
 			})
 		},
 	}
-	windowCmd.Flags().StringVar(&windowAsset, "asset", "", "crypto asset (BTC, ETH, SOL, XRP, DOGE, BNB)")
+	windowCmd.Flags().StringVar(&windowAsset, "asset", "", "crypto asset (BTC, ETH, SOL, XRP, BNB, DOGE, HYPE)")
 	windowCmd.Flags().StringVar(&windowInterval, "interval", "", "time interval (5m, 15m, 1h, 4h)")
 	windowCmd.Flags().BoolVar(&cryptoEnrich, "enrich", false, "enrich with CLOB price and spread")
 	cmd.AddCommand(windowCmd)
@@ -440,16 +440,16 @@ Examples:
 	var fiveMinEnrich bool
 	fiveMinCmd := &cobra.Command{
 		Use:   "crypto-5m",
-		Short: "List all 6 active 5-minute crypto markets",
+		Short: "List all 7 active 5-minute crypto markets",
 		Long: `Resolve the current 5-minute window for all supported crypto assets
 and return a consolidated view of every active market.
 
-Assets scanned: BTC, ETH, SOL, XRP, BNB, HYPE
+Assets scanned: BTC, ETH, SOL, XRP, BNB, DOGE, HYPE
 
 Use --enrich to fetch live CLOB prices and spreads (slower).`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			assets := []string{"BTC", "ETH", "SOL", "XRP", "BNB", "HYPE"}
+			assets := []string{"BTC", "ETH", "SOL", "XRP", "BNB", "DOGE", "HYPE"}
 			windowStart, err := currentWindowStart("5m")
 			if err != nil {
 				return err

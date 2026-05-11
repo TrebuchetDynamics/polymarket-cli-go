@@ -375,6 +375,7 @@ func CryptoWindowSlug(asset, timeframe string, windowStart time.Time) string {
 		"XRP":  "xrp",
 		"DOGE": "doge",
 		"BNB":  "bnb",
+		"HYPE": "hype",
 	}
 	prefix := prefixes[strings.ToUpper(asset)]
 	if prefix == "" {
