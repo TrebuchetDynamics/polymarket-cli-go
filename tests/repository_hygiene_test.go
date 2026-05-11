@@ -51,7 +51,7 @@ func TestRepositoryHygiene(t *testing.T) {
 	}
 	if entries, err := os.ReadDir(filepath.Join(root, "scripts")); err == nil {
 		for _, entry := range entries {
-			if entry.Name() != "playwright-capture" {
+			if entry.Name() != "playwright-capture" && entry.Name() != "coverage.sh" {
 				t.Fatalf("unexpected scripts path still exists: scripts/%s", entry.Name())
 			}
 		}
