@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/errors"
+	"github.com/TrebuchetDynamics/polygolem/internal/telemetry"
 )
 
 // Config holds transport configuration.
@@ -22,6 +23,7 @@ type Config struct {
 	RetryDelay     time.Duration
 	RateLimiter    *RateLimiter
 	CircuitBreaker *CircuitBreaker
+	Telemetry      *telemetry.Logger
 }
 
 // DefaultConfig returns a sensible default config.
@@ -116,6 +118,7 @@ func (c *Client) DeleteWithHeaders(ctx context.Context, path string, body interf
 }
 
 func (c *Client) doWithHeaders(ctx context.Context, method, path string, body interface{}, result interface{}, headers map[string]string) (err error) {
+	start := time.Now()
 	if c.config.CircuitBreaker != nil {
 		defer func() {
 			c.config.CircuitBreaker.RecordResult(err)
@@ -123,13 +126,20 @@ func (c *Client) doWithHeaders(ctx context.Context, method, path string, body in
 	}
 	if c.config.CircuitBreaker != nil {
 		if cerr := c.config.CircuitBreaker.beforeRequest(); cerr != nil {
+			if c.config.Telemetry != nil {
+				c.config.Telemetry.CircuitOpen(ctx, method, path)
+			}
 			return cerr
 		}
 	}
 
 	if c.config.RateLimiter != nil {
+		waitStart := time.Now()
 		if err := c.config.RateLimiter.Wait(ctx); err != nil {
 			return err
+		}
+		if c.config.Telemetry != nil {
+			c.config.Telemetry.RateLimited(ctx, method, path, time.Since(waitStart))
 		}
 	}
 
@@ -147,6 +157,9 @@ func (c *Client) doWithHeaders(ctx context.Context, method, path string, body in
 	var lastErr error
 	for attempt := 0; attempt <= c.retryMax(method); attempt++ {
 		if attempt > 0 {
+			if c.config.Telemetry != nil {
+				c.config.Telemetry.Retry(ctx, method, path, attempt, lastErr)
+			}
 			delay := c.config.RetryDelay * time.Duration(1<<(attempt-1))
 			select {
 			case <-ctx.Done():
@@ -200,9 +213,15 @@ func (c *Client) doWithHeaders(ctx context.Context, method, path string, body in
 				return fmt.Errorf("decode response from %s: %w", url, err)
 			}
 		}
+		if c.config.Telemetry != nil {
+			c.config.Telemetry.Request(ctx, method, path, resp.StatusCode, time.Since(start), nil)
+		}
 		return nil
 	}
 
+	if c.config.Telemetry != nil {
+		c.config.Telemetry.Request(ctx, method, path, 0, time.Since(start), lastErr)
+	}
 	return lastErr
 }
 
