@@ -139,7 +139,7 @@ func (r *Resolver) ResolveCryptoMarkets(ctx context.Context, asset string) ([]Cr
 // of substituting the wrong market. Falls back to ResolveTokenIDs only
 // when the slug itself misses.
 func (r *Resolver) ResolveTokenIDsAt(ctx context.Context, asset, timeframe string, windowStart time.Time) ResolveResult {
-	if slug := cryptoWindowSlug(asset, timeframe, windowStart); slug != "" {
+	if slug := CryptoWindowSlug(asset, timeframe, windowStart); slug != "" {
 		if evt, err := r.gamma.EventBySlug(ctx, slug); err == nil {
 			if result, ok := firstAcceptingMarket(asset, timeframe, marketsFromGamma(asset, evt.Markets)); ok {
 				if !windowStart.IsZero() && !result.StartDate.Equal(windowStart.UTC().Truncate(time.Second)) {
@@ -173,7 +173,7 @@ func (r *Resolver) ResolveTokenIDsForWindow(ctx context.Context, asset, timefram
 	if windowStart.IsZero() {
 		return ResolveResult{Status: StatusUnresolved, Asset: asset, Timeframe: timeframe, Source: "windowStart_zero"}
 	}
-	slug := cryptoWindowSlug(asset, timeframe, windowStart)
+	slug := CryptoWindowSlug(asset, timeframe, windowStart)
 	if slug == "" {
 		return ResolveResult{Status: StatusUnresolved, Asset: asset, Timeframe: timeframe, Source: "no_slug_for_asset_timeframe"}
 	}
@@ -360,7 +360,11 @@ func cryptoQueries(asset string) []string {
 	return queries
 }
 
-func cryptoWindowSlug(asset, timeframe string, windowStart time.Time) string {
+// CryptoWindowSlug generates the deterministic event slug for a crypto
+// up/down market window. The slug format is <asset>-updown-<timeframe>-<unix>,
+// where unix is the UTC epoch seconds of the window start. This is the
+// same slug pattern Polymarket uses for 5m, 15m, and 4h crypto markets.
+func CryptoWindowSlug(asset, timeframe string, windowStart time.Time) string {
 	if windowStart.IsZero() {
 		return ""
 	}

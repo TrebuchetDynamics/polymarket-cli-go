@@ -111,6 +111,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
   discover - Market discovery via Polymarket Gamma API
     comments - List or fetch public Gamma comments
     crypto - Discover active crypto prediction markets
+    crypto-window - Resolve the current crypto prediction window deterministically
     enrich - Enrich market with CLOB data
     market - Get market details
     markets - List Gamma markets
@@ -139,6 +140,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
     positions - Show current paper trading positions
     reset - Reset paper trading state
     sell - Simulate a sell order (paper trading)
+    trade - Paper trade the current crypto window in one command
   preflight - Inspect local CLI readiness
   stream - Polymarket WebSocket streams
     crypto - Stream live crypto market events
@@ -1726,6 +1728,7 @@ polygolem discover [flags]
 |---|---|
 | `polygolem discover comments` | List or fetch public Gamma comments |
 | `polygolem discover crypto` | Discover active crypto prediction markets |
+| `polygolem discover crypto-window` | Resolve the current crypto prediction window deterministically |
 | `polygolem discover enrich` | Enrich market with CLOB data |
 | `polygolem discover market` | Get market details |
 | `polygolem discover markets` | List Gamma markets |
@@ -1797,6 +1800,36 @@ polygolem discover crypto [flags]
 | `--interval` | `string` | `""` | interval filter (5m, 15m, 1h, daily, weekly) |
 | `--json` | `bool` | `false` | emit JSON output |
 | `--limit` | `int` | `20` | max results |
+
+### polygolem discover crypto-window
+
+Resolve the current crypto prediction window deterministically
+
+Resolve the current active crypto up/down market using the deterministic
+slug pattern (<asset>-updown-<interval>-<unix_timestamp>).
+
+This bypasses search and hits the exact current window directly — much faster
+and more reliable than discovery via public search.
+
+Examples:
+  polygolem discover crypto-window --asset BTC --interval 5m
+  polygolem discover crypto-window --asset ETH --interval 15m --enrich
+
+**Usage:**
+
+```bash
+polygolem discover crypto-window [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--asset` | `string` | `""` | crypto asset (BTC, ETH, SOL, XRP, DOGE, BNB) |
+| `--enrich` | `bool` | `false` | enrich with CLOB price and spread |
+| `-h, --help` | `bool` | `false` | help for crypto-window |
+| `--interval` | `string` | `""` | time interval (5m, 15m, 1h, 4h) |
+| `--json` | `bool` | `false` | emit JSON output |
 
 ### polygolem discover enrich
 
@@ -2262,6 +2295,7 @@ polygolem paper [flags]
 | `polygolem paper positions` | Show current paper trading positions |
 | `polygolem paper reset` | Reset paper trading state |
 | `polygolem paper sell` | Simulate a sell order (paper trading) |
+| `polygolem paper trade` | Paper trade the current crypto window in one command |
 
 **Flags:**
 
@@ -2376,6 +2410,35 @@ polygolem paper sell [flags]
 | `--price` | `string` | `""` | limit price (default: best bid) |
 | `--size` | `string` | `1` | number of shares |
 | `--token-id` | `string` | `""` | CLOB token ID to sell |
+
+### polygolem paper trade
+
+Paper trade the current crypto window in one command
+
+Resolve the current crypto window, fetch live price, and execute a paper trade.
+
+Examples:
+  polygolem paper trade --asset BTC --interval 5m --side up --size 1
+  polygolem paper trade --asset ETH --interval 15m --side down --size 2 --price 0.48
+
+**Usage:**
+
+```bash
+polygolem paper trade [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--asset` | `string` | `""` | crypto asset (BTC, ETH, SOL, XRP, DOGE, BNB) |
+| `-h, --help` | `bool` | `false` | help for trade |
+| `--interval` | `string` | `""` | time interval (5m, 15m, 1h, 4h) |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--price` | `string` | `""` | limit price (default: best ask/bid) |
+| `--side` | `string` | `""` | trade side: up or down |
+| `--size` | `float64` | `1` | number of shares |
+| `--token-id` | `string` | `""` | bypass resolution and trade this token ID directly |
 
 ### polygolem preflight
 

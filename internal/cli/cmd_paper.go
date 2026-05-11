@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/paper"
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
+	"github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
 	"github.com/spf13/cobra"
 )
 
@@ -272,6 +274,133 @@ Examples:
 	cryptoCmd.Flags().StringVar(&cryptoInterval, "interval", "", "interval filter (5m, 15m, 1h)")
 	cryptoCmd.Flags().IntVar(&cryptoLimit, "limit", 10, "max markets")
 	cmd.AddCommand(cryptoCmd)
+
+	var tradeAsset, tradeInterval, tradeSide string
+	var tradeSize float64
+	tradeCmd := &cobra.Command{
+		Use:   "trade",
+		Short: "Paper trade the current crypto window in one command",
+		Long: `Resolve the current crypto window, fetch live price, and execute a paper trade.
+
+Examples:
+  polygolem paper trade --asset BTC --interval 5m --side up --size 1
+  polygolem paper trade --asset ETH --interval 15m --side down --size 2 --price 0.48`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			w := newWire(jsonOut)
+
+			var targetTokenID string
+			if tokenID != "" {
+				targetTokenID = tokenID
+			} else {
+				if tradeAsset == "" {
+					return fmt.Errorf("--asset required (or use --token-id)")
+				}
+				if tradeInterval == "" {
+					return fmt.Errorf("--interval required (or use --token-id)")
+				}
+				if tradeSide == "" {
+					return fmt.Errorf("--side required (up or down)")
+				}
+
+				windowStart, err := currentWindowStart(tradeInterval)
+				if err != nil {
+					return err
+				}
+
+				slug := marketresolver.CryptoWindowSlug(tradeAsset, tradeInterval, windowStart)
+				if slug == "" {
+					return fmt.Errorf("unable to construct slug for asset=%s interval=%s", tradeAsset, tradeInterval)
+				}
+
+				evt, err := w.gamma.EventBySlug(cmd.Context(), slug)
+				if err != nil {
+					return fmt.Errorf("window not found: slug=%s: %w", slug, err)
+				}
+
+				var found bool
+				for _, market := range evt.Markets {
+					if !market.Active || market.Closed {
+						continue
+					}
+					tokenIDs := parseClobTokenIDs(market.ClobTokenIDs)
+					outcomes := market.Outcomes
+					if len(tokenIDs) != len(outcomes) || len(tokenIDs) == 0 {
+						continue
+					}
+					for i, outcome := range outcomes {
+						lower := strings.ToLower(outcome)
+						if (tradeSide == "up" && (lower == "up" || lower == "yes")) ||
+							(tradeSide == "down" && (lower == "down" || lower == "no")) {
+							targetTokenID = tokenIDs[i]
+							found = true
+							break
+						}
+					}
+					if found {
+						break
+					}
+				}
+				if !found {
+					return fmt.Errorf("no active market with %s outcome found for %s %s", tradeSide, tradeAsset, tradeInterval)
+				}
+			}
+
+			price := 0.5
+			if priceStr != "" {
+				p, err := strconv.ParseFloat(priceStr, 64)
+				if err != nil {
+					return fmt.Errorf("invalid price: %w", err)
+				}
+				price = p
+			} else {
+				side := "SELL"
+				if tradeSide == "down" {
+					side = "BUY"
+				}
+				if tokenPrice, err := w.clob.Price(cmd.Context(), targetTokenID, side); err == nil {
+					if parsed, err := strconv.ParseFloat(tokenPrice, 64); err == nil {
+						price = parsed
+					}
+				}
+			}
+
+			size := tradeSize
+			if size == 0 {
+				size = 1.0
+			}
+
+			fill, err := paperState.Buy(paper.Order{
+				TokenID: targetTokenID,
+				Price:   price,
+				Size:    size,
+			})
+			if err != nil {
+				return err
+			}
+
+			return writeCommandJSON(cmd, map[string]interface{}{
+				"action":    "paper_trade",
+				"asset":     tradeAsset,
+				"interval":  tradeInterval,
+				"side":      tradeSide,
+				"token_id":  targetTokenID,
+				"price":     price,
+				"size":      size,
+				"cost":      price * size,
+				"cash":      paperState.Cash,
+				"fill":      fill,
+				"timestamp": time.Now().UTC().Format(time.RFC3339),
+			})
+		},
+	}
+	tradeCmd.Flags().StringVar(&tradeAsset, "asset", "", "crypto asset (BTC, ETH, SOL, XRP, DOGE, BNB)")
+	tradeCmd.Flags().StringVar(&tradeInterval, "interval", "", "time interval (5m, 15m, 1h, 4h)")
+	tradeCmd.Flags().StringVar(&tradeSide, "side", "", "trade side: up or down")
+	tradeCmd.Flags().Float64Var(&tradeSize, "size", 1.0, "number of shares")
+	tradeCmd.Flags().StringVar(&tokenID, "token-id", "", "bypass resolution and trade this token ID directly")
+	tradeCmd.Flags().StringVar(&priceStr, "price", "", "limit price (default: best ask/bid)")
+	cmd.AddCommand(tradeCmd)
 
 	return cmd
 }

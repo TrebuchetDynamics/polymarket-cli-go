@@ -3,8 +3,10 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
+	"github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
 	"github.com/spf13/cobra"
 )
 
@@ -337,5 +339,123 @@ Intervals: 5m, 15m, 1h, daily, weekly (matches title patterns)`,
 	cryptoCmd.Flags().BoolVar(&cryptoEnrich, "enrich", false, "enrich with CLOB price and spread (slower, one API call per market)")
 	cmd.AddCommand(cryptoCmd)
 
+	var windowAsset, windowInterval string
+	windowCmd := &cobra.Command{
+		Use:   "crypto-window",
+		Short: "Resolve the current crypto prediction window deterministically",
+		Long: `Resolve the current active crypto up/down market using the deterministic
+slug pattern (<asset>-updown-<interval>-<unix_timestamp>).
+
+This bypasses search and hits the exact current window directly — much faster
+and more reliable than discovery via public search.
+
+Examples:
+  polygolem discover crypto-window --asset BTC --interval 5m
+  polygolem discover crypto-window --asset ETH --interval 15m --enrich`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if windowAsset == "" {
+				return fmt.Errorf("--asset required (BTC, ETH, SOL, etc.)")
+			}
+			if windowInterval == "" {
+				return fmt.Errorf("--interval required (5m, 15m, 1h, 4h)")
+			}
+
+			windowStart, err := currentWindowStart(windowInterval)
+			if err != nil {
+				return err
+			}
+
+			slug := marketresolver.CryptoWindowSlug(windowAsset, windowInterval, windowStart)
+			if slug == "" {
+				return fmt.Errorf("unable to construct slug for asset=%s interval=%s", windowAsset, windowInterval)
+			}
+
+			resp, err := w.gamma.EventBySlug(cmd.Context(), slug)
+			if err != nil {
+				return fmt.Errorf("window not found (may not be created yet): slug=%s: %w", slug, err)
+			}
+
+			type windowMarket struct {
+				EventID       string   `json:"event_id"`
+				EventTitle    string   `json:"event_title"`
+				EventSlug     string   `json:"event_slug"`
+				MarketID      string   `json:"market_id"`
+				Question      string   `json:"question"`
+				ConditionID   string   `json:"condition_id"`
+				TokenIDs      []string `json:"token_ids"`
+				Outcomes      []string `json:"outcomes"`
+				OutcomePrices []string `json:"outcome_prices"`
+				WindowStart   string   `json:"window_start"`
+				WindowEnd     string   `json:"window_end"`
+				Price         string   `json:"price,omitempty"`
+				Spread        string   `json:"spread,omitempty"`
+			}
+
+			var results []windowMarket
+			for _, market := range resp.Markets {
+				if !market.Active || market.Closed {
+					continue
+				}
+				tokenIDs := parseClobTokenIDs(market.ClobTokenIDs)
+				wm := windowMarket{
+					EventID:       resp.ID,
+					EventTitle:    resp.Title,
+					EventSlug:     resp.Slug,
+					MarketID:      market.ID,
+					Question:      market.Question,
+					ConditionID:   market.ConditionID,
+					TokenIDs:      tokenIDs,
+					Outcomes:      []string(market.Outcomes),
+					OutcomePrices: []string(market.OutcomePrices),
+					WindowStart:   windowStart.UTC().Format(time.RFC3339),
+					WindowEnd:     market.EndDateISO,
+				}
+				if cryptoEnrich && len(tokenIDs) > 0 {
+					if price, err := w.clob.Price(cmd.Context(), tokenIDs[0], "BUY"); err == nil {
+						wm.Price = price
+					}
+					if spread, err := w.clob.Spread(cmd.Context(), tokenIDs[0]); err == nil {
+						wm.Spread = spread
+					}
+				}
+				results = append(results, wm)
+			}
+
+			return w.printJSON(cmd, map[string]interface{}{
+				"asset":        windowAsset,
+				"interval":     windowInterval,
+				"window_start": windowStart.UTC().Format(time.RFC3339),
+				"slug":         slug,
+				"count":        len(results),
+				"markets":      results,
+			})
+		},
+	}
+	windowCmd.Flags().StringVar(&windowAsset, "asset", "", "crypto asset (BTC, ETH, SOL, XRP, DOGE, BNB)")
+	windowCmd.Flags().StringVar(&windowInterval, "interval", "", "time interval (5m, 15m, 1h, 4h)")
+	windowCmd.Flags().BoolVar(&cryptoEnrich, "enrich", false, "enrich with CLOB price and spread")
+	cmd.AddCommand(windowCmd)
+
 	return cmd
+}
+
+func currentWindowStart(interval string) (time.Time, error) {
+	now := time.Now().UTC()
+	var seconds int64
+	switch interval {
+	case "5m":
+		seconds = 300
+	case "15m":
+		seconds = 900
+	case "1h":
+		seconds = 3600
+	case "4h":
+		seconds = 14400
+	default:
+		return time.Time{}, fmt.Errorf("unsupported interval: %s (use 5m, 15m, 1h, 4h)", interval)
+	}
+	unix := now.Unix()
+	windowUnix := unix - (unix % seconds)
+	return time.Unix(windowUnix, 0).UTC(), nil
 }
