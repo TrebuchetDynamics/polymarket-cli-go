@@ -13,13 +13,15 @@ are blocked for new API users by Polymarket's CLOB V2. Polygolem handles the
 full deposit wallet lifecycle: derive, deploy via relayer, fund, approve, trade.
 
 ```bash
-polygolem discover search --query "btc 5m" --limit 5
+polygolem discover crypto --asset BTC --interval 5m --enrich
 ```
 
 ## What can you do?
 
 - **Search markets** — find active prediction markets by keyword, tag, or sport
+- **Discover crypto markets** — filter by asset (BTC, ETH, SOL) and interval (5m, 15m, 1h) with live CLOB enrichment
 - **Read order books** — get real-time bid/ask depth, midpoints, spreads
+- **Stream live events** — subscribe to WebSocket market data for crypto or any market
 - **Check market readiness** — tick sizes, fee rates, neg risk status
 - **Bridge assets** — check supported chains, create deposit addresses, use the SDK for quotes/status
 - **Paper trade** — simulate orders against live market data
@@ -35,6 +37,12 @@ polygolem health
 
 # Search markets
 polygolem discover search --query "btc 5m"
+
+# Discover crypto markets with live prices
+polygolem discover crypto --asset BTC --interval 5m --enrich
+
+# Stream crypto market events live
+polygolem stream crypto --asset ETH --max-messages 50
 
 # Get enriched market data (Gamma + CLOB merged)
 polygolem discover enrich --id "0x..."

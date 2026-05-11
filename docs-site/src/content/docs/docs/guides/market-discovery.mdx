@@ -11,6 +11,41 @@ polygolem discover search --query "btc 5m" --limit 10
 polygolem discover search --query "ethereum" --limit 5
 ```
 
+## Discover crypto markets
+
+Find active crypto prediction markets with asset and interval filtering:
+
+```bash
+# Bitcoin 5-minute up/down markets
+polygolem discover crypto --asset BTC --interval 5m --limit 10
+
+# Ethereum markets with CLOB price enrichment
+polygolem discover crypto --asset ETH --interval 15m --enrich
+
+# All crypto markets
+polygolem discover crypto --limit 50
+```
+
+Returns token IDs, outcomes, prices, and optionally live CLOB price/spread data.
+
+### Stream crypto markets
+
+Subscribe to live WebSocket events for crypto markets:
+
+```bash
+polygolem stream crypto --asset BTC --interval 5m --max-messages 100
+polygolem stream crypto --asset ETH --custom-features
+```
+
+### Get crypto market snapshots
+
+Fetch current CLOB snapshots (price, spread, midpoint, tick size) for crypto markets:
+
+```bash
+polygolem marketdata crypto --asset BTC --interval 5m --limit 10
+polygolem marketdata crypto --asset SOL --limit 5
+```
+
 ## Get market details
 
 ```bash

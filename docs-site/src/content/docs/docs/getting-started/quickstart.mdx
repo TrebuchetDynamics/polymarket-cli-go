@@ -10,11 +10,20 @@ Three realistic workflows to get you productive.
 # Search for active BTC markets
 polygolem discover search --query "btc 5m" --limit 5
 
+# Discover crypto markets with enrichment
+polygolem discover crypto --asset BTC --interval 5m --enrich
+
 # Get full market details
 polygolem discover market --id "0xbd31dc8a..."
 
 # Get everything at once — Gamma metadata + CLOB tick size, fee, orderbook
 polygolem discover enrich --id "0xbd31dc8a..."
+
+# Live stream crypto market events
+polygolem stream crypto --asset BTC --interval 5m --max-messages 10
+
+# Quick marketdata snapshots for crypto
+polygolem marketdata crypto --asset ETH --limit 5
 ```
 
 ## 2. Onboard your deposit wallet (required for trading)
