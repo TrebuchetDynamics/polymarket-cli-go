@@ -28,6 +28,22 @@ polygolem discover crypto --limit 50
 
 Returns token IDs, outcomes, prices, and optionally live CLOB price/spread data.
 
+### Resolve the current window directly
+
+For time-windowed markets (5m, 15m, 1h, 4h), use deterministic slug resolution
+instead of search — faster and immune to search index lag:
+
+```bash
+# Exact current BTC 5m window
+polygolem discover crypto-window --asset BTC --interval 5m
+
+# With live CLOB price and spread
+polygolem discover crypto-window --asset ETH --interval 15m --enrich
+```
+
+This hits the event directly by its deterministic slug
+(`btc-updown-5m-<unix_timestamp>`) and returns the active market with token IDs.
+
 ### Stream crypto markets
 
 Subscribe to live WebSocket events for crypto markets:

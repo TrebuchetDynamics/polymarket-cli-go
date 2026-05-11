@@ -33,10 +33,27 @@ See [Safety Model](/concepts/safety) for the full guarantee.
 polygolem discover search --query "btc 5m" --limit 5
 ```
 
+Or resolve the current window directly:
+
+```bash
+polygolem discover crypto-window --asset BTC --interval 5m
+```
+
 Note the `tokenID` of the outcome you want to bet on. For neg-risk Yes/No
 markets there are two token IDs (one per outcome); pick whichever side you want.
 
-### 2. Place a paper buy
+### 2. One-command paper trade
+
+Resolve the current window, fetch live price, and trade in a single step:
+
+```bash
+polygolem paper trade --asset BTC --interval 5m --side up --size 1
+polygolem paper trade --asset ETH --interval 15m --side down --size 2 --price 0.48
+```
+
+This is the fastest path from idea to paper position — no manual token ID lookup.
+
+### 3. Place a paper buy
 
 ```bash
 polygolem paper buy \

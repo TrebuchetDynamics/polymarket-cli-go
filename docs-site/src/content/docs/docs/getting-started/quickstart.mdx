@@ -13,6 +13,9 @@ polygolem discover search --query "btc 5m" --limit 5
 # Discover crypto markets with enrichment
 polygolem discover crypto --asset BTC --interval 5m --enrich
 
+# Resolve the current window directly (deterministic, no search)
+polygolem discover crypto-window --asset BTC --interval 5m --enrich
+
 # Get full market details
 polygolem discover market --id "0xbd31dc8a..."
 
@@ -24,6 +27,9 @@ polygolem stream crypto --asset BTC --interval 5m --max-messages 10
 
 # Quick marketdata snapshots for crypto
 polygolem marketdata crypto --asset ETH --limit 5
+
+# One-command paper trade on current window
+polygolem paper trade --asset BTC --interval 5m --side up --size 1
 ```
 
 ## 2. Onboard your deposit wallet (required for trading)
