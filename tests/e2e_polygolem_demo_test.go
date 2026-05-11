@@ -176,6 +176,51 @@ func TestPolygolemFullDemo(t *testing.T) {
 		if serverTime != nil {
 			report.serverTime = serverTime.ISO
 		}
+
+		// Batch operations.
+		books, _ := client.OrderBooks(ctx, []types.CLOBBookParams{{TokenID: token}})
+		report.batchBooks = len(books)
+
+		prices, _ := client.Prices(ctx, []types.CLOBBookParams{{TokenID: token, Side: "BUY"}})
+		report.batchPrices = len(prices)
+
+		// CLOB markets list.
+		clobMarkets, _ := client.CLOBMarkets(ctx, "")
+		if clobMarkets != nil {
+			report.clobMarkets = len(clobMarkets.Data)
+		}
+
+		// Sampling markets.
+		sampling, _ := client.SamplingMarkets(ctx, "")
+		if sampling != nil {
+			report.samplingMarkets = len(sampling.Data)
+		}
+
+		// Leaderboard.
+		leaderboard, _ := client.TraderLeaderboard(ctx, 5)
+		report.leaderboard = len(leaderboard)
+
+		// Open interest.
+		oi, _ := client.OpenInterest(ctx, m.conditionID)
+		if oi != nil {
+			report.openInterest = oi.OpenValue
+		}
+
+		// Top holders.
+		holders, _ := client.TopHolders(ctx, m.conditionID, 3)
+		report.topHolders = len(holders)
+
+		// Live volume.
+		lv, _ := client.LiveVolume(ctx, m.eventID)
+		if lv != nil {
+			report.liveVolume = lv.Total
+		}
+
+		// Event by ID.
+		event, _ := client.EventByID(ctx, fmt.Sprintf("%d", m.eventID))
+		if event != nil {
+			report.eventTitle = event.Title
+		}
 	})
 
 	// Phase 3: Multi-market concurrent stress.
@@ -308,6 +353,15 @@ type demoReport struct {
 	serverTime         string
 	concurrentTotal    int
 	concurrentErrors   int
+	batchBooks         int
+	batchPrices        int
+	clobMarkets        int
+	samplingMarkets    int
+	leaderboard        int
+	openInterest       float64
+	topHolders         int
+	liveVolume         float64
+	eventTitle         string
 	duration           time.Duration
 }
 
@@ -336,6 +390,12 @@ func (r *demoReport) String() string {
 	b.WriteString(fmt.Sprintf("║ Comments: %d | Search Results: %d                           ║\n", r.comments, r.searchResults))
 	b.WriteString(fmt.Sprintf("║ Simplified Markets: %d                                      ║\n", r.simplifiedMarkets))
 	b.WriteString(fmt.Sprintf("║ Server Time: %-46s ║\n", r.serverTime))
+	b.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
+	b.WriteString(fmt.Sprintf("║ Batch: %d books, %d prices                                  ║\n", r.batchBooks, r.batchPrices))
+	b.WriteString(fmt.Sprintf("║ CLOB Markets: %d | Sampling: %d                             ║\n", r.clobMarkets, r.samplingMarkets))
+	b.WriteString(fmt.Sprintf("║ Leaderboard: %d | Open Interest: %.2f                       ║\n", r.leaderboard, r.openInterest))
+	b.WriteString(fmt.Sprintf("║ Top Holders: %d | Live Volume: %.2f                         ║\n", r.topHolders, r.liveVolume))
+	b.WriteString(fmt.Sprintf("║ Event: %-51s║\n", truncate(r.eventTitle, 48)))
 	b.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
 	b.WriteString(fmt.Sprintf("║ Concurrent: %d/%d succeeded                                  ║\n",
 		r.concurrentTotal-r.concurrentErrors, r.concurrentTotal))
