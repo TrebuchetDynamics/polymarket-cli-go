@@ -103,14 +103,14 @@ Examples:
 			if searchQuery == "" {
 				searchQuery = "crypto"
 			}
-		searchLimit := 50
-		resp, err := w.gamma.Search(cmd.Context(), &polytypes.SearchParams{
-			Q:            searchQuery,
-			LimitPerType: &searchLimit,
-		})
-		if err != nil {
-			return err
-		}
+			searchLimit := 50
+			resp, err := w.gamma.Search(cmd.Context(), &polytypes.SearchParams{
+				Q:            searchQuery,
+				LimitPerType: &searchLimit,
+			})
+			if err != nil {
+				return err
+			}
 
 			var tokenIDs []string
 			for _, event := range resp.Events {
@@ -131,7 +131,7 @@ Examples:
 						!strings.Contains(strings.ToLower(market.Question), strings.ToLower(cryptoStreamInterval)) {
 						continue
 					}
-				tokenIDs = append(tokenIDs, parseClobTokenIDs(market.ClobTokenIDs)...)
+					tokenIDs = append(tokenIDs, parseClobTokenIDs(market.ClobTokenIDs)...)
 				}
 			}
 

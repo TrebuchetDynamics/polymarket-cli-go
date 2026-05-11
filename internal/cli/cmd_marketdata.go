@@ -122,19 +122,19 @@ Examples:
 			}
 
 			type cryptoSnapshot struct {
-				EventID       string  `json:"event_id"`
-				EventTitle    string  `json:"event_title"`
-				MarketID      string  `json:"market_id"`
-				Question      string  `json:"question"`
-				TokenID       string  `json:"token_id"`
-				Outcome       string  `json:"outcome"`
-				Price         string  `json:"price"`
-				Spread        string  `json:"spread"`
-				Midpoint      string  `json:"midpoint"`
-				TickSize      string  `json:"tick_size"`
-				Volume24hr    float64 `json:"volume_24h"`
-				AcceptingOrders bool  `json:"accepting_orders"`
-				EndDate       string  `json:"end_date"`
+				EventID         string  `json:"event_id"`
+				EventTitle      string  `json:"event_title"`
+				MarketID        string  `json:"market_id"`
+				Question        string  `json:"question"`
+				TokenID         string  `json:"token_id"`
+				Outcome         string  `json:"outcome"`
+				Price           string  `json:"price"`
+				Spread          string  `json:"spread"`
+				Midpoint        string  `json:"midpoint"`
+				TickSize        string  `json:"tick_size"`
+				Volume24hr      float64 `json:"volume_24h"`
+				AcceptingOrders bool    `json:"accepting_orders"`
+				EndDate         string  `json:"end_date"`
 			}
 
 			var results []cryptoSnapshot

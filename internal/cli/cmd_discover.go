@@ -259,19 +259,19 @@ Intervals: 5m, 15m, 1h, daily, weekly (matches title patterns)`,
 
 			// Extract markets from events and filter
 			type cryptoMarket struct {
-				EventID      string   `json:"event_id"`
-				EventTitle   string   `json:"event_title"`
-				EventSlug    string   `json:"event_slug"`
-				MarketID     string   `json:"market_id"`
-				Question     string   `json:"question"`
-				ConditionID  string   `json:"condition_id"`
-				TokenID      string   `json:"token_id"`
-				Outcomes     []string `json:"outcomes"`
+				EventID       string   `json:"event_id"`
+				EventTitle    string   `json:"event_title"`
+				EventSlug     string   `json:"event_slug"`
+				MarketID      string   `json:"market_id"`
+				Question      string   `json:"question"`
+				ConditionID   string   `json:"condition_id"`
+				TokenID       string   `json:"token_id"`
+				Outcomes      []string `json:"outcomes"`
 				OutcomePrices []string `json:"outcome_prices"`
-				EndDate      string   `json:"end_date"`
-				Volume24hr   float64  `json:"volume_24h"`
-				Price        string   `json:"price,omitempty"`
-				Spread       string   `json:"spread,omitempty"`
+				EndDate       string   `json:"end_date"`
+				Volume24hr    float64  `json:"volume_24h"`
+				Price         string   `json:"price,omitempty"`
+				Spread        string   `json:"spread,omitempty"`
 			}
 
 			var results []cryptoMarket
@@ -325,11 +325,11 @@ Intervals: 5m, 15m, 1h, daily, weekly (matches title patterns)`,
 			}
 
 			return w.printJSON(cmd, map[string]interface{}{
-				"query":       searchQuery,
-				"asset":       cryptoAsset,
-				"interval":    cryptoInterval,
-				"count":       len(results),
-				"markets":     results,
+				"query":    searchQuery,
+				"asset":    cryptoAsset,
+				"interval": cryptoInterval,
+				"count":    len(results),
+				"markets":  results,
 			})
 		},
 	}

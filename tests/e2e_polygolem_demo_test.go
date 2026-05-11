@@ -24,11 +24,11 @@ var demoMarkets = []struct {
 	tokens      []string
 }{
 	{
-		name:     "Rihanna Album vs GTA VI",
-		id:       "540817",
-		slug:     "new-rhianna-album-before-gta-vi-926",
-		eventID:  23784,
-		category: "entertainment",
+		name:        "Rihanna Album vs GTA VI",
+		id:          "540817",
+		slug:        "new-rhianna-album-before-gta-vi-926",
+		eventID:     23784,
+		category:    "entertainment",
 		conditionID: "0x1fad72fae204143ff1c3035e99e7c0f65ea8d5cd9bd1070987bd1a3316f772be",
 		tokens: []string{
 			"98022490269692409998126496127597032490334070080325855126491859374983463996227",
@@ -229,21 +229,96 @@ func TestPolygolemFullDemo(t *testing.T) {
 		errCh := make(chan error, 20)
 
 		workers := []func(){
-			func() { _, err := client.Markets(ctx, &types.GetMarketsParams{Limit: 5}); if err != nil { errCh <- err } },
-			func() { _, err := client.ActiveMarkets(ctx); if err != nil { errCh <- err } },
-			func() { _, err := client.Events(ctx, &types.GetEventsParams{Limit: 5}); if err != nil { errCh <- err } },
-			func() { _, err := client.Search(ctx, &types.SearchParams{Q: "trump", LimitPerType: intPtr(3)}); if err != nil { errCh <- err } },
-			func() { _, err := client.OrderBook(ctx, demoMarkets[0].tokens[0]); if err != nil { errCh <- err } },
-			func() { _, err := client.Price(ctx, demoMarkets[0].tokens[0], "buy"); if err != nil { errCh <- err } },
-			func() { _, err := client.Midpoint(ctx, demoMarkets[0].tokens[0]); if err != nil { errCh <- err } },
-			func() { _, err := client.Spread(ctx, demoMarkets[0].tokens[0]); if err != nil { errCh <- err } },
-			func() { _, err := client.TickSize(ctx, demoMarkets[0].tokens[0]); if err != nil { errCh <- err } },
-			func() { _, err := client.LastTradePrice(ctx, demoMarkets[0].tokens[0]); if err != nil { errCh <- err } },
-			func() { _, err := client.NegRisk(ctx, demoMarkets[0].tokens[0]); if err != nil { errCh <- err } },
-			func() { _, err := client.FeeRateBps(ctx, demoMarkets[0].tokens[0]); if err != nil { errCh <- err } },
-			func() { _, err := client.CLOBMarket(ctx, demoMarkets[0].conditionID); if err != nil { errCh <- err } },
-			func() { _, err := client.CLOBMarketByToken(ctx, demoMarkets[0].tokens[0]); if err != nil { errCh <- err } },
-			func() { _, err := client.HealthCheck(ctx); if err != nil { errCh <- err } },
+			func() {
+				_, err := client.Markets(ctx, &types.GetMarketsParams{Limit: 5})
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.ActiveMarkets(ctx)
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.Events(ctx, &types.GetEventsParams{Limit: 5})
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.Search(ctx, &types.SearchParams{Q: "trump", LimitPerType: intPtr(3)})
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.OrderBook(ctx, demoMarkets[0].tokens[0])
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.Price(ctx, demoMarkets[0].tokens[0], "buy")
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.Midpoint(ctx, demoMarkets[0].tokens[0])
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.Spread(ctx, demoMarkets[0].tokens[0])
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.TickSize(ctx, demoMarkets[0].tokens[0])
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.LastTradePrice(ctx, demoMarkets[0].tokens[0])
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.NegRisk(ctx, demoMarkets[0].tokens[0])
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.FeeRateBps(ctx, demoMarkets[0].tokens[0])
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.CLOBMarket(ctx, demoMarkets[0].conditionID)
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.CLOBMarketByToken(ctx, demoMarkets[0].tokens[0])
+				if err != nil {
+					errCh <- err
+				}
+			},
+			func() {
+				_, err := client.HealthCheck(ctx)
+				if err != nil {
+					errCh <- err
+				}
+			},
 		}
 
 		for _, w := range workers {
@@ -410,5 +485,3 @@ func truncate(s string, n int) string {
 	}
 	return s[:n-3] + "..."
 }
-
-

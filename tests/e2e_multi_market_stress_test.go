@@ -197,21 +197,96 @@ func TestMultiMarketFullExtractionE2E(t *testing.T) {
 		errors := make(chan error, 20)
 
 		workers := []func(){
-			func() { _, err := client.MarketByID(ctx, m.id); if err != nil { errors <- err } },
-			func() { _, err := client.OrderBook(ctx, m.tokenYes); if err != nil { errors <- err } },
-			func() { _, err := client.Price(ctx, m.tokenYes, "buy"); if err != nil { errors <- err } },
-			func() { _, err := client.Midpoint(ctx, m.tokenYes); if err != nil { errors <- err } },
-			func() { _, err := client.Spread(ctx, m.tokenYes); if err != nil { errors <- err } },
-			func() { _, err := client.TickSize(ctx, m.tokenYes); if err != nil { errors <- err } },
-			func() { _, err := client.LastTradePrice(ctx, m.tokenYes); if err != nil { errors <- err } },
-			func() { _, err := client.NegRisk(ctx, m.tokenYes); if err != nil { errors <- err } },
-			func() { _, err := client.CLOBMarketByToken(ctx, m.tokenYes); if err != nil { errors <- err } },
-			func() { _, err := client.CLOBMarket(ctx, m.conditionID); if err != nil { errors <- err } },
-			func() { _, err := client.Markets(ctx, &types.GetMarketsParams{Limit: 5}); if err != nil { errors <- err } },
-			func() { _, err := client.Search(ctx, &types.SearchParams{Q: "trump", LimitPerType: intPtr(3)}); if err != nil { errors <- err } },
-			func() { _, err := client.ActiveMarkets(ctx); if err != nil { errors <- err } },
-			func() { _, err := client.HealthCheck(ctx); if err != nil { errors <- err } },
-			func() { _, err := client.Events(ctx, &types.GetEventsParams{Limit: 5}); if err != nil { errors <- err } },
+			func() {
+				_, err := client.MarketByID(ctx, m.id)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.OrderBook(ctx, m.tokenYes)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.Price(ctx, m.tokenYes, "buy")
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.Midpoint(ctx, m.tokenYes)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.Spread(ctx, m.tokenYes)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.TickSize(ctx, m.tokenYes)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.LastTradePrice(ctx, m.tokenYes)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.NegRisk(ctx, m.tokenYes)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.CLOBMarketByToken(ctx, m.tokenYes)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.CLOBMarket(ctx, m.conditionID)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.Markets(ctx, &types.GetMarketsParams{Limit: 5})
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.Search(ctx, &types.SearchParams{Q: "trump", LimitPerType: intPtr(3)})
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.ActiveMarkets(ctx)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.HealthCheck(ctx)
+				if err != nil {
+					errors <- err
+				}
+			},
+			func() {
+				_, err := client.Events(ctx, &types.GetEventsParams{Limit: 5})
+				if err != nil {
+					errors <- err
+				}
+			},
 		}
 
 		for _, w := range workers {
