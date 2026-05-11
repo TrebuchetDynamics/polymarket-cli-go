@@ -7,31 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.1.1] — 2026-05-11
+
 ### Added
 
-- `pkg/settlement.CheckReadiness` and `Readiness` DTOs for a read-only V2
-  settlement gate: deposit-wallet bytecode, relayer credential presence, Data
-  API positions reachability, and CTF approvals for both V2 collateral
+- **Crypto market discovery commands.**
+  - `polygolem discover crypto` — search active crypto markets by asset and
+    interval (5m, 15m, 1h, 4h) with optional CLOB price/spread enrichment.
+  - `polygolem discover crypto-window` — deterministic slug resolution for
+    the current time-windowed market (`btc-updown-5m-<unix>`). Bypasses search
+    index lag; hits the exact window directly.
+  - `polygolem discover crypto-5m` — resolves all 7 active 5-minute crypto
+    markets (BTC, ETH, SOL, XRP, BNB, DOGE, HYPE) in a single call with
+    consolidated token IDs, condition IDs, and optional live prices.
+- **Paper trading commands.**
+  - `polygolem paper buy` / `polygolem paper sell` — simulate orders against
+    live CLOB best ask/bid with local $10,000 starting cash.
+  - `polygolem paper positions` / `polygolem paper reset` — inspect and wipe
+    paper state.
+  - `polygolem paper trade` — one-command workflow: resolve current window,
+    fetch live price, and execute paper trade in a single step.
+  - `polygolem paper crypto` — discover crypto markets and return token IDs
+    ready for paper trading.
+- **`CryptoWindowSlug` exported from `pkg/marketresolver`.** Deterministic
+  slug generator for downstream consumers (bots, dashboards) that need to
+  construct Polymarket crypto event slugs without hitting search.
+- **V2 settlement gate (`pkg/settlement`, `polygolem deposit-wallet settlement-status`).**
+  Read-only readiness check: deposit-wallet bytecode, relayer credentials,
+  Data API positions reachability, and CTF approvals for both V2 collateral
   adapters.
-- `polygolem deposit-wallet settlement-status`, the operator CLI wrapper for
-  the settlement gate.
+- **Live E2E demo tests.** `tests/e2e_live_market_extraction_test.go`,
+  `e2e_multi_market_stress_test.go`, `e2e_polygolem_demo_test.go` —
+  production-validated read-only flows against live Polymarket APIs.
+- **Coverage gate at 60%** with baseline tracking in CI.
+- **Property-based tests** (`testing/quick`) for critical path validation.
 
 ### Changed
 
-- Deposit-wallet redeem docs and CLI help now hard-disable fallback thinking:
-  V2 settlement is relayer + collateral adapter only, with no direct EOA, raw
-  CTF, SAFE, or PROXY route.
-- `RELAYER_ALLOWLIST_BLOCKED` now tells operators to verify the local contract
-  registry against Polymarket's current contract reference before escalating.
-  The stale upstream issue tracker is no longer surfaced as a current source
-  of truth.
+- **CLI root.go split** from 1,677 lines into 10 domain-specific files
+  (`cmd_discover.go`, `cmd_clob.go`, `cmd_paper.go`, etc.).
+- **Deposit-wallet redeem docs and CLI help** now hard-disable fallback
+  thinking: V2 settlement is relayer + collateral adapter only, with no
+  direct EOA, raw CTF, SAFE, or PROXY route.
+- **`RELAYER_ALLOWLIST_BLOCKED`** now tells operators to verify the local
+  contract registry against Polymarket's current contract reference before
+  escalating. The stale upstream issue tracker is no longer surfaced as a
+  current source of truth.
+- **`OnboardDepositWallet` ships a 10-call post-deploy batch** (6 trading +
+  4 adapter approvals) so new wallets are redeem-ready out of the box.
+- **`ResolveTokenIDsAt` fails closed on slug-hit window mismatch** instead of
+  silently substituting a different window.
 
 ### Fixed
 
-- Updated `CtfCollateralAdapter` and `NegRiskCtfCollateralAdapter` to the
-  current official Polygon addresses from Polymarket's contracts reference.
-  The previous constants pointed at stale adapter addresses and caused the
-  relayer to reject adapter approvals as not allowlisted.
+- **7 Go-specific bugs** identified and fixed:
+  - `hexToBytes`/`hexDecodeInto` now use `encoding/hex` with panic on invalid
+    hex instead of manual parsing.
+  - `buildOrderTypedData` now returns `(apitypes.TypedData, error)` with
+    proper error handling.
+  - WebSocket race condition fixed with `mc.mu` protecting `mc.conn`.
+  - Deposit-wallet deploy false-negative: `eth_getCode` is now the source of
+    truth when the relayer reports `STATE_FAILED`.
+  - Position schema decode: JSON tags corrected from snake_case to camelCase
+    to match live Polymarket Data API.
+  - `CtfCollateralAdapter` and `NegRiskCtfCollateralAdapter` updated to
+    current official Polygon addresses.
+  - CLOB market buy rounding aligned with V2 expectations.
 
 ### Removed
 
@@ -39,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   direct EOA factory deploy helper. The production deposit-wallet factory gates
   `deploy(...)` and `proxy(...)` behind `onlyOperator`, so the relayer
   `WALLET-CREATE` path is the only supported Polygolem deploy surface.
+- Removed deprecated `pkg/bookreader` in favor of `pkg/orderbook`.
 
 ## [v2026.5.9] — 2026-05-09
 
@@ -203,6 +245,7 @@ the May 2026 deposit-wallet migration and the documentation overhaul.
   (headless for existing users), Builder Fee Key (headless via L2 HMAC), Relayer API Key
   (headless via SIWE). See `docs/ONBOARDING.md`.
 
-[Unreleased]: https://github.com/TrebuchetDynamics/polygolem/compare/v2026.5.9...HEAD
+[Unreleased]: https://github.com/TrebuchetDynamics/polygolem/compare/v0.1.1...HEAD
+[v0.1.1]: https://github.com/TrebuchetDynamics/polygolem/releases/tag/v0.1.1
 [v2026.5.9]: https://github.com/TrebuchetDynamics/polygolem/releases/tag/v2026.5.9
 [0.1.0]: https://github.com/TrebuchetDynamics/polygolem/releases/tag/v0.1.0

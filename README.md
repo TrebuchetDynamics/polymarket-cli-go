@@ -308,7 +308,7 @@ call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
 
 ## Status
 
-`v0.1.0` — production-validated against Polygon mainnet on **2026-05-08**
+`v0.1.1` — production-validated against Polygon mainnet on **2026-05-11**
 ([reference run](docs/LIVE-TRADE-WALKTHROUGH.md)).
 
 Core trading flows are production-validated today.
