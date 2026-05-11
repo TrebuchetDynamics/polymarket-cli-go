@@ -15,17 +15,26 @@ Stable interfaces for downstream Go consumers (e.g., `go-bot`).
 | `pkg/clob` | CLOB market-data plus authenticated account/order DTOs. |
 | `pkg/contracts` | Polygon contract registry and contract-code deployment checks. |
 | `pkg/orderbook` | Read-only CLOB order-book reader. |
-| `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook`. |
 | `pkg/bridge` | Bridge API client — supported assets, deposit addresses, quotes. |
+| `pkg/builder` | Builder attribution and fee configuration for order placement. |
+| `pkg/ctf` | Conditional Tokens Framework (CTF) helpers for position management. |
 | `pkg/data` | Read-only Data API analytics client returning `pkg/types` DTOs. |
+| `pkg/enabletrading` | Headless enable-trading flow: ClobAuth API keys and token approvals. |
+| `pkg/funding` | Deposit-wallet funding helpers (ERC-20 transfers and balance checks). |
 | `pkg/gamma` | Read-only Gamma API surface for embedded use (26 methods). |
 | `pkg/marketdata` | Normalized live best bid, best ask, spread, midpoint, tick-size, last-trade, and book snapshots from public stream events. |
 | `pkg/marketresolver` | Resolve market identifiers (ID, slug, token-id) to a canonical view. |
+| `pkg/orderresults` | Order result types and response parsing for placement outcomes. |
 | `pkg/pagination` | Cursor and offset pagination with concurrent batching. |
+| `pkg/plugins` | Plugin interfaces for market data and risk extensibility. |
 | `pkg/relayer` | Builder relayer primitives for wallet create and wallet batch flows. |
+| `pkg/settlement` | V2 winner redemption planning, adapter calls, and readiness gates. |
 | `pkg/stream` | Read-only public CLOB WebSocket market stream client, including V2 custom feature events. |
 | `pkg/types` | Public DTOs shared by SDK packages. |
 | `pkg/universal` | Single client wrapping Gamma + CLOB + Data API + Discovery + Stream (70+ methods). |
+| `pkg/wallet` | Public deposit-wallet primitives — derive, deploy, status, batch signing. |
+| `pkg/experimental/orders` | **Experimental** — fluent `OrderIntent` builder and validation (staged for SDK promotion). |
+| `pkg/experimental/auth` | **Experimental** — EIP-712 domain helpers, signature type constants, and hex utilities (staged for SDK promotion). |
 
 ### Internal packages (`internal/`)
 
@@ -70,7 +79,8 @@ internal/{auth, transport, polytypes}                   ← cross-cutting primit
         |
 internal/{wallet, orders, execution, risk, paper, marketdiscovery}
         |
-pkg/{bookreader, bridge, clob, contracts, data, gamma, marketresolver, orderbook, pagination, relayer, stream, types, universal}   ← public re-exposed surface
+pkg/{bridge, builder, clob, contracts, ctf, data, enabletrading, funding, gamma, marketdata, marketresolver, orderbook, orderresults, pagination, plugins, relayer, settlement, stream, types, universal, wallet}
+pkg/experimental/{orders, auth}   ← experimental surfaces (staged for SDK promotion)
 ```
 
 Command handlers parse flags, call package APIs, and render output via
@@ -132,6 +142,12 @@ live volume, CLOB market data, books, prices, and price history, or
 `pkg/contracts` types for on-chain deployment checks, and
 `pkg/stream` types for WebSocket market events. Rewards, enrichment, and
 user-stream types still need dedicated public-contract slices.
+
+`pkg/experimental/` hosts APIs that are not yet SDK-stable. They follow the
+same importable package rules as `pkg/`, but their APIs may change without a
+major version bump. Packages graduate from `pkg/experimental/` to `pkg/` when
+they have passed integration tests against live Polymarket for 30 days without
+breaking changes.
 
 ## Safety boundaries
 
