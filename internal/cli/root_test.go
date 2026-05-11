@@ -139,7 +139,7 @@ func TestJSONGroupCommandUsesUsageErrorEnvelope(t *testing.T) {
 }
 
 func TestJSONSkeletonUsesInternalErrorEnvelope(t *testing.T) {
-	stdout, stderr, err := executeRootForTest("--json", "paper", "buy")
+	stdout, stderr, err := executeRootForTest("--json", "live", "status")
 	if err == nil {
 		t.Fatal("expected Execute to return internal error")
 	}
@@ -153,8 +153,8 @@ func TestJSONSkeletonUsesInternalErrorEnvelope(t *testing.T) {
 	if got.OK {
 		t.Fatalf("ok=true, want false\nenvelope=%s", stderr)
 	}
-	if got.Meta.Command != "paper buy" {
-		t.Fatalf("meta.command=%q, want paper buy", got.Meta.Command)
+	if got.Meta.Command != "live status" {
+		t.Fatalf("meta.command=%q, want live status", got.Meta.Command)
 	}
 	if got.Error == nil || got.Error.Code != "INTERNAL_UNIMPLEMENTED" || got.Error.Category != "internal" {
 		t.Fatalf("unexpected error envelope: %+v\n%s", got.Error, stderr)

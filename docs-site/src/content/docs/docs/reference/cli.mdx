@@ -98,11 +98,12 @@ polygolem - Safe Polymarket SDK and CLI for Go
     price - Get best price (BUY side)
     spread - Get bid-ask spread
     tick-size - Get minimum tick size
-  paper - Inspect local paper trading state
-    buy
-    positions
-    reset
-    sell
+  paper - Paper trading simulation for crypto markets
+    buy - Simulate a buy order (paper trading)
+    crypto - Discover crypto markets and paper trade
+    positions - Show current paper trading positions
+    reset - Reset paper trading state
+    sell - Simulate a sell order (paper trading)
   preflight - Inspect local CLI readiness
   stream - Polymarket WebSocket streams
     crypto - Stream live crypto market events
@@ -126,7 +127,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
 | `polygolem live` | Inspect live gate status |
 | `polygolem marketdata` | Live CLOB orderbook and share-price snapshots |
 | `polygolem orderbook` | Read CLOB order book data |
-| `polygolem paper` | Inspect local paper trading state |
+| `polygolem paper` | Paper trading simulation for crypto markets |
 | `polygolem preflight` | Inspect local CLI readiness |
 | `polygolem stream` | Polymarket WebSocket streams |
 | `polygolem version` | Print version |

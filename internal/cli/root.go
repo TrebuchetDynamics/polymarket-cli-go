@@ -110,9 +110,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 	root.AddCommand(streamCmd(jsonOutput))
 	root.AddCommand(depositWalletCmd(jsonOutput))
 	root.AddCommand(newBuilderCommand(jsonOutput))
-	root.AddCommand(commandGroup("paper", "Inspect local paper trading state",
-		skeleton("buy"), skeleton("sell"), skeleton("positions"), skeleton("reset"),
-	))
+	root.AddCommand(paperCmd(jsonOutput))
 	authCmd := commandGroup("auth", "Inspect authentication readiness",
 		newAuthStatusCommand(jsonOutput),
 	)

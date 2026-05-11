@@ -133,11 +133,12 @@ polygolem - Safe Polymarket SDK and CLI for Go
     price - Get best price (BUY side)
     spread - Get bid-ask spread
     tick-size - Get minimum tick size
-  paper - Inspect local paper trading state
-    buy
-    positions
-    reset
-    sell
+  paper - Paper trading simulation for crypto markets
+    buy - Simulate a buy order (paper trading)
+    crypto - Discover crypto markets and paper trade
+    positions - Show current paper trading positions
+    reset - Reset paper trading state
+    sell - Simulate a sell order (paper trading)
   preflight - Inspect local CLI readiness
   stream - Polymarket WebSocket streams
     crypto - Stream live crypto market events
@@ -173,7 +174,7 @@ polygolem [flags]
 | `polygolem live` | Inspect live gate status |
 | `polygolem marketdata` | Live CLOB orderbook and share-price snapshots |
 | `polygolem orderbook` | Read CLOB order book data |
-| `polygolem paper` | Inspect local paper trading state |
+| `polygolem paper` | Paper trading simulation for crypto markets |
 | `polygolem preflight` | Inspect local CLI readiness |
 | `polygolem stream` | Polymarket WebSocket streams |
 | `polygolem version` | Print version |
@@ -2244,7 +2245,7 @@ polygolem orderbook tick-size [flags]
 
 ### polygolem paper
 
-Inspect local paper trading state
+Paper trading simulation for crypto markets
 
 **Usage:**
 
@@ -2256,10 +2257,11 @@ polygolem paper [flags]
 
 | Command | Description |
 |---|---|
-| `polygolem paper buy` |   |
-| `polygolem paper positions` |   |
-| `polygolem paper reset` |   |
-| `polygolem paper sell` |   |
+| `polygolem paper buy` | Simulate a buy order (paper trading) |
+| `polygolem paper crypto` | Discover crypto markets and paper trade |
+| `polygolem paper positions` | Show current paper trading positions |
+| `polygolem paper reset` | Reset paper trading state |
+| `polygolem paper sell` | Simulate a sell order (paper trading) |
 
 **Flags:**
 
@@ -2269,6 +2271,11 @@ polygolem paper [flags]
 | `--json` | `bool` | `false` | emit JSON output |
 
 ### polygolem paper buy
+
+Simulate a buy order (paper trading)
+
+Simulate a buy order against live market data.
+Uses current best ask price if --price is not specified.
 
 **Usage:**
 
@@ -2282,8 +2289,39 @@ polygolem paper buy [flags]
 |---|---|---|---|
 | `-h, --help` | `bool` | `false` | help for buy |
 | `--json` | `bool` | `false` | emit JSON output |
+| `--price` | `string` | `""` | limit price (default: best ask) |
+| `--size` | `string` | `1` | number of shares |
+| `--token-id` | `string` | `""` | CLOB token ID to buy |
+
+### polygolem paper crypto
+
+Discover crypto markets and paper trade
+
+Find active crypto markets and get token IDs for paper trading.
+
+Examples:
+  polygolem paper crypto --asset BTC --interval 5m
+  polygolem paper crypto --asset ETH --limit 10
+
+**Usage:**
+
+```bash
+polygolem paper crypto [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--asset` | `string` | `""` | crypto asset filter (BTC, ETH, SOL, etc.) |
+| `-h, --help` | `bool` | `false` | help for crypto |
+| `--interval` | `string` | `""` | interval filter (5m, 15m, 1h) |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--limit` | `int` | `10` | max markets |
 
 ### polygolem paper positions
+
+Show current paper trading positions
 
 **Usage:**
 
@@ -2300,6 +2338,8 @@ polygolem paper positions [flags]
 
 ### polygolem paper reset
 
+Reset paper trading state
+
 **Usage:**
 
 ```bash
@@ -2310,10 +2350,16 @@ polygolem paper reset [flags]
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--cash` | `float64` | `10000` | initial paper cash |
 | `-h, --help` | `bool` | `false` | help for reset |
 | `--json` | `bool` | `false` | emit JSON output |
 
 ### polygolem paper sell
+
+Simulate a sell order (paper trading)
+
+Simulate a sell order against live market data.
+Uses current best bid price if --price is not specified.
 
 **Usage:**
 
@@ -2327,6 +2373,9 @@ polygolem paper sell [flags]
 |---|---|---|---|
 | `-h, --help` | `bool` | `false` | help for sell |
 | `--json` | `bool` | `false` | emit JSON output |
+| `--price` | `string` | `""` | limit price (default: best bid) |
+| `--size` | `string` | `1` | number of shares |
+| `--token-id` | `string` | `""` | CLOB token ID to sell |
 
 ### polygolem preflight
 
