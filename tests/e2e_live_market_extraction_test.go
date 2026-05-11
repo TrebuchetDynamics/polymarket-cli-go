@@ -191,4 +191,24 @@ func TestRealMarketExtractionE2E(t *testing.T) {
 		t.Logf("ConditionID: %s | PrimaryToken: %s | SecondaryToken: %s",
 			mt.ConditionID, mt.PrimaryTokenID, mt.SecondaryTokenID)
 	})
+
+	t.Run("gamma_comments", func(t *testing.T) {
+		entityType := "Event"
+		eventID := 23784
+		comments, err := client.Comments(ctx, &types.CommentQuery{
+			EntityID:   &eventID,
+			EntityType: &entityType,
+			Limit:      5,
+		})
+		if err != nil {
+			t.Logf("Comments returned error (endpoint may be restricted): %v", err)
+			return
+		}
+		t.Logf("Comments: %d", len(comments))
+		if len(comments) > 0 {
+			c := comments[0]
+			t.Logf("Latest comment: id=%s body=%q created=%s",
+				c.ID, c.Body, c.CreatedAt)
+		}
+	})
 }
