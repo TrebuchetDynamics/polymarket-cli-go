@@ -41,7 +41,7 @@ Each task is one commit unless noted.
 - [ ] **Step 1: Rebuild the binary**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 go build -o polygolem ./cmd/polygolem
 ```
 

@@ -74,7 +74,7 @@ Every new mdx file under this plan MUST satisfy:
 - [ ] **Step 1: Confirm the file matches the audited shape**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 wc -l docs-site/astro.config.mjs
 grep -n 'label:\|slug:' docs-site/astro.config.mjs
 ```
@@ -172,7 +172,7 @@ Expected: build completes, but emits `[WARN]` lines for every slug whose backing
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 git add docs-site/astro.config.mjs
 git commit -m "$(cat <<'EOF'
 docs(site): restructure Starlight sidebar to 6-section overhaul layout
@@ -418,7 +418,7 @@ Expected: build exits 0. Warnings for not-yet-created pages remain.
 - [ ] **Step 9: Commit**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 git add docs-site/src/content/docs/index.mdx \
         docs-site/src/content/docs/getting-started/installation.mdx \
         docs-site/src/content/docs/getting-started/quickstart.mdx \
@@ -829,7 +829,7 @@ Expected: no errors. The four deposit-wallet warnings from Task 1 are now resolv
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 git add docs-site/src/content/docs/deposit-wallet/why.mdx \
         docs-site/src/content/docs/deposit-wallet/onboard.mdx \
         docs-site/src/content/docs/deposit-wallet/flow.mdx \
@@ -910,7 +910,7 @@ Expected: zero hits (warnings resolved, no new errors).
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 git add docs-site/src/content/docs/guides/orderbook-data.mdx \
         docs-site/src/content/docs/guides/paper-trading.mdx \
         docs-site/src/content/docs/guides/placing-orders.mdx
@@ -971,7 +971,7 @@ Expected: zero hits.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 git add docs-site/src/content/docs/guides/bridge-funding.mdx \
         docs-site/src/content/docs/guides/go-bot-integration.mdx
 git commit -m "$(cat <<'EOF'
@@ -1145,7 +1145,7 @@ Expected: zero hits.
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 git add docs-site/src/content/docs/concepts/markets-events-tokens.mdx \
         docs-site/src/content/docs/concepts/modes.mdx \
         docs-site/src/content/docs/concepts/signature-types.mdx \
@@ -1287,7 +1287,7 @@ Expected: zero hits.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 git add docs-site/src/content/docs/concepts/poly-1271.mdx \
         docs-site/src/content/docs/concepts/safety.mdx \
         docs-site/src/content/docs/concepts/architecture.mdx
@@ -1368,7 +1368,7 @@ polygolem <group> <subcommand> ...
 - [ ] **Step 1: Capture help output for the six groups**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 mkdir -p /tmp/polygolem-help-task6
 for g in discover orderbook deposit-wallet clob paper bridge; do
   ./polygolem "$g" --help > "/tmp/polygolem-help-task6/${g}.txt" 2>&1
@@ -1411,7 +1411,7 @@ Expected: zero hits.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 git add docs-site/src/content/docs/reference/cli/discover.mdx \
         docs-site/src/content/docs/reference/cli/orderbook.mdx \
         docs-site/src/content/docs/reference/cli/deposit-wallet.mdx \
@@ -1591,7 +1591,7 @@ Expected: zero hits.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 git add docs-site/src/content/docs/reference/json-contract.mdx \
         docs-site/src/content/docs/reference/error-codes.mdx \
         docs-site/src/content/docs/reference/env-vars.mdx
@@ -1686,7 +1686,7 @@ Expected: zero hits.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 git add docs-site/src/content/docs/agents/claude-skill.mdx
 git commit -m "$(cat <<'EOF'
 docs(site): add For Agents — Using polygolem from Claude
@@ -1713,7 +1713,7 @@ This task either passes (Track 4 done) or identifies regressions to loop back on
 - [ ] **Step 1: Clean build with zero warnings**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem/docs-site
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem/docs-site
 rm -rf dist .astro
 npm run build 2>&1 | tee /tmp/polygolem-docs-build.txt | tail -40
 grep -E '\bWARN\b|\bwarning\b|\berror\b' /tmp/polygolem-docs-build.txt | grep -v 'no warning'
@@ -1724,7 +1724,7 @@ Expected: the final `grep` prints **nothing**. If any `WARN`/`warning`/`error` l
 - [ ] **Step 2: Every sidebar slug has a backing file**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 slugs=$(grep -oE 'slug: "[^"]*"' docs-site/astro.config.mjs | sed -E 's/slug: "([^"]*)"/\1/')
 missing=0
 for s in $slugs; do
@@ -1756,7 +1756,7 @@ Expected: `33`. If lower, a page is missing; if higher, an orphaned page exists 
 For each linked `docs/*.md` and `SKILL.md` reference inside the docs site, confirm the target exists:
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 grep -hoE 'docs/[A-Z][A-Z0-9_-]*\.md' docs-site/src/content/docs/**/*.mdx docs-site/src/content/docs/*.mdx 2>/dev/null | sort -u | while read -r f; do
   test -f "$f" || echo "MISSING SOURCE-OF-TRUTH: $f"
 done

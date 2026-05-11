@@ -39,7 +39,7 @@ The fork is the source of truth for golden-vector hashes and the POLY_1271 ERC-7
 - [ ] **Step 1: Confirm the repo is reachable**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 ls opensource-projects/repos/ | head -20
 ```
 Expected: a list of existing reference repos (no `foxme666-Polymarket-golang` yet).
@@ -1148,7 +1148,7 @@ Not a CI step — a recorded acceptance gate that the operator runs once after t
 - [ ] **Step 1: Build the latest binary**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 go build -o polygolem ./cmd/polygolem
 ```
 

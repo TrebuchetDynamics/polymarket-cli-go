@@ -47,7 +47,7 @@ Each task is one commit unless noted. Task 8's gate run is verification-only; th
 - [ ] **Step 1: Verify no `CONTRIBUTING.md` already exists**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 test ! -f CONTRIBUTING.md && echo "absent OK"
 ```
 
@@ -932,7 +932,7 @@ EOF
 This is the gate from the spec § Track 5. All five commands must succeed.
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 
 # 1. Build
 go build ./cmd/polygolem

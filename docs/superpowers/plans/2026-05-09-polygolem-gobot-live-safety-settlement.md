@@ -75,7 +75,7 @@ The plan was built on snapshots of upstream contracts and docs. Confirm nothing 
 - [ ] **Step 1: Confirm V2 adapter addresses match the plan**
 
 ```bash
-cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/go-bot/polygolem
+cd /home/xel/git/sages-openclaw/workspace-yunobo/polymarket-mega-bot/polygolem
 grep -E "CtfCollateralAdapter\b.*0x|NegRiskCtfCollateralAdapter\b.*0x" \
   opensource-projects/repos/ctf-exchange-v2/README.md
 ```
