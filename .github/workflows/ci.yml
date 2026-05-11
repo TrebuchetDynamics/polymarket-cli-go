@@ -30,7 +30,7 @@ jobs:
       - name: Coverage
         run: |
           go test -coverprofile=coverage.out ./...
-          coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          coverage=$(go tool cover -func=coverage.out | grep "^total:" | awk '{print $3}' | sed 's/%//')
           echo "Total coverage: ${coverage}%"
           min=50
           if (( $(echo "$coverage < $min" | bc -l) )); then
