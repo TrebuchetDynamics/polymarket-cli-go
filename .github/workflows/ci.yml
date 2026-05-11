@@ -27,3 +27,13 @@ jobs:
       - run: git diff --exit-code
       - run: go vet ./...
       - run: go test ./...
+      - name: Coverage
+        run: |
+          go test -coverprofile=coverage.out ./...
+          coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${coverage}%"
+          min=60
+          if (( $(echo "$coverage < $min" | bc -l) )); then
+            echo "FAIL: coverage ${coverage}% is below minimum ${min}%"
+            exit 1
+          fi
