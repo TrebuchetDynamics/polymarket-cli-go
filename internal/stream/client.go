@@ -183,10 +183,17 @@ func (mc *MarketClient) dial() error {
 	if err != nil {
 		return fmt.Errorf("ws dial: %w", err)
 	}
+	mc.mu.Lock()
 	mc.conn = conn
 	mc.connected.Store(true)
-	mc.conn.SetPongHandler(func(string) error {
-		mc.conn.SetReadDeadline(time.Now().Add(mc.config.PongTimeout))
+	mc.mu.Unlock()
+	conn.SetPongHandler(func(string) error {
+		mc.mu.Lock()
+		c := mc.conn
+		mc.mu.Unlock()
+		if c != nil {
+			c.SetReadDeadline(time.Now().Add(mc.config.PongTimeout))
+		}
 		return nil
 	})
 	go mc.readLoop()
@@ -195,14 +202,27 @@ func (mc *MarketClient) dial() error {
 }
 
 func (mc *MarketClient) readLoop() {
-	defer mc.conn.Close()
+	mc.mu.Lock()
+	conn := mc.conn
+	mc.mu.Unlock()
+	defer func() {
+		if conn != nil {
+			conn.Close()
+		}
+	}()
 	for {
 		select {
 		case <-mc.ctx.Done():
 			return
 		default:
 		}
-		_, msg, err := mc.conn.ReadMessage()
+		mc.mu.Lock()
+		conn = mc.conn
+		mc.mu.Unlock()
+		if conn == nil {
+			return
+		}
+		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			if mc.OnError != nil {
 				mc.OnError(fmt.Errorf("ws read: %w", err))

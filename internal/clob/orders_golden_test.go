@@ -72,7 +72,10 @@ func TestGoldenVectorsV2OrderSigning(t *testing.T) {
 			}
 
 			// Compute the EIP-712 typed-data hash for the order.
-			typedData := buildOrderTypedData(payload, fx.negRisk)
+			typedData, err := buildOrderTypedData(payload, fx.negRisk)
+			if err != nil {
+				t.Fatalf("build typed data: %v", err)
+			}
 			_, rawDataStr, err := apitypes.TypedDataAndHash(typedData)
 			if err != nil {
 				t.Fatalf("typed-data hash: %v", err)

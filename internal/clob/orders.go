@@ -703,7 +703,10 @@ func (c *Client) postOrder(ctx context.Context, key *auth.APIKey, polyAddress st
 }
 
 func signCLOBOrder(signer *auth.PrivateKeySigner, order signedOrderPayload, negRisk bool) (string, error) {
-	typed := buildOrderTypedData(order, negRisk)
+	typed, err := buildOrderTypedData(order, negRisk)
+	if err != nil {
+		return "", err
+	}
 	sig, err := signer.SignEIP712(typed)
 	if err != nil {
 		return "", err
@@ -713,7 +716,7 @@ func signCLOBOrder(signer *auth.PrivateKeySigner, order signedOrderPayload, negR
 
 // buildOrderTypedData builds the apitypes.TypedData for a V2 order.
 // Shared by signCLOBOrder and wrapPOLY1271Signature.
-func buildOrderTypedData(order signedOrderPayload, negRisk bool) apitypes.TypedData {
+func buildOrderTypedData(order signedOrderPayload, negRisk bool) (apitypes.TypedData, error) {
 	sideInt := int64(0)
 	if order.Side == "SELL" {
 		sideInt = 1
@@ -722,10 +725,22 @@ func buildOrderTypedData(order signedOrderPayload, negRisk bool) apitypes.TypedD
 	if negRisk {
 		verifyingContract = negRiskExchangeAddress
 	}
-	tokenID, _ := new(big.Int).SetString(order.TokenID, 10)
-	makerAmount, _ := new(big.Int).SetString(order.MakerAmount, 10)
-	takerAmount, _ := new(big.Int).SetString(order.TakerAmount, 10)
-	timestamp, _ := new(big.Int).SetString(order.Timestamp, 10)
+	tokenID, ok := new(big.Int).SetString(order.TokenID, 10)
+	if !ok {
+		return apitypes.TypedData{}, fmt.Errorf("invalid token_id %q", order.TokenID)
+	}
+	makerAmount, ok := new(big.Int).SetString(order.MakerAmount, 10)
+	if !ok {
+		return apitypes.TypedData{}, fmt.Errorf("invalid maker_amount %q", order.MakerAmount)
+	}
+	takerAmount, ok := new(big.Int).SetString(order.TakerAmount, 10)
+	if !ok {
+		return apitypes.TypedData{}, fmt.Errorf("invalid taker_amount %q", order.TakerAmount)
+	}
+	timestamp, ok := new(big.Int).SetString(order.Timestamp, 10)
+	if !ok {
+		return apitypes.TypedData{}, fmt.Errorf("invalid timestamp %q", order.Timestamp)
+	}
 	return apitypes.TypedData{
 		Types: apitypes.Types{
 			"EIP712Domain": {
@@ -768,7 +783,7 @@ func buildOrderTypedData(order signedOrderPayload, negRisk bool) apitypes.TypedD
 			"metadata":      common.HexToHash(order.Metadata).Hex(),
 			"builder":       common.HexToHash(order.Builder).Hex(),
 		},
-	}
+	}, nil
 }
 
 // wrapPOLY1271Signature produces the 636-char ERC-7739 TypedDataSign wrapped
@@ -825,7 +840,10 @@ func buildSignedOrderPayload(signer *auth.PrivateKeySigner, draft orderDraft, ts
 		Metadata:      bytes32Zero,
 		Builder:       builderCode,
 	}
-	typedData := buildOrderTypedData(payload, negRisk)
+	typedData, err := buildOrderTypedData(payload, negRisk)
+	if err != nil {
+		return signedOrderPayload{}, err
+	}
 	sig, err := wrapPOLY1271Signature(signer, maker, typedData)
 	if err != nil {
 		return signedOrderPayload{}, err

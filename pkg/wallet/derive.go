@@ -1,8 +1,10 @@
 package wallet
 
 import (
+	"encoding/hex"
+	"fmt"
+
 	"golang.org/x/crypto/sha3"
-	"math/big"
 )
 
 // Contract addresses for Polygon mainnet (chainID 137).
@@ -90,21 +92,19 @@ func strip0x(s string) string {
 }
 
 func hexToBytes(s string) []byte {
-	b := make([]byte, len(s)/2)
-	for i := 0; i < len(s); i += 2 {
-		n := new(big.Int)
-		n.SetString(s[i:i+2], 16)
-		b[i/2] = byte(n.Uint64())
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic(fmt.Sprintf("hexToBytes: invalid hex %q: %v", s, err))
 	}
 	return b
 }
 
 func hexDecodeInto(dst []byte, src string) {
-	for i := 0; i < len(src) && i/2 < len(dst); i += 2 {
-		n := new(big.Int)
-		n.SetString(src[i:i+2], 16)
-		dst[i/2] = byte(n.Uint64())
+	b, err := hex.DecodeString(src)
+	if err != nil {
+		panic(fmt.Sprintf("hexDecodeInto: invalid hex %q: %v", src, err))
 	}
+	copy(dst, b)
 }
 
 func toHex(b []byte) string {
