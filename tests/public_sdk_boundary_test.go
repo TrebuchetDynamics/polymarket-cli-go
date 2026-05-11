@@ -43,6 +43,8 @@ import (
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 	"github.com/TrebuchetDynamics/polygolem/pkg/universal"
 	"github.com/TrebuchetDynamics/polygolem/pkg/wallet"
+	"github.com/TrebuchetDynamics/polygolem/pkg/experimental/orders"
+	"github.com/TrebuchetDynamics/polygolem/pkg/experimental/auth"
 )
 
 func TestPublicSDKSignatures(t *testing.T) {
@@ -165,6 +167,14 @@ func TestPublicSDKSignatures(t *testing.T) {
 	_ = walletProxy
 	_ = walletSafe
 	_ = walletReady
+
+	var expOrder orders.OrderIntent = orders.OrderIntent{TokenID: "123", Side: orders.SideBuy}
+	var expOrderValidate func() error = expOrder.Validate
+	var expAuthDomain auth.EIP712Domain = auth.EIP712Domain{Name: "Test", Version: "1", ChainID: 137, VerifyingContract: "0x123"}
+	var expAuthValidType func(int) bool = auth.IsValidSignatureType
+	_ = expOrderValidate
+	_ = expAuthDomain
+	_ = expAuthValidType
 }
 `)
 
