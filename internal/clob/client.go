@@ -727,6 +727,30 @@ func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor strin
 
 // --- Order Scoring ---
 
+// BuilderTrade represents a trade attributed to a builder code.
+type BuilderTrade struct {
+	TradeID   string `json:"trade_id"`
+	OrderID   string `json:"order_id"`
+	Market    string `json:"market"`
+	AssetID   string `json:"asset_id"`
+	Side      string `json:"side"`
+	Size      string `json:"size"`
+	Price     string `json:"price"`
+	Timestamp string `json:"timestamp"`
+}
+
+// BuilderTrades returns trades attributed to the configured builder code.
+func (c *Client) BuilderTrades(ctx context.Context, limit int) ([]BuilderTrade, error) {
+	path := fmt.Sprintf("/builder-trades?limit=%d", limit)
+	var result struct {
+		Trades []BuilderTrade `json:"trades"`
+	}
+	if err := c.transport.Get(ctx, path, &result); err != nil {
+		return nil, err
+	}
+	return result.Trades, nil
+}
+
 func (c *Client) OrderScoring(ctx context.Context, orderID string) (bool, error) {
 	var wrapper struct {
 		Scoring bool `json:"scoring"`

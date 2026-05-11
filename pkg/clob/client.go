@@ -386,6 +386,11 @@ func (c *Client) OrderScoring(ctx context.Context, orderID string) (bool, error)
 	return c.inner.OrderScoring(ctx, orderID)
 }
 
+// BuilderTrades returns trades attributed to the configured builder code.
+func (c *Client) BuilderTrades(ctx context.Context, limit int) ([]internalclob.BuilderTrade, error) {
+	return c.inner.BuilderTrades(ctx, limit)
+}
+
 func bookParamsToInternal(params []types.CLOBBookParams) []polytypes.BookParams {
 	out := make([]polytypes.BookParams, len(params))
 	for i, param := range params {
