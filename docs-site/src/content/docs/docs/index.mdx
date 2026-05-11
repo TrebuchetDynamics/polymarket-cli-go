@@ -5,8 +5,11 @@ description: Safe Polymarket SDK and CLI for Go — deposit wallet (POLY_1271) o
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
 
-Polygolem is the single source of truth for **Polymarket protocol access** in Go.
-Read-only by default. No credentials needed to start.
+Polygolem is **production-safe Polymarket infrastructure for Go developers**.
+A single binary + Go SDK for trading on Polymarket V2 through deposit wallets.
+No Python. No npm. No opaque wrappers.
+
+**Read-only by default.** No credentials needed to start.
 
 **Trading requires a deposit wallet (type 3 / POLY_1271).** EOA, proxy, and Safe
 are blocked for new API users by Polymarket's CLOB V2. Polygolem handles the
@@ -15,6 +18,15 @@ full deposit wallet lifecycle: derive, deploy via relayer, fund, approve, trade.
 ```bash
 polygolem discover crypto --asset BTC --interval 5m --enrich
 ```
+
+## Who This Is For
+
+- **Bot developers** building automated trading strategies in Go
+- **Quant developers** who want deterministic, compiled infrastructure with type safety
+- **Operators** running headless trading systems that need auditability and local signing
+- **Engineers** embedding Polymarket data and execution into larger Go services
+
+If you are writing a Polymarket bot in Python or TypeScript, the [official CLOB clients](https://github.com/Polymarket/py-clob-client) are the right choice. If you are building in Go, or you want a single static binary with no runtime dependencies, polygolem is the only production-ready option.
 
 ## What can you do?
 
@@ -35,6 +47,9 @@ Everything is read-only by default. No API keys, no wallet, no risk. Just market
 # Check API health
 polygolem health
 
+# All 7 active 5m crypto markets with live prices
+polygolem discover crypto-5m --enrich
+
 # Search markets
 polygolem discover search --query "btc 5m"
 
@@ -43,6 +58,9 @@ polygolem discover crypto --asset BTC --interval 5m --enrich
 
 # Stream crypto market events live
 polygolem stream crypto --asset ETH --max-messages 50
+
+# Paper trade the current window
+polygolem paper trade --asset BTC --interval 5m --side up --size 1
 
 # Get enriched market data (Gamma + CLOB merged)
 polygolem discover enrich --id "0x..."
