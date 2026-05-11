@@ -1,0 +1,85 @@
+---
+title: Relayer API
+description: Polymarket Relayer V2 endpoints, auth headers, transaction states, and the deposit-wallet flow used by polygolem.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Production Relayer API: `https://relayer-v2.polymarket.com`.
+
+The relayer submits gas-sponsored transactions for Polymarket smart wallets.
+In polygolem it is used for deposit-wallet deploys and wallet batches such as
+trading approvals, adapter approvals, and V2 redeem calls.
+
+## Auth Modes
+
+| Mode | Headers | Polygolem entry point | Use |
+|---|---|---|---|
+| Relayer API Key V2 | `RELAYER_API_KEY`, `RELAYER_API_KEY_ADDRESS` | `pkg/relayer.NewV2` | Preferred relayer auth for headless onboarding |
+| Legacy builder HMAC | `POLY_BUILDER_API_KEY`, `POLY_BUILDER_TIMESTAMP`, `POLY_BUILDER_PASSPHRASE`, `POLY_BUILDER_SIGNATURE` | `pkg/relayer.New` | Compatibility path |
+| SIWE cookies | Browser/session cookies | `internal/relayer.MintV2APIKey` | Only for minting a V2 relayer API key |
+
+Relayer credentials are not CLOB L2 credentials. They cannot place orders,
+cancel orders, or read authenticated CLOB account data.
+
+## REST Mapping
+
+| Polygolem method | REST path | Auth | Notes |
+|---|---|---|---|
+| `MintV2APIKey` | `POST /relayer/api/auth` | SIWE session cookies | Mints `{ apiKey, address, createdAt }` for relayer header auth |
+| `SubmitWalletCreate` | `POST /submit` | Relayer API key or builder HMAC | Body type `WALLET-CREATE`; deploys a deposit wallet through `DepositWalletFactory` |
+| `SubmitWalletBatch` | `POST /submit` | Relayer API key or builder HMAC | Body type `WALLET`; submits a signed deposit-wallet batch |
+| `GetNonce` | `GET /nonce?address=owner_address&type=WALLET` | Relayer API key or builder HMAC | Current WALLET nonce for the owner |
+| `GetTransaction` | `GET /transaction?id=tx_id` | Relayer API key or builder HMAC | Polls a single relayer transaction; polygolem accepts object or array responses |
+| `PollTransaction` | `GET /transaction?id=tx_id` loop | Relayer API key or builder HMAC | Stops on terminal relayer states |
+| `IsDeployed` | `GET /deployed?address=owner_address` | Relayer API key or builder HMAC | Relayer/indexer deployment view, not chain truth |
+| Not wrapped | `GET /transactions` | Relayer API key or builder HMAC | Upstream recent-transaction list |
+| Not wrapped | `GET /relay-payload?address=owner_address&type=SAFE|PROXY` | Public | Upstream SAFE/PROXY helper; not used by the deposit-wallet path |
+| Not wrapped | `GET /relayer/api/keys` | Gamma auth or relayer API key | Lists relayer API keys when account auth allows it |
+
+<Aside type="note">
+Upstream documentation contains both `POST /submit` and `POST /transactions`
+for transaction submission. Polygolem's deposit-wallet implementation uses
+`POST /submit`, because that is the documented path for `WALLET-CREATE` and
+`WALLET` payloads.
+</Aside>
+
+## Deposit-Wallet Transaction Flow
+
+1. Derive the deterministic deposit wallet address locally from the owner EOA.
+2. Check `GET /deployed?address=owner_address` for the relayer/indexer view.
+3. Check Polygon `eth_getCode(deposit_wallet)`; bytecode wins for CLOB
+   POLY_1271 readiness.
+4. Submit `WALLET-CREATE` through `POST /submit` if no code exists.
+5. Fetch `GET /nonce?address=owner_address&type=WALLET`.
+6. Sign an EIP-712 deposit-wallet batch with the owner EOA.
+7. Submit the signed `WALLET` batch through `POST /submit`.
+8. Poll `GET /transaction?id=tx_id` until `STATE_CONFIRMED` or another
+   terminal state.
+
+## Transaction Types
+
+| Type | Polygolem status | Purpose |
+|---|---|---|
+| `WALLET-CREATE` | Supported | Deploy a deposit wallet |
+| `WALLET` | Supported | Execute deposit-wallet calls through the factory |
+| `SAFE` | Not a deposit-wallet flow | Legacy smart wallet transaction type |
+| `PROXY` | Not a deposit-wallet flow | Legacy proxy wallet transaction type |
+
+## Safety Boundaries
+
+- A relayer transaction is gas-sponsored, but still executes against Polygon
+  contracts. Treat submitted calldata as live money movement.
+- `DepositWalletFactory.deploy` and `DepositWalletFactory.proxy` are
+  operator-gated. Direct EOA calls are not a safe fallback.
+- If `/deployed` is false but Polygon bytecode exists at the derived deposit
+  wallet, the wallet is deployed for CLOB POLY_1271 order validation.
+- If the relayer rejects a WALLET batch as not allowlisted, verify the target
+  contracts against the current Polymarket contract registry before retrying.
+
+## Related
+
+- [Smart Contracts](/docs/concepts/contracts)
+- [Deposit Wallet Lifecycle](/docs/guides/deposit-wallet-lifecycle)
+- [Builder & Relayer Keys](/docs/guides/builder-auto)
+- Upstream: [Polymarket Relayer API](https://docs.polymarket.com/api-reference/relayer/submit-a-transaction)

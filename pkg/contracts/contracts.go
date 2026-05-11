@@ -37,6 +37,10 @@ const (
 
 	PUSD = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
 	CTF  = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+	// USDC.e on Polygon. Polymarket's UI Enable Trading approval batch
+	// approves this token to the V2 CollateralOnramp so the wallet can
+	// route legacy collateral into pUSD when needed.
+	USDCE = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
 )
 
 // Registry is the Polymarket Polygon contract registry used by polygolem.
@@ -55,6 +59,7 @@ type Registry struct {
 	PermissionedRamp            string `json:"permissionedRamp"`
 	PUSD                        string `json:"pusd"`
 	CTF                         string `json:"ctf"`
+	USDCE                       string `json:"usdce"`
 }
 
 // PolygonMainnet returns the contract registry for Polymarket on Polygon.
@@ -74,6 +79,7 @@ func PolygonMainnet() Registry {
 		PermissionedRamp:            PermissionedRamp,
 		PUSD:                        PUSD,
 		CTF:                         CTF,
+		USDCE:                       USDCE,
 	}
 }
 

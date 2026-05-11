@@ -482,6 +482,15 @@ func (c *Client) Market(ctx context.Context, conditionID string) (*polytypes.CLO
 	return &result, nil
 }
 
+// MarketByToken returns the parent CLOB market identifiers for a token ID.
+func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*polytypes.CLOBMarketByTokenResponse, error) {
+	var result polytypes.CLOBMarketByTokenResponse
+	if err := c.transport.Get(ctx, "/markets-by-token/"+url.PathEscape(tokenID), &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // OrderBook returns L2 order book depth for a token.
 func (c *Client) OrderBook(ctx context.Context, tokenID string) (*polytypes.OrderBook, error) {
 	path := fmt.Sprintf("/book?token_id=%s", url.QueryEscape(tokenID))
@@ -517,9 +526,7 @@ func (c *Client) Price(ctx context.Context, tokenID, side string) (string, error
 func (c *Client) Prices(ctx context.Context, params []polytypes.BookParams) (map[string]string, error) {
 	var raw json.RawMessage
 	if err := c.transport.Post(ctx, "/prices", params, &raw); err != nil {
-		if err2 := c.transport.Post(ctx, "/prices-post", params, &raw); err2 != nil {
-			return nil, fmt.Errorf("prices: %w (legacy fallback also failed: %v)", err, err2)
-		}
+		return nil, err
 	}
 	return parseTokenValueMap(raw, params, "price")
 }

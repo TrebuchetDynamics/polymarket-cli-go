@@ -19,7 +19,7 @@ wallet signing (sigtype 3 / POLY_1271). See [Safety surface](#safety-surface).
 Build the binary once:
 
 ```bash
-cd go-bot/polygolem && go build -o polygolem ./cmd/polygolem
+cd polygolem && go build -o polygolem ./cmd/polygolem
 ./polygolem version --json
 ```
 

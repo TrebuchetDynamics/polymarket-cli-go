@@ -139,7 +139,7 @@ This is already implemented in `polygolem/internal/clob/orders.go` (636-byte out
 ### Prerequisites
 
 1. **EOA with private key** — you have this
-2. **V2 relayer credentials** — mint with `polygolem auth headless-onboard`
+2. **V2 relayer credentials** — mint with `polygolem auth login`
 3. **POL for gas** on Polygon (minimum ~50 POL reserve recommended)
 4. **pUSD** to fund the deposit wallet
 
@@ -151,7 +151,7 @@ Create or derive CLOB L2 credentials, then mint V2 relayer credentials:
 ```bash
 export POLYMARKET_PRIVATE_KEY="0x..."
 polygolem builder auto
-polygolem auth headless-onboard
+polygolem auth login
 
 export RELAYER_API_KEY="your-relayer-key"
 export RELAYER_API_KEY_ADDRESS="0x..."
@@ -168,7 +168,7 @@ Try the `POLY_BUILDER_*` format first; if you get `"invalid authorization"`, swi
 ### Step 2: Derive Deposit Wallet Address
 
 ```bash
-cd go-bot/polygolem
+cd polygolem
 POLYMARKET_PRIVATE_KEY="0x..." polygolem deposit-wallet derive --json
 ```
 
@@ -400,7 +400,7 @@ If your bot is down with deposit wallet issues:
 
 - [ ] Confirm you're in the "new API user" category (EOA orders rejected)
 - [ ] Run `polygolem builder auto` for CLOB L2 credentials
-- [ ] Run `polygolem auth headless-onboard` for V2 relayer credentials
+- [ ] Run `polygolem auth login` for V2 relayer credentials
 - [ ] Set `RELAYER_API_KEY` / `RELAYER_API_KEY_ADDRESS` env vars
 - [ ] Run `polygolem deposit-wallet derive` — note the deposit wallet address
 - [ ] Run `polygolem deposit-wallet deploy --wait` — deploy the wallet

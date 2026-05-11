@@ -12,7 +12,8 @@ polygolem - Safe Polymarket SDK and CLI for Go
   auth - Inspect authentication readiness
     clob-probe - Probe configured CLOB L2 credentials with read-only calls
     export-key - Display private key for wallet import (use with care)
-    headless-onboard - Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key)
+    headless-onboard - Run SIWE login + mint V2 Relayer API Key
+    login - Sign in to Polymarket headlessly and mint V2 relayer credentials
     status - Check authentication readiness and API key status
   bridge - Polymarket Bridge API
     assets - List supported bridge assets
@@ -29,12 +30,13 @@ polygolem - Safe Polymarket SDK and CLI for Go
     cancel-market - Cancel open CLOB orders for a market or asset
     cancel-orders - Cancel multiple open CLOB orders
     create-api-key - Create or derive CLOB API credentials
-    create-api-key-for-address - Create CLOB API credentials for a deposit wallet owner
+    create-api-key-for-address - Create CLOB API credentials while reporting a maker address
     create-builder-fee-key - Mint a CLOB builder fee key (POST /auth/builder-api-key)
     create-order - Create a signed CLOB limit order
     heartbeat - Send one CLOB heartbeat ping
     list-builder-fee-keys - List builder fee keys (GET /auth/builder-api-keys)
     market - Get CLOB market by condition ID
+    market-by-token - Resolve CLOB market by token ID
     market-order - Create a signed CLOB market/FOK order
     markets - List CLOB markets
     order - Get a single authenticated CLOB order
@@ -62,9 +64,10 @@ polygolem - Safe Polymarket SDK and CLI for Go
     batch - Sign and submit a deposit wallet WALLET batch
     deploy - Deploy the deposit wallet via relayer WALLET-CREATE
     derive - Derive the deterministic deposit wallet address
+    enable-trading - Complete the UI Enable Trading signs for an existing deposit wallet
     fund - Transfer pUSD from EOA to the deposit wallet
     nonce - Get the current WALLET nonce for the owner
-    onboard - Full deposit wallet onboarding: deploy + approve + fund
+    onboard - Full deposit wallet onboarding: deploy + approve + enable trading + fund
     redeem - Redeem winning deposit-wallet positions via the V2 collateral adapter
     redeemable - List redeemable positions held by the deposit wallet
     settlement-status - Check whether the deposit wallet is ready to redeem V2 winners
@@ -83,6 +86,8 @@ polygolem - Safe Polymarket SDK and CLI for Go
   health - Check Gamma and CLOB API reachability
   live - Inspect live gate status
     status
+  marketdata - Live CLOB orderbook and share-price snapshots
+    live - Stream enriched CLOB market-data snapshots
   orderbook - Read CLOB order book data
     fee-rate - Get fee rate in bps
     get - Get L2 order book
@@ -116,6 +121,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
 | `polygolem events` | List Polymarket events |
 | `polygolem health` | Check Gamma and CLOB API reachability |
 | `polygolem live` | Inspect live gate status |
+| `polygolem marketdata` | Live CLOB orderbook and share-price snapshots |
 | `polygolem orderbook` | Read CLOB order book data |
 | `polygolem paper` | Inspect local paper trading state |
 | `polygolem preflight` | Inspect local CLI readiness |

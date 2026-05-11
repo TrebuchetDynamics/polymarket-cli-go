@@ -248,6 +248,37 @@ func TestAuthHeadlessOnboardHasProfileRegistrationFlags(t *testing.T) {
 	}
 }
 
+func TestAuthLoginCommandExplainsEOASignerAndDepositWallet(t *testing.T) {
+	root := NewRootCommand(Options{Version: "test-version", Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	cmd, _, err := root.Find([]string{"auth", "login"})
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	if cmd == nil {
+		t.Fatal("auth login command missing")
+	}
+	if cmd.CommandPath() != "polygolem auth login" {
+		t.Fatalf("found command path %q, want polygolem auth login", cmd.CommandPath())
+	}
+	signatureTypeFlag := cmd.Flags().Lookup("signature-type")
+	if signatureTypeFlag == nil {
+		t.Fatal("signature-type flag missing")
+	}
+	if got := signatureTypeFlag.DefValue; got != "3" {
+		t.Fatalf("signature-type default=%q, want 3", got)
+	}
+	help := cmd.Long
+	for _, want := range []string{
+		"Polymarket login signs with the EOA",
+		"deposit wallet remains the trading wallet",
+		"mints V2 relayer credentials",
+	} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("auth login help missing %q:\n%s", want, help)
+		}
+	}
+}
+
 func TestAuthCLOBProbeUsesConfiguredCredentialsForReadOnlyEndpoints(t *testing.T) {
 	var requests []string
 	var sawAPIKey string
@@ -453,6 +484,7 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 		{"clob", "heartbeat"},
 		{"clob", "price-history"},
 		{"clob", "market"},
+		{"clob", "market-by-token"},
 		{"clob", "markets"},
 		{"data", "positions"},
 		{"data", "closed-positions"},
@@ -475,6 +507,7 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 		{"paper", "reset"},
 		{"auth", "status"},
 		{"auth", "export-key"},
+		{"auth", "login"},
 		{"auth", "headless-onboard"},
 		{"live", "status"},
 	} {
@@ -771,6 +804,81 @@ func TestStreamMarketReadsFromLocalWebSocket(t *testing.T) {
 	}
 	if got.EventType != "book" || got.AssetID != "token-1" || got.Market != "market-1" {
 		t.Fatalf("unexpected stream output: %+v", got)
+	}
+}
+
+func TestMarketDataLiveEmitsEnrichedSnapshots(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	subscriptions := make(chan []string, 1)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade websocket: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		var sub struct {
+			Type     string   `json:"type"`
+			AssetIDs []string `json:"assets_ids"`
+		}
+		if err := conn.ReadJSON(&sub); err != nil {
+			t.Errorf("read subscription: %v", err)
+			return
+		}
+		subscriptions <- sub.AssetIDs
+		if err := conn.WriteJSON(map[string]any{
+			"event_type": "book",
+			"asset_id":   "token-1",
+			"market":     "market-1",
+			"timestamp":  "1",
+			"bids": []map[string]string{
+				{"price": "0.49", "size": "10"},
+				{"price": "0.51", "size": "3"},
+			},
+			"asks": []map[string]string{
+				{"price": "0.55", "size": "2"},
+				{"price": "0.53", "size": "4"},
+			},
+		}); err != nil {
+			t.Errorf("write stream message: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	var stdout bytes.Buffer
+	root := NewRootCommand(Options{Version: "test-version", Stdout: &stdout, Stderr: &bytes.Buffer{}})
+	root.SetArgs([]string{
+		"--json",
+		"marketdata", "live",
+		"--url", "ws" + strings.TrimPrefix(server.URL, "http"),
+		"--asset-ids", "token-1",
+		"--max-messages", "1",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	gotSubscription := <-subscriptions
+	if len(gotSubscription) != 1 || gotSubscription[0] != "token-1" {
+		t.Fatalf("subscription=%v, want [token-1]", gotSubscription)
+	}
+	var envelope jsonEnvelopeForTest
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("marketdata stdout is not valid JSON: %v\nstdout:\n%s", err, stdout.String())
+	}
+	var got struct {
+		EventType string `json:"event_type"`
+		AssetID   string `json:"asset_id"`
+		BestBid   string `json:"best_bid"`
+		BestAsk   string `json:"best_ask"`
+		Midpoint  string `json:"midpoint"`
+	}
+	if err := json.Unmarshal(envelope.Data, &got); err != nil {
+		t.Fatalf("marketdata data is not valid JSON: %v\nstdout:\n%s", err, stdout.String())
+	}
+	if got.EventType != "book" || got.AssetID != "token-1" || got.BestBid != "0.51" || got.BestAsk != "0.53" || got.Midpoint != "0.52" {
+		t.Fatalf("unexpected marketdata output: %+v", got)
 	}
 }
 

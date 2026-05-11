@@ -9,7 +9,9 @@ description: Polygolem coverage across Gamma, CLOB, Data API, Bridge, WebSocket,
 |---|---|---|---|
 | Gamma markets | `internal/gamma`, `pkg/universal` | `discover search`, `discover markets`, `discover market`, `discover enrich` | Covered |
 | Gamma taxonomy | `internal/gamma`, `pkg/universal` | `discover tags`, `discover series`, `discover comments` | Covered |
-| CLOB public data | `internal/clob`, `pkg/clob`, `pkg/orderbook`, `pkg/types`, `pkg/universal` | `orderbook *`, `clob book`, `clob market`, `clob markets`, `clob price-history` | Covered |
+| CLOB public data | `internal/clob`, `pkg/clob`, `pkg/orderbook`, `pkg/types`, `pkg/universal` | `orderbook *`, `clob book`, `clob market`, `clob market-by-token`, `clob markets`, `clob price-history` | Covered |
+| CLOB market feeds | `internal/clob`, `pkg/clob`, `pkg/universal` | SDK only for simplified and sampling feeds | Covered in SDK |
+| CLOB rewards, rebates, scoring | `internal/clob`, `pkg/clob`, `pkg/universal` | SDK only | Covered in SDK |
 | CLOB account reads | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob create-api-key`, `clob create-api-key-for-address`, `clob balance`, `clob update-balance`, `clob orders`, `clob order`, `clob trades` | Covered |
 | CLOB cancellation | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob cancel`, `clob cancel-orders`, `clob cancel-market`, `clob cancel-all` | Covered |
 | CLOB placement | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob create-order`, `clob batch-orders`, `clob market-order`, `--builder-code` | Deposit wallet only |
@@ -18,10 +20,15 @@ description: Polygolem coverage across Gamma, CLOB, Data API, Bridge, WebSocket,
 | CLOB batch placement | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob batch-orders` | Covered |
 | CLOB heartbeat | `internal/clob`, `pkg/clob`, `pkg/universal` | `clob heartbeat` | Covered |
 | Data API | `internal/dataapi`, `pkg/data`, `pkg/types`, `pkg/universal` | `data *` | Covered |
-| Bridge | `pkg/bridge` | `bridge assets`, `bridge deposit` | Covered |
-| Contracts | `internal/rpc`, `pkg/contracts`, `pkg/relayer` compatibility wrapper | `deposit-wallet status`, `deposit-wallet deploy` preflight | Covered |
+| Bridge supported assets and deposit address | `pkg/bridge` | `bridge assets`, `bridge deposit` | Covered |
+| Bridge quote and status | `pkg/bridge` | Not exposed | SDK only |
+| Relayer V2 deposit-wallet flow | `pkg/relayer`, `internal/relayer`, `internal/auth` | `auth headless-onboard`, `deposit-wallet deploy`, `deposit-wallet approve`, `deposit-wallet approve-adapters`, `deposit-wallet enable-trading`, `deposit-wallet redeem` | Covered |
+| Relayer recent transaction list / relay payload / key listing | Not exposed | Not exposed | Gap |
+| Contracts actively used by SDK | `internal/rpc`, `pkg/contracts`, `pkg/relayer` compatibility wrapper | `deposit-wallet status`, `deposit-wallet deploy` preflight | Covered |
+| Resolution contracts registry | Docs only | Not exposed | Documented, not wrapped |
 | Conditional Tokens helpers | `pkg/ctf` | Not exposed | SDK calldata helpers only |
-| Public WebSocket | `internal/stream`, `pkg/stream`, `pkg/universal` | `stream market` | Covered |
+| Public WebSocket | `internal/stream`, `pkg/stream`, `pkg/universal` | `stream market --custom-features` | Covered |
+| Live market-data snapshots | `pkg/marketdata`, `pkg/stream` | `marketdata live` | Covered, custom features on by default |
 | User WebSocket | Planned | Planned | Gap |
 | Deposit wallet lifecycle | `pkg/relayer`, `pkg/contracts`, `internal/auth`, `internal/rpc` | `deposit-wallet *` | SDK deploy+approve and CLI full onboard covered; funding remains explicit |
 
@@ -33,3 +40,6 @@ The repository copy with test and documentation columns lives in
 - Authenticated user WebSocket streams wait for L2 WebSocket auth tests.
 - Data API all-market open interest is not exposed by the CLI yet; the current
   command requires `--token-id`.
+- Bridge quote/status are SDK-only until CLI commands are added.
+- Relayer `GET /transactions`, `GET /relay-payload`, and relayer key listing
+  are documented upstream but not wrapped as stable polygolem SDK methods.

@@ -1,0 +1,282 @@
+Add headless Polymarket "Enable Trading" support to the Polygolem SDK.
+
+Context
+=======
+
+Polygolem can already derive and deploy a Polymarket V2 deposit wallet. A live
+polymarket.com UI flow for EOA 0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C and
+deposit wallet 0x21999a074344610057c9b2B362332388a44502D4 still presents two
+manual confirmations before the UI considers trading enabled:
+
+1. Enable Trading: sign a ClobAuth typed-data message to generate CLOB API keys.
+2. Approve Tokens: sign a DepositWallet Batch typed-data message for token approvals.
+
+The UI flow is:
+
+- Enable Trading
+  - Deploy Wallet: "Deploy a smart contract wallet to enable trading" - Done
+  - Enable Trading: "Sign a message to generate your API keys" - Sign
+  - Approve Tokens: "Approve token spending for trading" - Sign
+
+Important identity model
+========================
+
+- Polymarket login and CLOB HTTP auth sign with the EOA.
+- The deposit wallet remains the trading wallet for pUSD balances, POLY_1271
+  order maker/signer fields, CTF positions, approvals, and redemption.
+- Do not assume the ClobAuth address is the deposit wallet. The observed
+  Polymarket UI payload uses the EOA address.
+
+Goal
+====
+
+Implement a native, audited, headless SDK flow that reaches the same state as
+manually pressing:
+
+1. Deploy Wallet - Done
+2. Enable Trading - Sign
+3. Approve Tokens - Sign
+
+No browser automation. No mobile-wallet UI. No private-key logging.
+
+Required high-level SDK API
+===========================
+
+Design an idiomatic Go SDK API matching existing Polygolem package style. The
+shape should be equivalent to:
+
+    result, err := client.EnableTradingHeadless(ctx, EnableTradingParams{
+        OwnerPrivateKey:       ownerPrivateKey,
+        DepositWalletAddress:  depositWalletAddress,
+        DeployIfNeeded:        true,
+        CreateOrDeriveCLOBKey: true,
+        ApproveTokens:         true,
+        MaxApproval:           true,
+        DryRun:                false,
+    })
+
+Return a structured result:
+
+    type EnableTradingResult struct {
+        EOAAddress              string
+        DepositWalletAddress    string
+        Deployed                bool
+        CLOBAuthSigned          bool
+        APIKeysCreatedOrDerived bool
+        TokenApprovalsBuilt     bool
+        TokenApprovalsSigned    bool
+        TokenApprovalsSubmitted bool
+        ReadyToTrade            bool
+        TxHashes                []string
+        Warnings                []string
+    }
+
+Also expose lower-level methods so callers and tests can verify each step:
+
+- GetOrDeployDepositWallet(...)
+- BuildClobAuthTypedData(...)
+- SignClobAuthTypedData(...)
+- CreateOrDeriveClobAPIKey(...)
+- BuildEnableTradingApprovalBatchTypedData(...)
+- SignDepositWalletApprovalBatch(...)
+- SubmitDepositWalletApprovalBatch(...)
+- VerifyTradingEnabled(...)
+
+Preserve the existing public SDK boundary style. Before editing, inspect:
+
+- internal/auth/l1.go
+- internal/auth/eip712.go
+- internal/clob/client.go
+- internal/relayer/approvals.go
+- internal/relayer/signing.go
+- pkg/clob
+- pkg/relayer
+- pkg/contracts
+- internal/cli/deposit_wallet.go
+
+Observed ClobAuth typed-data payload
+====================================
+
+Use this as the compatibility target. The address in this observed payload is
+the EOA, not the deposit wallet.
+
+    {
+      "domain": {
+        "name": "ClobAuthDomain",
+        "version": "1",
+        "chainId": 137
+      },
+      "message": {
+        "address": "0x33e4ad5a1367fbf7004c637f628a5b78c44fa76c",
+        "timestamp": "1778372101",
+        "nonce": 0,
+        "message": "This message attests that I control the given wallet"
+      },
+      "primaryType": "ClobAuth",
+      "types": {
+        "EIP712Domain": [
+          { "name": "name", "type": "string" },
+          { "name": "version", "type": "string" },
+          { "name": "chainId", "type": "uint256" }
+        ],
+        "ClobAuth": [
+          { "name": "address", "type": "address" },
+          { "name": "timestamp", "type": "string" },
+          { "name": "nonce", "type": "uint256" },
+          { "name": "message", "type": "string" }
+        ]
+      }
+    }
+
+Observed DepositWallet approval Batch typed-data payload
+========================================================
+
+Use this as the compatibility target. The verifyingContract and message.wallet
+must be the deployed deposit wallet.
+
+    {
+      "domain": {
+        "name": "DepositWallet",
+        "version": "1",
+        "chainId": 137,
+        "verifyingContract": "0x21999a074344610057c9b2b362332388a44502d4"
+      },
+      "message": {
+        "wallet": "0x21999a074344610057c9b2b362332388a44502d4",
+        "nonce": "6",
+        "deadline": "1778373936",
+        "calls": [
+          {
+            "target": "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB",
+            "value": "0",
+            "data": "0x095ea7b30000000000000000000000004d97dcd97ec945f40cf65f87097ace5ea0476045ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          {
+            "target": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+            "value": "0",
+            "data": "0x095ea7b300000000000000000000000093070a847efef7f70739046a929d47a521f5b8eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          }
+        ]
+      },
+      "primaryType": "Batch",
+      "types": {
+        "EIP712Domain": [
+          { "name": "name", "type": "string" },
+          { "name": "version", "type": "string" },
+          { "name": "chainId", "type": "uint256" },
+          { "name": "verifyingContract", "type": "address" }
+        ],
+        "Call": [
+          { "name": "target", "type": "address" },
+          { "name": "value", "type": "uint256" },
+          { "name": "data", "type": "bytes" }
+        ],
+        "Batch": [
+          { "name": "wallet", "type": "address" },
+          { "name": "nonce", "type": "uint256" },
+          { "name": "deadline", "type": "uint256" },
+          { "name": "calls", "type": "Call[]" }
+        ]
+      }
+    }
+
+Observed approval calls
+=======================
+
+Chain: Polygon mainnet, chainId 137.
+
+The observed approval batch includes:
+
+- target pUSD: 0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB
+  - function: ERC20 approve(address spender, uint256 amount)
+  - spender: CTF 0x4D97DCd97eC945f40cF65F87097ACe5EA0476045
+  - amount: max uint256
+- target USDC.e: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
+  - function: ERC20 approve(address spender, uint256 amount)
+  - spender: CollateralOnramp 0x93070a847efEf7F70739046A929D47a521F5B8ee
+  - amount: max uint256
+
+Do not hardcode these silently. Add named addresses to pkg/contracts.Registry
+or reuse existing registry fields where present. Add comments explaining that
+this is the Polymarket UI "Enable Trading / Approve Tokens" batch, distinct
+from the existing six-call trading approval batch and the V2 adapter approval
+batch. If live verification shows these approvals replace or duplicate an
+existing Polygolem batch, document the relationship and keep idempotent checks.
+
+Safety requirements
+===================
+
+- Never print, log, or persist private keys.
+- Redact signatures, API secrets, and passphrases in logs/errors by default.
+- Support DryRun mode that builds typed data and reports planned actions
+  without signing or submitting.
+- Require explicit opt-in for max allowance approvals.
+- Validate chainId is 137 before signing.
+- Validate ClobAuth message text exactly equals:
+  "This message attests that I control the given wallet"
+- Validate ClobAuth address equals the EOA derived from OwnerPrivateKey unless
+  the caller explicitly opts into a custom auth address.
+- Validate DepositWallet domain.verifyingContract equals the expected deposit
+  wallet address.
+- Validate DepositWallet message.wallet equals the expected deposit wallet
+  address.
+- Validate deadlines and nonces are fresh.
+- Fail closed on unknown target/spender pairs unless caller explicitly allows
+  custom approval calls.
+- In live submission, fetch a fresh WALLET nonce immediately before signing.
+- If the submit endpoint/request shape is not fully known, implement build and
+  sign first, return a clear blocked result, and do not pretend the account is
+  enabled.
+
+Testing requirements
+====================
+
+Use TDD. Add tests before implementation. Prefer public SDK/API-level tests
+where possible and httptest/mocked transport for network calls.
+
+Required tests:
+
+1. BuildClobAuthTypedData creates the exact EIP-712 domain/types/message shape.
+2. SignClobAuthTypedData signs with the expected EOA and recovers to that EOA.
+3. BuildEnableTradingApprovalBatchTypedData creates the exact DepositWallet
+   Batch typed-data shape.
+4. Approval calldata decodes to ERC20 approve(spender, maxUint256) for both
+   configured token/spender pairs.
+5. Batch signing uses the existing DepositWallet typed-data signing flow and
+   recovers/validates according to Polymarket's expected owner path.
+6. DryRun returns typed data and planned actions without signing or submitting.
+7. EnableTradingHeadless is idempotent when wallet deployment, API keys, and
+   approvals already exist.
+8. Private keys, raw API secrets, passphrases, and full signatures are redacted
+   from logs/errors/snapshots.
+9. Wrong chainId, wrong verifyingContract, expired deadline, wrong wallet,
+   wrong ClobAuth message, or unknown spender causes a hard failure.
+10. Integration test against mocked Polymarket endpoints verifies API key
+    creation/derivation and ready-to-trade verification.
+
+Implementation notes
+====================
+
+- Reuse existing Polygolem signers, typed-data helpers, CLOB auth code,
+  relayer WALLET batch submission code, and contract registry.
+- Avoid browser automation. This must be native SDK code.
+- Keep CLI work as a thin wrapper only after the SDK is correct.
+- Do not mix this feature with winner redemption.
+- Do not remove existing approval commands. Add a named enable-trading
+  approval path and document how it relates to:
+  - deposit-wallet approve
+  - deposit-wallet approve-adapters
+  - deposit-wallet settlement-status
+- If adding config, use explicit Polygon mainnet names and tests.
+- Add docs with a copy-paste example and a warning about max token approvals.
+
+Definition of done
+==================
+
+- One SDK call can headlessly complete the same state as the UI sequence:
+  Deploy Wallet -> Enable Trading -> Approve Tokens.
+- Lower-level build/sign/submit methods are independently testable.
+- All new tests pass.
+- Existing tests pass.
+- Docs include dryRun and live examples.
+- No secrets are printed in logs or test snapshots.

@@ -75,6 +75,13 @@ type CLOBMarket struct {
 	MinimumOrderAge       int            `json:"minimum_order_age,omitempty"`
 }
 
+// CLOBMarketByTokenResponse resolves a CLOB token ID to its parent market.
+type CLOBMarketByTokenResponse struct {
+	ConditionID      string `json:"condition_id"`
+	PrimaryTokenID   string `json:"primary_token_id"`
+	SecondaryTokenID string `json:"secondary_token_id"`
+}
+
 // CLOBToken is an outcome token listed on a CLOB market.
 type CLOBToken struct {
 	TokenID string `json:"token_id"`

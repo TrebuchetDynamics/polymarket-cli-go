@@ -62,6 +62,8 @@ const (
 	StateInvalid   = internalrelayer.StateInvalid
 	StateConfirmed = internalrelayer.StateConfirmed
 	StateFailed    = internalrelayer.StateFailed
+
+	MinWalletBatchDeadlineSeconds = internalrelayer.MinWalletBatchDeadlineSeconds
 )
 
 // ErrRelayerAllowlistBlocked is the sentinel returned when Polymarket's
@@ -117,9 +119,24 @@ func BuildAdapterApprovalCallsJSON() (string, error) {
 	return internalrelayer.BuildAdapterApprovalCallsJSON()
 }
 
+// BuildEnableTradingApprovalCalls returns the two ERC-20 approve calls
+// observed in polymarket.com's Enable Trading UI: pUSD -> CTF and
+// USDC.e -> CollateralOnramp, both max uint256. This is distinct from
+// BuildApprovalCalls and BuildAdapterApprovalCalls.
+func BuildEnableTradingApprovalCalls() []DepositWalletCall {
+	return internalrelayer.BuildEnableTradingApprovalCalls()
+}
+
+// BuildEnableTradingApprovalCallsJSON returns the UI Enable Trading
+// approval calls as a JSON-marshalable slice for dry-run paths.
+func BuildEnableTradingApprovalCallsJSON() (string, error) {
+	return internalrelayer.BuildEnableTradingApprovalCallsJSON()
+}
+
 // BuildDeadline returns a unix-seconds deadline string suitable for use
-// in DepositWallet.Batch payloads. Defaults to now+240s when
-// secondsFromNow is non-positive (matches the TypeScript relayer client).
+// in DepositWallet.Batch payloads. Defaults to now+30m and clamps shorter
+// caller-provided windows to that minimum because the production relayer
+// rejects WALLET batches whose deadlines are too close.
 func BuildDeadline(secondsFromNow int64) string {
 	return internalrelayer.BuildDeadline(secondsFromNow)
 }

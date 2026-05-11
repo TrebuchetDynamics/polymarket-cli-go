@@ -1,6 +1,6 @@
 ---
 title: Builder and Relayer Keys
-description: Which Polymarket V2 credentials are headless, which belong to the deposit wallet, and where new users still need one browser login.
+description: Which Polymarket V2 credentials are EOA-authenticated, which belong to the deposit wallet, and how polygolem signs login headlessly.
 ---
 
 import { Aside } from "@astrojs/starlight/components";
@@ -8,17 +8,17 @@ import { Aside } from "@astrojs/starlight/components";
 Polygolem splits the V2 setup into three credential systems:
 
 - `builder auto` creates bootstrap CLOB L2 credentials at `clob.polymarket.com/auth/api-key`.
-- `auth headless-onboard` performs SIWE login and mints `RELAYER_API_KEY` +
+- `auth login` performs SIWE login and mints `RELAYER_API_KEY` +
   `RELAYER_API_KEY_ADDRESS` for deposit-wallet deploy and approval batches.
 - `clob create-builder-fee-key` creates the builder attribution value used in
   the V2 order `builder` bytes32 field.
 
-<Aside type="caution">
-New users still need one browser login at polymarket.com to mint the
-deposit-wallet-owned CLOB API key used for live trading. The headless commands
-cover bootstrap credentials, relayer credentials, wallet deploy, approvals, and
-funding; they do not remove the browser login requirement for brand-new
-deposit-wallet trading keys.
+<Aside type="note">
+Polymarket login signs with the EOA. The deposit wallet remains the trading
+wallet for pUSD, POLY_1271 orders, CTF positions, approvals, and redemption.
+Wallet commands can run `auth login` automatically when relayer credentials
+are missing. Run `polygolem auth login` yourself when you want to inspect or
+refresh the relayer key explicitly.
 </Aside>
 
 ## Pipeline
@@ -27,34 +27,28 @@ deposit-wallet trading keys.
 # Step 1: Generate a fresh EOA
 openssl rand -hex 32 > key.txt
 
-# Step 2: Create or derive CLOB L2 credentials
+# Step 2: Sign in to Polymarket and mint relayer credentials
+POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
+  polygolem auth login
+
+# Step 3: Create or derive CLOB L2 credentials
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
   polygolem builder auto
-
-# Step 3: Mint a V2 relayer API key
-POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
-  polygolem auth headless-onboard
 
 # Step 4: Mint a builder fee key, then export its key as a bytes32 builder code
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
   polygolem clob create-builder-fee-key
 export POLYMARKET_BUILDER_CODE="0x..."
 
-# Step 5: Deploy deposit wallet + approve + fund
+# Step 5: Deploy deposit wallet + approve + enable trading + fund
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
-RELAYER_API_KEY="..." \
-RELAYER_API_KEY_ADDRESS="..." \
   polygolem deposit-wallet onboard --fund-amount 10 --json
 
-# Step 6: Mint or verify the deposit-wallet-owned CLOB key
-# New users do this once in the browser. Existing users can reuse their key.
+# Step 6: Verify the deposit wallet address and authenticated CLOB path
 DEPOSIT_WALLET=$(POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
   polygolem --json deposit-wallet derive | jq -r '.data.depositWallet')
-
-# Then store the browser-minted CLOB key in your local env:
-export POLYMARKET_API_KEY="..."
-export POLYMARKET_API_SECRET="..."
-export POLYMARKET_API_PASSPHRASE="..."
+POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
+  polygolem auth status --check-deposit-key
 
 # Step 7: Sync balance and trade
 POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
@@ -73,11 +67,10 @@ POLYMARKET_PRIVATE_KEY="0x$(cat key.txt)" \
 POST https://clob.polymarket.com/auth/api-key
 
 Headers:
-  POLY_ADDRESS    = EOA address for bootstrap keys, deposit wallet for trading keys
+  POLY_ADDRESS    = EOA address
   POLY_TIMESTAMP  = Unix seconds
   POLY_NONCE      = "0"
-  POLY_SIGNATURE  = raw EOA ClobAuth signature for bootstrap keys;
-                    ERC-7739 wrapped ClobAuth signature for deposit-wallet keys
+  POLY_SIGNATURE  = raw EOA ClobAuth signature
 
 EIP-712 typed data:
   domain:  { name: "ClobAuthDomain", version: "1", chainId: 137 }
@@ -85,11 +78,10 @@ EIP-712 typed data:
   message: "This message attests that I control the given wallet"
 ```
 
-The bootstrap endpoint returns the CLOB L2 HMAC triple:
-`{ apiKey, secret, passphrase }`. Live deposit-wallet trading needs a
-deposit-wallet-owned CLOB key for balances, orders, trades, and cancellations.
-For brand-new users, mint that key with one browser login at polymarket.com.
-After it exists, store it locally and reuse it for headless trading.
+The endpoint returns the CLOB L2 HMAC triple:
+`{ apiKey, secret, passphrase }`. The CLOB HTTP layer is EOA-authenticated.
+Deposit-wallet identity is carried by the POLY_1271 order payload and by
+`signature_type=3` on CLOB balance/order reads.
 
 ## Idempotent
 
@@ -97,21 +89,26 @@ Re-running `builder auto` for the same EOA returns the same credentials. The end
 
 ## Relayer Keys
 
-Relayer writes use a different key. `auth headless-onboard` signs a SIWE
+Relayer writes use a different key. `auth login` signs a SIWE
 message with the EOA, exchanges it for a Gamma session, and mints the V2
 relayer key at `relayer-v2.polymarket.com/relayer/api/auth`.
 
+`auth headless-onboard` is the older compatibility command name for this same
+flow. New automation should use `polygolem auth login`.
+
 `deposit-wallet deploy`, `deposit-wallet approve`, and
 `deposit-wallet onboard` prefer `RELAYER_API_KEY` +
-`RELAYER_API_KEY_ADDRESS` when present.
+`RELAYER_API_KEY_ADDRESS` when present. If no relayer key is configured, live
+wallet commands run SIWE login, profile registration, relayer key minting, and
+env-file persistence automatically before submitting the WALLET batch.
 
 ## Cost to the User
 
 | Item | Cost |
 |------|------|
 | Generate EOA | Free |
-| Bootstrap CLOB L2 creds | Free |
-| Deposit-wallet CLOB key | Free, but new users need one browser login |
+| Polymarket SIWE login | Free |
+| CLOB L2 creds | Free |
 | V2 relayer key | Free |
 | Builder fee key | Free |
 | Wallet deploy | Free (gas sponsored) |
@@ -119,8 +116,7 @@ relayer key at `relayer-v2.polymarket.com/relayer/api/auth`.
 | **Fund wallet (one tx)** | **~$0.01 POL** |
 
 **Total: ~$0.01 POL + whatever pUSD you want to trade.** Gas-sponsored relayer
-steps remain free; the browser requirement is an authentication boundary, not
-an on-chain cost.
+steps remain free.
 
 ## With Reown/WalletConnect (Flutter/Arenaton)
 
@@ -137,7 +133,7 @@ final client = await Polydart.live(
 await client.builder.auto();
 
 // Relayer key minted via SIWE + relayer auth
-await client.auth.headlessOnboard();
+await client.auth.login();
 
 // Deploy wallet via server proxy → relayer
 await client.wallet.deploy();

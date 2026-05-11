@@ -13,13 +13,15 @@ import (
 
 // Config holds WebSocket connection configuration.
 type Config struct {
-	URL               string
-	PingInterval      time.Duration
-	PongTimeout       time.Duration
-	Reconnect         bool
-	ReconnectDelay    time.Duration
-	ReconnectMaxDelay time.Duration
-	ReconnectMax      int
+	URL                  string
+	PingInterval         time.Duration
+	PongTimeout          time.Duration
+	Reconnect            bool
+	ReconnectDelay       time.Duration
+	ReconnectMaxDelay    time.Duration
+	ReconnectMax         int
+	Level                int
+	CustomFeatureEnabled bool
 }
 
 // DefaultConfig returns sensible defaults.
@@ -84,6 +86,65 @@ type LastTradeMessage struct {
 	TransactionHash string `json:"transaction_hash,omitempty"`
 }
 
+// TickSizeChangeMessage is a WebSocket tick-size update event.
+type TickSizeChangeMessage struct {
+	EventType   string `json:"event_type"`
+	AssetID     string `json:"asset_id"`
+	Market      string `json:"market"`
+	OldTickSize string `json:"old_tick_size"`
+	NewTickSize string `json:"new_tick_size"`
+	Timestamp   string `json:"timestamp"`
+}
+
+// BestBidAskMessage is a top-of-book update event.
+type BestBidAskMessage struct {
+	EventType string `json:"event_type"`
+	AssetID   string `json:"asset_id"`
+	Market    string `json:"market"`
+	BestBid   string `json:"best_bid"`
+	BestAsk   string `json:"best_ask"`
+	Spread    string `json:"spread"`
+	Timestamp string `json:"timestamp"`
+}
+
+// NewMarketMessage is a market lifecycle creation event.
+type NewMarketMessage struct {
+	EventType             string                 `json:"event_type"`
+	ID                    string                 `json:"id"`
+	Question              string                 `json:"question"`
+	Market                string                 `json:"market"`
+	Slug                  string                 `json:"slug"`
+	Description           string                 `json:"description"`
+	AssetIDs              []string               `json:"assets_ids"`
+	Outcomes              []string               `json:"outcomes"`
+	EventMessage          map[string]interface{} `json:"event_message,omitempty"`
+	Timestamp             string                 `json:"timestamp"`
+	Tags                  []string               `json:"tags"`
+	ConditionID           string                 `json:"condition_id"`
+	CLOBTokenIDs          []string               `json:"clob_token_ids"`
+	Active                bool                   `json:"active"`
+	SportsMarketType      string                 `json:"sports_market_type,omitempty"`
+	Line                  string                 `json:"line,omitempty"`
+	GameStartTime         string                 `json:"game_start_time,omitempty"`
+	OrderPriceMinTickSize string                 `json:"order_price_min_tick_size,omitempty"`
+	GroupItemTitle        string                 `json:"group_item_title,omitempty"`
+	TakerBaseFee          string                 `json:"taker_base_fee,omitempty"`
+	FeesEnabled           bool                   `json:"fees_enabled,omitempty"`
+	FeeSchedule           map[string]interface{} `json:"fee_schedule,omitempty"`
+}
+
+// MarketResolvedMessage is a market lifecycle resolution event.
+type MarketResolvedMessage struct {
+	EventType      string   `json:"event_type"`
+	ID             string   `json:"id"`
+	Market         string   `json:"market"`
+	AssetIDs       []string `json:"assets_ids"`
+	WinningAssetID string   `json:"winning_asset_id"`
+	WinningOutcome string   `json:"winning_outcome"`
+	Timestamp      string   `json:"timestamp"`
+	Tags           []string `json:"tags"`
+}
+
 // MarketClient manages a public market WebSocket connection.
 type MarketClient struct {
 	config     Config
@@ -96,10 +157,14 @@ type MarketClient struct {
 	assets     []string
 
 	// Callbacks
-	OnBook        func(BookMessage)
-	OnPriceChange func(PriceChangeMessage)
-	OnLastTrade   func(LastTradeMessage)
-	OnError       func(error)
+	OnBook           func(BookMessage)
+	OnPriceChange    func(PriceChangeMessage)
+	OnLastTrade      func(LastTradeMessage)
+	OnTickSizeChange func(TickSizeChangeMessage)
+	OnBestBidAsk     func(BestBidAskMessage)
+	OnNewMarket      func(NewMarketMessage)
+	OnMarketResolved func(MarketResolvedMessage)
+	OnError          func(error)
 }
 
 // NewMarketClient creates a public market WebSocket client.
@@ -170,6 +235,34 @@ func (mc *MarketClient) dispatch(msg []byte) {
 		var lt LastTradeMessage
 		if json.Unmarshal(msg, &lt) == nil && lt.EventType == "last_trade_price" {
 			mc.OnLastTrade(lt)
+			return
+		}
+	}
+	if mc.OnTickSizeChange != nil {
+		var tick TickSizeChangeMessage
+		if json.Unmarshal(msg, &tick) == nil && tick.EventType == "tick_size_change" {
+			mc.OnTickSizeChange(tick)
+			return
+		}
+	}
+	if mc.OnBestBidAsk != nil {
+		var best BestBidAskMessage
+		if json.Unmarshal(msg, &best) == nil && best.EventType == "best_bid_ask" {
+			mc.OnBestBidAsk(best)
+			return
+		}
+	}
+	if mc.OnNewMarket != nil {
+		var market NewMarketMessage
+		if json.Unmarshal(msg, &market) == nil && market.EventType == "new_market" {
+			mc.OnNewMarket(market)
+			return
+		}
+	}
+	if mc.OnMarketResolved != nil {
+		var resolved MarketResolvedMessage
+		if json.Unmarshal(msg, &resolved) == nil && resolved.EventType == "market_resolved" {
+			mc.OnMarketResolved(resolved)
 			return
 		}
 	}
@@ -246,6 +339,12 @@ func (mc *MarketClient) writeSubscribeLocked(assetIDs []string) error {
 	msg := map[string]interface{}{
 		"type":       "market",
 		"assets_ids": assetIDs,
+	}
+	if mc.config.Level > 0 {
+		msg["level"] = mc.config.Level
+	}
+	if mc.config.CustomFeatureEnabled {
+		msg["custom_feature_enabled"] = true
 	}
 	return mc.conn.WriteJSON(msg)
 }

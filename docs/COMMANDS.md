@@ -16,12 +16,13 @@ Generated command reference for `polygolem`.
 | Variable | Required for |
 |---|---|
 | `POLYMARKET_PRIVATE_KEY` | All authenticated CLOB and deposit-wallet commands. |
-| `RELAYER_API_KEY` | Preferred V2 relayer auth for `deposit-wallet deploy`, `deposit-wallet batch`, `deposit-wallet approve`, and `deposit-wallet onboard`. |
+| `RELAYER_API_KEY` | Optional pre-provisioned V2 relayer auth. Live deposit-wallet commands auto-mint and persist this key when it is missing. |
 | `RELAYER_API_KEY_ADDRESS` | Owner address for `RELAYER_API_KEY`. |
+| `POLYGOLEM_RELAYER_ENV_FILE` | Optional target/source env file for auto-minted V2 relayer credentials. |
 | `POLYMARKET_BUILDER_API_KEY` | Legacy builder-relayer fallback for deposit-wallet relayer commands. |
 | `POLYMARKET_BUILDER_SECRET` | Legacy builder-relayer fallback for deposit-wallet relayer commands. |
 | `POLYMARKET_BUILDER_PASSPHRASE` | Legacy builder-relayer fallback for deposit-wallet relayer commands. |
-| `POLYMARKET_CLOB_API_KEY` | Optional pre-provisioned CLOB L2 key for authenticated account and trading commands. |
+| `POLYMARKET_CLOB_API_KEY` | Optional pre-provisioned CLOB L2 key. Polygolem can create or derive the EOA-bound CLOB key on demand. |
 | `POLYMARKET_CLOB_SECRET` | Secret for `POLYMARKET_CLOB_API_KEY`. |
 | `POLYMARKET_CLOB_PASSPHRASE` | Passphrase for `POLYMARKET_CLOB_API_KEY`. |
 | `POLYMARKET_BUILDER_CODE` | Optional CLOB V2 order builder attribution bytes32. |
@@ -46,7 +47,8 @@ polygolem - Safe Polymarket SDK and CLI for Go
   auth - Inspect authentication readiness
     clob-probe - Probe configured CLOB L2 credentials with read-only calls
     export-key - Display private key for wallet import (use with care)
-    headless-onboard - Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key)
+    headless-onboard - Run SIWE login + mint V2 Relayer API Key
+    login - Sign in to Polymarket headlessly and mint V2 relayer credentials
     status - Check authentication readiness and API key status
   bridge - Polymarket Bridge API
     assets - List supported bridge assets
@@ -63,12 +65,13 @@ polygolem - Safe Polymarket SDK and CLI for Go
     cancel-market - Cancel open CLOB orders for a market or asset
     cancel-orders - Cancel multiple open CLOB orders
     create-api-key - Create or derive CLOB API credentials
-    create-api-key-for-address - Create CLOB API credentials for a deposit wallet owner
+    create-api-key-for-address - Create CLOB API credentials while reporting a maker address
     create-builder-fee-key - Mint a CLOB builder fee key (POST /auth/builder-api-key)
     create-order - Create a signed CLOB limit order
     heartbeat - Send one CLOB heartbeat ping
     list-builder-fee-keys - List builder fee keys (GET /auth/builder-api-keys)
     market - Get CLOB market by condition ID
+    market-by-token - Resolve CLOB market by token ID
     market-order - Create a signed CLOB market/FOK order
     markets - List CLOB markets
     order - Get a single authenticated CLOB order
@@ -96,9 +99,10 @@ polygolem - Safe Polymarket SDK and CLI for Go
     batch - Sign and submit a deposit wallet WALLET batch
     deploy - Deploy the deposit wallet via relayer WALLET-CREATE
     derive - Derive the deterministic deposit wallet address
+    enable-trading - Complete the UI Enable Trading signs for an existing deposit wallet
     fund - Transfer pUSD from EOA to the deposit wallet
     nonce - Get the current WALLET nonce for the owner
-    onboard - Full deposit wallet onboarding: deploy + approve + fund
+    onboard - Full deposit wallet onboarding: deploy + approve + enable trading + fund
     redeem - Redeem winning deposit-wallet positions via the V2 collateral adapter
     redeemable - List redeemable positions held by the deposit wallet
     settlement-status - Check whether the deposit wallet is ready to redeem V2 winners
@@ -117,6 +121,8 @@ polygolem - Safe Polymarket SDK and CLI for Go
   health - Check Gamma and CLOB API reachability
   live - Inspect live gate status
     status
+  marketdata - Live CLOB orderbook and share-price snapshots
+    live - Stream enriched CLOB market-data snapshots
   orderbook - Read CLOB order book data
     fee-rate - Get fee rate in bps
     get - Get L2 order book
@@ -162,6 +168,7 @@ polygolem [flags]
 | `polygolem events` | List Polymarket events |
 | `polygolem health` | Check Gamma and CLOB API reachability |
 | `polygolem live` | Inspect live gate status |
+| `polygolem marketdata` | Live CLOB orderbook and share-price snapshots |
 | `polygolem orderbook` | Read CLOB order book data |
 | `polygolem paper` | Inspect local paper trading state |
 | `polygolem preflight` | Inspect local CLI readiness |
@@ -191,7 +198,8 @@ polygolem auth [flags]
 |---|---|
 | `polygolem auth clob-probe` | Probe configured CLOB L2 credentials with read-only calls |
 | `polygolem auth export-key` | Display private key for wallet import (use with care) |
-| `polygolem auth headless-onboard` | Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key) |
+| `polygolem auth headless-onboard` | Run SIWE login + mint V2 Relayer API Key |
+| `polygolem auth login` | Sign in to Polymarket headlessly and mint V2 relayer credentials |
 | `polygolem auth status` | Check authentication readiness and API key status |
 
 **Flags:**
@@ -258,23 +266,16 @@ polygolem auth export-key [flags]
 
 ### polygolem auth headless-onboard
 
-Run SIWE login + mint V2 Relayer API Key (headless; does NOT create CLOB API key)
+Run SIWE login + mint V2 Relayer API Key
 
-Headless replacement for the polymarket.com signup flow. Steps:
+Compatibility name for 'polygolem auth login'. It signs the
+Polymarket SIWE login message with the EOA from POLYMARKET_PRIVATE_KEY,
+registers the EOA + maker profile, mints a V2 relayer key, and writes
+{RELAYER_API_KEY, RELAYER_API_KEY_ADDRESS} to a 0600 env file.
 
-  1. Sign a Polymarket SIWE message with the EOA from POLYMARKET_PRIVATE_KEY.
-  2. Trade the signature for a polymarket session cookie at
-     gamma-api.polymarket.com/login.
-  3. Register the EOA + maker (proxy or deposit wallet, per --signature-type)
-     with gamma-api.polymarket.com/profiles. Skip with --skip-profile if the
-     profile already exists.
-  4. Mint a V2 Relayer API Key at relayer-v2.polymarket.com/relayer/api/auth.
-  5. Persist {RELAYER_API_KEY, RELAYER_API_KEY_ADDRESS} to a 0600 env file.
-
-The /profiles step is what registers the maker address with Polymarket's
-backend so subsequent CLOB orders are accepted (without it, fresh EOAs
-get HTTP 400 "maker address not allowed"). See BLOCKERS.md "CORRECTION
-2026-05-08" for the captured signup flow this command replicates.
+Prefer 'polygolem auth login' in new docs and automation. Polymarket login
+signs with the EOA; the deposit wallet remains the trading wallet for
+POLY_1271 orders, pUSD balances, approvals, and redemption.
 
 **Usage:**
 
@@ -290,6 +291,49 @@ polygolem auth headless-onboard [flags]
 | `--force` | `bool` | `false` | overwrite existing env file |
 | `--gamma-url` | `string` | `""` | Gamma API base URL (default: https://gamma-api.polymarket.com) |
 | `-h, --help` | `bool` | `false` | help for headless-onboard |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--relayer-url` | `string` | `""` | Relayer base URL (default: https://relayer-v2.polymarket.com) |
+| `--signature-type` | `int` | `3` | maker derivation: 0=EOA, 1=proxy, 3=deposit wallet (default 3) |
+| `--skip-profile` | `bool` | `false` | skip the /profiles registration step (use if profile already exists) |
+
+### polygolem auth login
+
+Sign in to Polymarket headlessly and mint V2 relayer credentials
+
+Signs in to Polymarket without a browser and prepares the
+deposit-wallet account relationship for automation.
+
+Polymarket login signs with the EOA from POLYMARKET_PRIVATE_KEY. That is the
+same address the website shows in its Sign-In With Ethereum prompt. The
+deposit wallet remains the trading wallet: it holds pUSD, appears as the
+POLY_1271 maker/signer in orders, receives CTF positions, and is used for
+settlement.
+
+Steps:
+  1. Fetch a Polymarket SIWE nonce from gamma-api.polymarket.com.
+  2. Sign the SIWE message locally with the EOA.
+  3. Trade the signature for a Polymarket session cookie.
+  4. Register the EOA + maker profile for --signature-type.
+  5. This mints V2 relayer credentials for deposit-wallet deploy and WALLET batches.
+  6. Persist {RELAYER_API_KEY, RELAYER_API_KEY_ADDRESS} to a 0600 env file.
+
+This does not print or export the private key. Use 'polygolem builder auto'
+or 'polygolem clob create-api-key' for CLOB L2 credentials after login.
+
+**Usage:**
+
+```bash
+polygolem auth login [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--env-file` | `string` | `""` | target env file (default: ../go-bot/.env.relayer-v2) |
+| `--force` | `bool` | `false` | overwrite existing env file |
+| `--gamma-url` | `string` | `""` | Gamma API base URL (default: https://gamma-api.polymarket.com) |
+| `-h, --help` | `bool` | `false` | help for login |
 | `--json` | `bool` | `false` | emit JSON output |
 | `--relayer-url` | `string` | `""` | Relayer base URL (default: https://relayer-v2.polymarket.com) |
 | `--signature-type` | `int` | `3` | maker derivation: 0=EOA, 1=proxy, 3=deposit wallet (default 3) |
@@ -387,7 +431,7 @@ Manage builder credentials
 
 Builder helpers manage CLOB L2 credentials and legacy
 builder-relayer HMAC credentials. Use 'builder auto' for CLOB L2 creds,
-'auth headless-onboard' for V2 relayer keys, and 'clob
+'auth login' for V2 relayer keys, and 'clob
 create-builder-fee-key' for order attribution.
 
 **Usage:**
@@ -422,7 +466,7 @@ These are CLOB L2 trading creds — they authenticate book/balance reads,
 relayer GETs (/nonce, /deployed), and orders signed by the same address.
 They are NOT V2 Relayer API Keys: the relayer's POST /submit (used by
 deposit-wallet deploy and approve flows) requires a separate key minted
-by 'polygolem auth headless-onboard' or the settings-page Create button.
+by 'polygolem auth login' or an existing settings-page relayer key.
 A profiled EOA without that relayer key will see relayer-write 401s even
 with valid CLOB L2 creds. See docs/ONBOARDING.md.
 
@@ -498,12 +542,13 @@ polygolem clob [flags]
 | `polygolem clob cancel-market` | Cancel open CLOB orders for a market or asset |
 | `polygolem clob cancel-orders` | Cancel multiple open CLOB orders |
 | `polygolem clob create-api-key` | Create or derive CLOB API credentials |
-| `polygolem clob create-api-key-for-address` | Create CLOB API credentials for a deposit wallet owner |
+| `polygolem clob create-api-key-for-address` | Create CLOB API credentials while reporting a maker address |
 | `polygolem clob create-builder-fee-key` | Mint a CLOB builder fee key (POST /auth/builder-api-key) |
 | `polygolem clob create-order` | Create a signed CLOB limit order |
 | `polygolem clob heartbeat` | Send one CLOB heartbeat ping |
 | `polygolem clob list-builder-fee-keys` | List builder fee keys (GET /auth/builder-api-keys) |
 | `polygolem clob market` | Get CLOB market by condition ID |
+| `polygolem clob market-by-token` | Resolve CLOB market by token ID |
 | `polygolem clob market-order` | Create a signed CLOB market/FOK order |
 | `polygolem clob markets` | List CLOB markets |
 | `polygolem clob order` | Get a single authenticated CLOB order |
@@ -673,7 +718,16 @@ polygolem clob create-api-key [flags]
 
 ### polygolem clob create-api-key-for-address
 
-Create CLOB API credentials for a deposit wallet owner
+Create CLOB API credentials while reporting a maker address
+
+Creates CLOB L2 credentials using EOA L1 auth and echoes the
+configured maker address. Polymarket login and CLOB HTTP authentication sign
+with the EOA; the deposit wallet remains the POLY_1271 trading wallet inside
+orders, balances, approvals, and settlement.
+
+The --owner flag is retained for source compatibility with older automation
+and is returned in the JSON output. It is not used as POLY_ADDRESS for the
+CLOB L1 auth headers.
 
 **Usage:**
 
@@ -795,6 +849,24 @@ polygolem clob market <condition-id> [flags]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-h, --help` | `bool` | `false` | help for market |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--output` | `string` | `json` | output format (json) |
+
+### polygolem clob market-by-token
+
+Resolve CLOB market by token ID
+
+**Usage:**
+
+```bash
+polygolem clob market-by-token <token-id> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | `bool` | `false` | help for market-by-token |
 | `--json` | `bool` | `false` | emit JSON output |
 | `--output` | `string` | `json` | output format (json) |
 
@@ -1228,9 +1300,10 @@ polygolem deposit-wallet [flags]
 | `polygolem deposit-wallet batch` | Sign and submit a deposit wallet WALLET batch |
 | `polygolem deposit-wallet deploy` | Deploy the deposit wallet via relayer WALLET-CREATE |
 | `polygolem deposit-wallet derive` | Derive the deterministic deposit wallet address |
+| `polygolem deposit-wallet enable-trading` | Complete the UI Enable Trading signs for an existing deposit wallet |
 | `polygolem deposit-wallet fund` | Transfer pUSD from EOA to the deposit wallet |
 | `polygolem deposit-wallet nonce` | Get the current WALLET nonce for the owner |
-| `polygolem deposit-wallet onboard` | Full deposit wallet onboarding: deploy + approve + fund |
+| `polygolem deposit-wallet onboard` | Full deposit wallet onboarding: deploy + approve + enable trading + fund |
 | `polygolem deposit-wallet redeem` | Redeem winning deposit-wallet positions via the V2 collateral adapter |
 | `polygolem deposit-wallet redeemable` | List redeemable positions held by the deposit wallet |
 | `polygolem deposit-wallet settlement-status` | Check whether the deposit wallet is ready to redeem V2 winners |
@@ -1328,7 +1401,7 @@ polygolem deposit-wallet batch [flags]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `--calls-json` | `string` | `""` | JSON array of DepositWalletCall objects |
-| `--deadline` | `int64` | `240` | deadline seconds from now |
+| `--deadline` | `int64` | `1800` | deadline seconds from now |
 | `-h, --help` | `bool` | `false` | help for batch |
 | `--json` | `bool` | `false` | emit JSON output |
 | `--nonce` | `string` | `""` | WALLET nonce (default: fetched from relayer) |
@@ -1369,6 +1442,40 @@ polygolem deposit-wallet derive [flags]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-h, --help` | `bool` | `false` | help for derive |
+| `--json` | `bool` | `false` | emit JSON output |
+
+### polygolem deposit-wallet enable-trading
+
+Complete the UI Enable Trading signs for an existing deposit wallet
+
+Signs the same two prompts polymarket.com shows after deposit-wallet deploy:
+
+1. ClobAuth — EOA-signed message to create or derive CLOB API keys.
+2. Approve Tokens — DepositWallet.Batch signing for the 2-call UI token
+   approval batch: pUSD -> CTF and USDC.e -> CollateralOnramp.
+
+Use this when the wallet is already deployed but the UI still shows
+"Enable Trading" or "Approve Tokens". If relayer credentials are missing,
+Polygolem signs SIWE locally, registers the profile if needed, mints and
+persists the V2 relayer key, then continues automatically.
+
+The browser may still ask for a local ClobAuth signature because
+polymarket.com stores browser-local API state; this command prepares
+Polygolem's headless trading path and submits the on-chain deposit-wallet
+approvals.
+
+**Usage:**
+
+```bash
+polygolem deposit-wallet enable-trading [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--dry-run` | `bool` | `false` | build and validate typed data without signing, creating API keys, or submitting approvals |
+| `-h, --help` | `bool` | `false` | help for enable-trading |
 | `--json` | `bool` | `false` | emit JSON output |
 
 ### polygolem deposit-wallet fund
@@ -1414,7 +1521,7 @@ polygolem deposit-wallet nonce [flags]
 
 ### polygolem deposit-wallet onboard
 
-Full deposit wallet onboarding: deploy + approve + fund
+Full deposit wallet onboarding: deploy + approve + enable trading + fund
 
 Run the complete deposit wallet setup sequence:
 
@@ -1422,10 +1529,16 @@ Run the complete deposit wallet setup sequence:
 2. Deploy via WALLET-CREATE (skip with --skip-deploy if already deployed)
 3. Submit the 10-call approval batch for trading and V2 settlement adapters
    (skip with --skip-approve)
-4. Transfer pUSD from EOA to deposit wallet (requires --fund-amount)
+4. Sign ClobAuth and submit the 2-call UI Enable Trading approval batch
+   (skip with --skip-enable-trading)
+5. Transfer pUSD from EOA to deposit wallet (requires --fund-amount)
 
 After onboarding, sync CLOB:
   polygolem clob update-balance --asset-type collateral
+
+If relayer credentials are missing, Polygolem signs SIWE locally, registers
+the profile if needed, mints and persists the V2 relayer key, then continues
+automatically.
 
 **Usage:**
 
@@ -1442,6 +1555,7 @@ polygolem deposit-wallet onboard [flags]
 | `--json` | `bool` | `false` | emit JSON output |
 | `--skip-approve` | `bool` | `false` | skip approval batch |
 | `--skip-deploy` | `bool` | `false` | skip WALLET-CREATE (wallet already deployed) |
+| `--skip-enable-trading` | `bool` | `false` | skip ClobAuth and UI Enable Trading token approval signs |
 
 ### polygolem deposit-wallet redeem
 
@@ -1556,8 +1670,10 @@ polygolem deposit-wallet status [flags]
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--check-enable-trading` | `bool` | `false` | validate ClobAuth signing and UI Enable Trading token approvals |
 | `-h, --help` | `bool` | `false` | help for status |
 | `--json` | `bool` | `false` | emit JSON output |
+| `--rpc-url` | `string` | `""` | Polygon RPC URL for --check-enable-trading allowance checks (default: POLYGON_RPC_URL or public node) |
 | `--tx-id` | `string` | `""` | transaction ID to poll |
 
 ### polygolem deposit-wallet swap-pol-pusd
@@ -1859,6 +1975,51 @@ polygolem live status [flags]
 | `-h, --help` | `bool` | `false` | help for status |
 | `--json` | `bool` | `false` | emit JSON output |
 
+### polygolem marketdata
+
+Live CLOB orderbook and share-price snapshots
+
+**Usage:**
+
+```bash
+polygolem marketdata [flags]
+```
+
+**Subcommands:**
+
+| Command | Description |
+|---|---|
+| `polygolem marketdata live` | Stream enriched CLOB market-data snapshots |
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-h, --help` | `bool` | `false` | help for marketdata |
+| `--json` | `bool` | `false` | emit JSON output |
+
+### polygolem marketdata live
+
+Stream enriched CLOB market-data snapshots
+
+**Usage:**
+
+```bash
+polygolem marketdata live [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--asset-ids` | `string` | `""` | comma-separated CLOB token IDs |
+| `--custom-features` | `bool` | `true` | request best-bid-ask and market lifecycle events |
+| `-h, --help` | `bool` | `false` | help for live |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--level` | `int` | `0` | optional Polymarket market-stream subscription level |
+| `--max-messages` | `int` | `0` | stop after this many snapshots; 0 streams until interrupted |
+| `--url` | `string` | `wss://ws-subscriptions-clob.polymarket.com/ws/market` | WebSocket URL |
+
 ### polygolem orderbook
 
 Read CLOB order book data
@@ -2155,8 +2316,10 @@ polygolem stream market [flags]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `--asset-ids` | `string` | `""` | comma-separated CLOB token IDs |
+| `--custom-features` | `bool` | `false` | request best-bid-ask and market lifecycle events |
 | `-h, --help` | `bool` | `false` | help for market |
 | `--json` | `bool` | `false` | emit JSON output |
+| `--level` | `int` | `0` | optional Polymarket market-stream subscription level |
 | `--max-messages` | `int` | `0` | stop after this many messages; 0 streams until interrupted |
 | `--url` | `string` | `wss://ws-subscriptions-clob.polymarket.com/ws/market` | WebSocket URL |
 

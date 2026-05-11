@@ -82,9 +82,9 @@ is faster but may report a stale key as existing.`,
 				if !deployed {
 					result["nextStep"] = "Run: polygolem deposit-wallet deploy --wait"
 				} else if !depositKeyExists {
-					result["nextStep"] = "New users: complete one-time browser setup (see docs/BROWSER-SETUP.md)"
+					result["nextStep"] = "Run: polygolem auth login, then polygolem builder auto or polygolem clob create-api-key"
 				}
-				result["help"] = "https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/BROWSER-SETUP.md"
+				result["help"] = "https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ONBOARDING.md"
 			}
 
 			return w.printJSON(cmd, result)
@@ -234,11 +234,12 @@ func warnIfNoDepositKey(ctx context.Context, stderr io.Writer, privateKey string
 		return
 	}
 
-	fmt.Fprintf(stderr, "\n⚠️  WARNING: Deposit wallet %s is deployed but no deposit-wallet-owned API key found.\n", depositWallet)
-	fmt.Fprintf(stderr, "   Deposit-wallet orders require a deposit-wallet-owned API key.\n")
-	fmt.Fprintf(stderr, "   If you're a new user, complete the one-time browser setup:\n")
-	fmt.Fprintf(stderr, "   → docs/BROWSER-SETUP.md\n")
-	fmt.Fprintf(stderr, "   → https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/BROWSER-SETUP.md\n\n")
+	fmt.Fprintf(stderr, "\n⚠️  WARNING: Deposit wallet %s is deployed but no CLOB L2 API key was found.\n", depositWallet)
+	fmt.Fprintf(stderr, "   Polymarket login signs with the EOA; the deposit wallet remains the trading wallet.\n")
+	fmt.Fprintf(stderr, "   Run:\n")
+	fmt.Fprintf(stderr, "   → polygolem auth login\n")
+	fmt.Fprintf(stderr, "   → polygolem builder auto   # or: polygolem clob create-api-key\n")
+	fmt.Fprintf(stderr, "   → docs/ONBOARDING.md\n\n")
 }
 
 func newAuthExportKeyCommand(jsonOut bool) *cobra.Command {
@@ -314,8 +315,8 @@ func warnIfNoDepositKeySimple(stderr io.Writer, privateKey string) {
 	}
 
 	fmt.Fprintf(stderr, "\nℹ️  Note: If this is your first time using Polymarket with this key,\n")
-	fmt.Fprintf(stderr, "   you may need to complete a one-time browser login to create\n")
-	fmt.Fprintf(stderr, "   your deposit-wallet-owned API key.\n")
+	fmt.Fprintf(stderr, "   run `polygolem auth login` so the EOA signs the Polymarket SIWE\n")
+	fmt.Fprintf(stderr, "   message and the deposit wallet is registered as the trading wallet.\n")
 	fmt.Fprintf(stderr, "   Deposit wallet: %s\n", depositWallet)
-	fmt.Fprintf(stderr, "   See: docs/BROWSER-SETUP.md\n\n")
+	fmt.Fprintf(stderr, "   See: docs/ONBOARDING.md\n\n")
 }

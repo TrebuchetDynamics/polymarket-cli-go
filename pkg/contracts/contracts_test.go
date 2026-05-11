@@ -28,6 +28,7 @@ func TestPolygonMainnetIncludesV2Adapters(t *testing.T) {
 		"CollateralOnramp":            {r.CollateralOnramp, "0x93070a847efEf7F70739046A929D47a521F5B8ee"},
 		"CollateralOfframp":           {r.CollateralOfframp, "0x2957922Eb93258b93368531d39fAcCA3B4dC5854"},
 		"PermissionedRamp":            {r.PermissionedRamp, "0xebC2459Ec962869ca4c0bd1E06368272732BCb08"},
+		"USDCE":                       {r.USDCE, "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"},
 	}
 	for name, c := range cases {
 		if c.got != c.want {

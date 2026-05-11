@@ -80,31 +80,28 @@ are Polymarket-run; both pay gas instead of you; they are separate systems.
 These steps run once. After they complete, every subsequent trade is a single
 HTTP POST.
 
-### 2.1 V2 Relayer Key — `polygolem auth headless-onboard`
+### 2.1 Polymarket Login and V2 Relayer Key — `polygolem auth login`
 
 ```
 SIWE login → POST /profiles → POST /relayer-auth
-→ persists POLYMARKET_RELAYER_API_KEY + POLYMARKET_RELAYER_API_KEY_ADDRESS to .env.relayer-v2
+→ persists RELAYER_API_KEY + RELAYER_API_KEY_ADDRESS to .env.relayer-v2
 ```
+
+Polymarket login signs with the EOA. The deposit wallet remains the trading
+wallet for pUSD, POLY_1271 orders, CTF positions, approvals, and redemption.
 
 Gas: **0** (no on-chain tx).
 Cost: **$0**.
 
-### 2.2 CLOB API Key — one-time browser login (new users only)
+### 2.2 CLOB API Key — `polygolem builder auto`
 
-For a brand-new EOA, the CLOB `/auth/api-key` endpoint requires a one-time
-browser login to mint the deposit-wallet-bound API key. After that one login,
-all subsequent calls are headless.
-
-Existing users with an already-minted key skip this step entirely — polygolem
-reads `POLYMARKET_CLOB_API_KEY` / `_SECRET` / `_PASSPHRASE` from the env and
-uses them directly.
+The CLOB HTTP layer is EOA-authenticated. `builder auto` signs the ClobAuth
+EIP-712 message locally and creates or derives the CLOB L2 HMAC key. The
+deposit-wallet identity is carried by POLY_1271 order signing and
+`signature_type=3` CLOB reads.
 
 Gas: **0**.
 Cost: **$0**.
-
-See [BROWSER-SETUP.md](./BROWSER-SETUP.md) for the one-time procedure and
-[BLOCKERS.md](../BLOCKERS.md) for the residual server-side ERC-1271 gap.
 
 ### 2.3 Deposit Wallet Deployment — `polygolem deposit-wallet deploy --wait`
 
@@ -421,9 +418,8 @@ If you want to reproduce the run from a fresh EOA:
 
 ```bash
 # (One-time) Mint relayer + CLOB API key
-polygolem auth headless-onboard
-# Browser login at https://polymarket.com → settings → API keys (existing users skip)
-# Persist POLYMARKET_CLOB_API_KEY / _SECRET / _PASSPHRASE to .env
+polygolem auth login
+polygolem builder auto
 
 # (One-time, gasless via relayer) deposit wallet deploy + approvals
 polygolem deposit-wallet onboard
@@ -448,7 +444,7 @@ remember the **$1 marketable minimum**.
 - Polygolem onboarding (single source of truth) — [ONBOARDING.md](./ONBOARDING.md)
 - POLY_1271 signing details — [POLY_1271-SIGNING.md](./POLY_1271-SIGNING.md)
 - Smart-contract addresses — [CONTRACTS.md](./CONTRACTS.md)
-- Browser one-time setup — [BROWSER-SETUP.md](./BROWSER-SETUP.md)
+- Browser fallback — [BROWSER-SETUP.md](./BROWSER-SETUP.md)
 - pUSD contract — `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB`
 - USDC.e (Polygon) — `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
 - WMATIC — `0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270`

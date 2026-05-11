@@ -200,7 +200,7 @@ func classifyCommandError(err error) output.Error {
 			Code:     "AUTH_BUILDER_MISSING",
 			Category: "auth",
 			Message:  msg,
-			Hint:     "Run auth headless-onboard or configure relayer credentials before deposit-wallet commands.",
+			Hint:     "Run auth login or configure relayer credentials before deposit-wallet commands.",
 		}
 	case strings.Contains(msg, "not implemented"):
 		return output.Error{

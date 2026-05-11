@@ -33,8 +33,8 @@ import (
 	sdkclob "github.com/TrebuchetDynamics/polygolem/pkg/clob"
 	"github.com/TrebuchetDynamics/polygolem/pkg/contracts"
 	"github.com/TrebuchetDynamics/polygolem/pkg/data"
-	"github.com/TrebuchetDynamics/polygolem/pkg/bookreader"
 	"github.com/TrebuchetDynamics/polygolem/pkg/gamma"
+	"github.com/TrebuchetDynamics/polygolem/pkg/marketdata"
 	"github.com/TrebuchetDynamics/polygolem/pkg/orderbook"
 	"github.com/TrebuchetDynamics/polygolem/pkg/orderresults"
 	"github.com/TrebuchetDynamics/polygolem/pkg/relayer"
@@ -49,6 +49,7 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var clobConfig sdkclob.Config = sdkclob.Config{BuilderCode: "0x1111111111111111111111111111111111111111111111111111111111111111"}
 	var clobMarkets func(*sdkclob.Client, context.Context, string) (*types.CLOBPaginatedMarkets, error) = (*sdkclob.Client).Markets
 	var clobMarket func(*sdkclob.Client, context.Context, string) (*types.CLOBMarket, error) = (*sdkclob.Client).Market
+	var clobMarketByToken func(*sdkclob.Client, context.Context, string) (*types.CLOBMarketByTokenResponse, error) = (*sdkclob.Client).MarketByToken
 	var clobOrderBook func(*sdkclob.Client, context.Context, string) (*types.CLOBOrderBook, error) = (*sdkclob.Client).OrderBook
 	var clobOrderBooks func(*sdkclob.Client, context.Context, []types.CLOBBookParams) ([]types.CLOBOrderBook, error) = (*sdkclob.Client).OrderBooks
 	var clobTickSize func(*sdkclob.Client, context.Context, string) (*types.CLOBTickSize, error) = (*sdkclob.Client).TickSize
@@ -76,7 +77,15 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var streamBook sdkstream.BookMessage
 	var streamPriceChange sdkstream.PriceChangeMessage
 	var streamLastTrade sdkstream.LastTradeMessage
+	var streamTickSize sdkstream.TickSizeChangeMessage
+	var streamBestBidAsk sdkstream.BestBidAskMessage
+	var streamNewMarket sdkstream.NewMarketMessage
+	var streamMarketResolved sdkstream.MarketResolvedMessage
 	var streamDeduplicator *sdkstream.Deduplicator = sdkstream.NewDeduplicator(100, 0)
+	var marketDataTracker *marketdata.Tracker = marketdata.NewTracker()
+	var marketDataSnapshot marketdata.Snapshot
+	var marketDataBestBidAsk func(*marketdata.Tracker, sdkstream.BestBidAskMessage) marketdata.Snapshot = (*marketdata.Tracker).ApplyBestBidAsk
+	var marketDataTickSize func(*marketdata.Tracker, sdkstream.TickSizeChangeMessage) marketdata.Snapshot = (*marketdata.Tracker).ApplyTickSizeChange
 	var orderbookReader orderbook.Reader = orderbook.NewReader("")
 	var orderbookSnapshot orderbook.OrderBook
 	var orderbookLevel orderbook.Level
@@ -84,7 +93,6 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var orderResultsReport *orderresults.Report
 	var orderResultsOptions orderresults.Options
 	var orderResultsBuild func(context.Context, orderresults.DataReader, string, orderresults.Options) (*orderresults.Report, error) = orderresults.BuildReport
-	var legacyReader bookreader.Reader = bookreader.NewReader("")
 	var contractsRegistry contracts.Registry = contracts.PolygonMainnet()
 	var contractStatus contracts.DeploymentStatus
 	var contractDeployed func(context.Context, string, string) (contracts.DeploymentStatus, error) = contracts.ContractDeployed
@@ -117,6 +125,7 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var universalConfig universal.Config = universal.Config{BuilderCode: "0x1111111111111111111111111111111111111111111111111111111111111111"}
 	var universalCLOBMarkets func(*universal.Client, context.Context, string) (*types.CLOBPaginatedMarkets, error) = (*universal.Client).CLOBMarkets
 	var universalCLOBMarket func(*universal.Client, context.Context, string) (*types.CLOBMarket, error) = (*universal.Client).CLOBMarket
+	var universalCLOBMarketByToken func(*universal.Client, context.Context, string) (*types.CLOBMarketByTokenResponse, error) = (*universal.Client).CLOBMarketByToken
 	var universalOrderBook func(*universal.Client, context.Context, string) (*types.CLOBOrderBook, error) = (*universal.Client).OrderBook
 	var universalOrderBooks func(*universal.Client, context.Context, []types.CLOBBookParams) ([]types.CLOBOrderBook, error) = (*universal.Client).OrderBooks
 	var universalTickSize func(*universal.Client, context.Context, string) (*types.CLOBTickSize, error) = (*universal.Client).TickSize
@@ -133,18 +142,19 @@ func TestPublicSDKSignatures(t *testing.T) {
 	var universalStream func(*universal.Client) *sdkstream.MarketClient = (*universal.Client).StreamClient
 	var universalStreamWithConfig func(*universal.Client, sdkstream.Config) *sdkstream.MarketClient = (*universal.Client).StreamClientWithConfig
 
-	_, _, _, _, _, _, _, _ = clobClient, clobConfig, clobMarkets, clobMarket, clobOrderBook, clobOrderBooks, clobTickSize, clobPriceHistory
+	_, _, _, _, _, _, _, _, _ = clobClient, clobConfig, clobMarkets, clobMarket, clobMarketByToken, clobOrderBook, clobOrderBooks, clobTickSize, clobPriceHistory
 	_, _, _, _, _, _, _, _, _, _ = clobAPIKey, clobDeriveAPIKey, clobBalanceParams, clobBalance, clobOrders, clobOrder, clobTrades, clobCancel, clobCancelMarketParams, clobCancelMarket
 	_, _, _, _ = clobCreateParams, clobCreate, clobMarketOrderParams, clobMarketOrder
-	_, _, _, _, _, _, _, _, _, _ = streamClient, streamConfig, streamConnect, streamSubscribe, streamClose, streamConnected, streamBook, streamPriceChange, streamLastTrade, streamDeduplicator
+	_, _, _, _, _, _, _, _, _, _ = streamClient, streamConfig, streamConnect, streamSubscribe, streamClose, streamConnected, streamBook, streamPriceChange, streamLastTrade, streamTickSize
+	_, _, _, _, _, _ = streamBestBidAsk, streamNewMarket, streamMarketResolved, streamDeduplicator, marketDataTracker, marketDataSnapshot
+	_, _ = marketDataBestBidAsk, marketDataTickSize
 	_, _, _, _, _, _, _ = orderbookReader, orderbookSnapshot, orderbookLevel, orderResultsSource, orderResultsReport, orderResultsOptions, orderResultsBuild
-	_ = legacyReader
 	_, _, _, _, _ = contractsRegistry, contractStatus, contractDeployed, depositWalletDeployed, redeemAdapterFor
 	_, _, _, _, _, _, _, _, _ = settlementPosition, settlementResult, settlementReadiness, settlementReadinessOptions, settlementAdapterApproval, settlementFind, settlementBuild, settlementSubmit, settlementCheck
 	_, _, _, _, _ = relayerClient, relayerV2Key, relayerOnboardOptions, relayerOnboard, relayerNewV2
 	_, _, _, _ = dataPositions, universalPositions, dataLeaderboard, universalLiveVolume
 	_, _, _, _, _, _, _ = gammaMarkets, gammaSearch, gammaComments, universalMarkets, universalSearch, universalComments, universalConfig
-	_, _, _, _, _, _ = universalCLOBMarkets, universalCLOBMarket, universalOrderBook, universalOrderBooks, universalTickSize, universalPriceHistory
+	_, _, _, _, _, _, _ = universalCLOBMarkets, universalCLOBMarket, universalCLOBMarketByToken, universalOrderBook, universalOrderBooks, universalTickSize, universalPriceHistory
 	_, _, _, _, _, _, _, _, _ = universalDeriveAPIKey, universalBalance, universalOrders, universalOrder, universalTrades, universalCancel, universalCancelMarket, universalCreate, universalMarketOrder
 	_, _ = universalStream, universalStreamWithConfig
 }

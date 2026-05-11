@@ -41,6 +41,37 @@ polygolem discover comments --entity-id 123 --entity-type market
 | Comments | List, by ID, by user |
 | Profiles | Public profile by wallet |
 
+## REST Mapping
+
+| Polygolem method | REST path | Auth | Notes |
+|---|---|---|---|
+| `HealthCheck` | `GET /` | Public | Reachability check |
+| `Markets`, `ActiveMarkets` | `GET /markets` | Public | Offset pagination and filters such as `active`, `closed`, `tag_id`, `slug`, `condition_ids`, `clob_token_ids` |
+| `MarketByID`, `MarketBySlug` | `GET /markets/{id-or-slug}` | Public | Gamma accepts both ID and slug in the wrapped route |
+| `MarketByToken` | `GET /markets/token/{token_id}` | Public | Gamma token lookup exposed through `pkg/gamma` and `pkg/universal` |
+| `MarketsKeyset` | `GET /markets-keyset` | Public | Keyset pagination with `keyset_id` |
+| `Events` | `GET /events` | Public | Offset pagination and filters such as `closed`, `tag_id`, `slug` |
+| `EventByID` | `GET /events/{id}` | Public | One event by Gamma ID |
+| `EventBySlug` | `GET /events?slug=...&limit=1` | Public | Polygolem resolves slug through the list endpoint |
+| `EventsKeyset` | `GET /events-keyset` | Public | Keyset pagination with `keyset_id` |
+| `Series`, `SeriesByID` | `GET /series`, `GET /series/{id}` | Public | Market series metadata |
+| `Search` | `GET /public-search` | Public | Cross-entity public search |
+| `Tags`, `TagByID`, `TagBySlug` | `GET /tags`, `GET /tags/{id-or-slug}` | Public | Tag taxonomy |
+| `RelatedTagsByID`, `RelatedTagsBySlug` | `GET /tags/{id-or-slug}/related` | Public | Relationship rows returned by Gamma |
+| `Teams` | `GET /teams` | Public | Sports teams with league/name filters |
+| `SportsMetadata` | `GET /sports-metadata` | Public | Sports metadata catalog |
+| `SportsMarketTypes` | `GET /sports-market-types` | Public | Current sports market-type catalog |
+| `Comments`, `CommentByID`, `CommentsByUser` | `GET /comments`, `GET /comments/{id}` | Public | Comment reads by entity or user |
+| `PublicProfile` | `GET /profiles/{wallet}` | Public | Public profile by wallet address |
+
+## Current Gaps
+
+| Gap | Current state |
+|---|---|
+| Gamma write APIs | Not wrapped; polygolem treats Gamma as read-only |
+| Full sports game endpoints | Only teams, sports metadata, and sports market types are wrapped |
+| Profile mutation | Not wrapped |
+
 ## Upstream
 
 - Polymarket public docs: [docs.polymarket.com](https://docs.polymarket.com/)

@@ -3,7 +3,24 @@ title: Smart Contracts
 description: All Polymarket smart contract addresses, ABI, factory permission model, and CREATE2 derivation used by polygolem.
 ---
 
-Polygolem interacts with Polymarket's on-chain infrastructure on Polygon (chain ID 137). This page documents every contract address, the factory permission model, and CREATE2 address derivation.
+Polygolem interacts with Polymarket's on-chain infrastructure on Polygon
+(chain ID 137). This page documents every contract address polygolem relies
+on, the upstream resolution contracts, the factory permission model, and
+CREATE2 address derivation.
+
+## Source of Truth
+
+Use this order when contract addresses disagree:
+
+| Source | Use |
+|---|---|
+| [Polymarket contracts reference](https://docs.polymarket.com/resources/contracts) | Upstream source of truth for deployed Polygon addresses |
+| `pkg/contracts.PolygonMainnet()` | Polygolem's mirrored SDK registry for addresses the SDK actively uses |
+| Polygon `eth_getCode` | Runtime deployment truth for a derived deposit wallet or target contract |
+
+Resolution contracts are documented here from Polymarket's upstream registry,
+but they are not currently fields in `pkg/contracts.Registry` because the
+SDK does not call them directly.
 
 ## Contract Registry
 
@@ -22,6 +39,7 @@ Polygolem interacts with Polymarket's on-chain infrastructure on Polygon (chain 
 | **pUSD (proxy)** | `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB` | ERC-20 collateral token |
 | **pUSD (impl)** | `0x6bBCef9f7ef3B6C592c99e0f206a0DE94Ad0925f` | Collateral implementation |
 | **CTF** | `0x4D97DCd97eC945f40cF65F87097ACe5EA0476045` | Conditional Tokens (ERC-1155) |
+| **USDC.e** | `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | Legacy Polygon USDC.e collateral used by CTF adapter internals and the Enable Trading onramp approval |
 | **CollateralOnramp** | `0x93070a847efEf7F70739046A929D47a521F5B8ee` | Wrap/onramp collateral |
 | **CollateralOfframp** | `0x2957922Eb93258b93368531d39fAcCA3B4dC5854` | Offramp collateral |
 | **PermissionedRamp** | `0xebC2459Ec962869ca4c0bd1E06368272732BCb08` | Permissioned ramp |
@@ -80,6 +98,17 @@ a known failure mode.
 | **Proxy Factory** | `0xaB45c5A4B0c941a2F231C04C3f49182e1A254052` | Older POLY_PROXY wallets (type 1) |
 | **Gnosis Safe Factory** | `0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b` | Gnosis Safe wallets (type 2) |
 
+### Resolution Contracts
+
+| Contract | Address | Role |
+|----------|---------|------|
+| **UMA Adapter** | `0x6A9D222616C90FcA5754cd1333cFD9b7fb6a4F74` | Resolution adapter for UMA oracle results |
+| **UMA Optimistic Oracle** | `0xCB1822859cEF82Cd2Eb4E6276C7916e692995130` | UMA optimistic oracle contract referenced by Polymarket resolution |
+
+Polygolem currently reads settlement readiness from Data API position fields
+and submits V2 adapter calls through the relayer. It does not call the UMA
+contracts directly.
+
 ### Which Wallet Wins
 
 **New API users (post-May 2026):** Deposit wallet (type 3 / POLY_1271) only. EOA orders blocked by CLOB V2.
@@ -92,8 +121,8 @@ There are two deployment signals, and they answer different questions:
 
 | Signal | Source | Meaning |
 |---|---|---|
-| Relayer deployed flag | `GET /deployed?address=<owner>` | Relayer/indexer view used by Polymarket's wallet lifecycle API |
-| Contract bytecode | Polygon `eth_getCode(<depositWallet>)` | Chain truth: whether the deposit wallet has deployed code |
+| Relayer deployed flag | `GET /deployed?address=owner_address` | Relayer/indexer view used by Polymarket's wallet lifecycle API |
+| Contract bytecode | Polygon `eth_getCode(deposit_wallet)` | Chain truth: whether the deposit wallet has deployed code |
 
 For trading safety, **on-chain bytecode wins**. The CTF Exchange V2 POLY_1271
 path checks `maker.code.length > 0` before validating the ERC-1271 signature.
@@ -120,6 +149,24 @@ if err != nil {
 if status.Deployed {
     // Skip WALLET-CREATE and continue approval/funding/readiness.
 }
+```
+
+The active SDK registry shape is:
+
+```go
+registry := contracts.PolygonMainnet()
+registry.DepositWalletFactory
+registry.CTFExchangeV2
+registry.NegRiskExchangeV2
+registry.NegRiskAdapterV2
+registry.CtfCollateralAdapter
+registry.NegRiskCtfCollateralAdapter
+registry.CollateralOnramp
+registry.CollateralOfframp
+registry.PermissionedRamp
+registry.PUSD
+registry.CTF
+registry.USDCE
 ```
 
 The CLI reports the split explicitly:
@@ -262,9 +309,11 @@ The relayer at `relayer-v2.polymarket.com` provides gas-sponsored transaction su
 
 | Endpoint | Method | Auth | Purpose |
 |----------|--------|------|---------|
+| `/relayer/api/auth` | POST | SIWE session cookies | Mint a V2 relayer API key |
 | `/submit` | POST | Builder HMAC or Relayer API Key | WALLET-CREATE, WALLET batch |
 | `/nonce` | GET | Builder HMAC or Relayer API Key | Current WALLET nonce |
 | `/transaction` | GET | Builder HMAC or Relayer API Key | Poll transaction status |
+| `/transactions` | GET | Builder HMAC or Relayer API Key | Recent transaction list |
 | `/deployed` | GET | Builder HMAC or Relayer API Key | Relayer/indexer deployment view; use Polygon bytecode as fallback/source of truth |
 | `/relay-payload` | GET | None | Get relayer address + nonce |
 | `/relayer/api/keys` | GET | Gamma auth or API key | List relayer API keys |
@@ -311,3 +360,5 @@ The only transaction you pay gas for is the initial pUSD transfer from EOA to de
 - [Secrets Management](/concepts/secrets-management) — builder credential handling
 - [Architecture](/concepts/architecture) — package boundaries
 - [CLOB API Reference](/reference/clob-api) — order signing and trade endpoints
+- [Relayer API Reference](/docs/reference/relayer-api) — relayer endpoints and auth headers
+- Upstream: [Polymarket Contracts](https://docs.polymarket.com/resources/contracts)

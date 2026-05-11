@@ -1,0 +1,79 @@
+---
+title: Bridge API
+description: Polymarket Bridge API endpoints wrapped by polygolem for supported assets, deposit addresses, deposit status, and quotes.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Production Bridge API: `https://bridge.polymarket.com`.
+
+The Bridge API is HTTP-only in polygolem. It does not sign messages and does
+not use CLOB L2 or relayer credentials. The bridge converts incoming supported
+assets into pUSD credited to the destination Polymarket wallet.
+
+## Polygolem Surface
+
+| Surface | Coverage |
+|---|---|
+| `pkg/bridge` | Supported assets, deposit addresses, deposit status, quotes |
+| `polygolem bridge assets` | `GET /supported-assets` |
+| `polygolem bridge deposit address` | `POST /deposit` |
+
+`pkg/bridge` exposes more than the current CLI. Quote and status polling are
+SDK-only until CLI commands are added.
+
+## REST Mapping
+
+| Polygolem method | REST path | Auth | Notes |
+|---|---|---|---|
+| `GetSupportedAssets` | `GET /supported-assets` | Public | Returns chains, token contracts, decimals, and minimum checkout USD |
+| `CreateDepositAddress` | `POST /deposit` | Public | Body: `{ "address": "0x..." }`; response includes EVM, SVM, and BTC deposit addresses |
+| `GetDepositStatus` | `GET /status/{address}` | Public | Polls bridge-observed transactions for a deposit address |
+| `GetQuote` | `POST /quote` | Public | Estimates output and fees for a source token/chain and destination token/chain |
+
+## Request Shapes
+
+Create a deposit address:
+
+```json
+{
+  "address": "0xYourPolymarketWallet"
+}
+```
+
+Quote a bridge move:
+
+```json
+{
+  "fromAmountBaseUnit": "50000000",
+  "fromChainId": "8453",
+  "fromTokenAddress": "0x...",
+  "recipientAddress": "0xYourPolymarketWallet",
+  "toChainId": "137",
+  "toTokenAddress": "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
+}
+```
+
+`toTokenAddress` should be pUSD for the canonical V2 flow. pUSD is the token
+the CLOB reads as buying power for deposit wallets.
+
+<Aside type="caution">
+Bridge deposits fund a wallet; they do not deploy the deposit wallet, submit
+trading approvals, or create CLOB API credentials. Run the deposit-wallet
+onboarding flow before expecting CLOB orders to pass live readiness checks.
+</Aside>
+
+## Current Gaps
+
+| Gap | Current state |
+|---|---|
+| Bridge quote CLI | SDK-only via `pkg/bridge.GetQuote` |
+| Bridge status CLI | SDK-only via `pkg/bridge.GetDepositStatus` |
+| Quote acceptance | Not wrapped by polygolem; the deposit address flow is the supported CLI path |
+
+## Related
+
+- [Bridge & Funding](/docs/guides/bridge-funding)
+- [Deposit Wallets](/docs/concepts/deposit-wallets)
+- [Contracts Registry](/docs/concepts/contracts)
+- Upstream: [Polymarket Bridge API](https://docs.polymarket.com/api-reference/bridge/get-supported-assets)

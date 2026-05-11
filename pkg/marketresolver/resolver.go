@@ -39,9 +39,10 @@ import (
 // CryptoMarket represents a resolved crypto up/down market with token IDs.
 // Slug and Question come from the Gamma event payload. UpTokenID and
 // DownTokenID may be empty if the market's outcomes do not include both
-// "up"/"yes" and "down"/"no". StartDate and EndDate come from the Gamma
-// market.startDate/endDate fields, normalized to UTC second-precision so
-// callers can compare against an expected decision window.
+// "up"/"yes" and "down"/"no". StartDate is the binding decision-window
+// start: Gamma market.eventStartTime when present, otherwise market.startDate.
+// EndDate comes from Gamma market.endDate. Both are normalized to UTC
+// second-precision so callers can compare against an expected decision window.
 type CryptoMarket struct {
 	ConditionID string
 	Asset       string
@@ -254,11 +255,18 @@ func marketsFromGamma(asset string, gammaMarkets []polytypes.Market) []CryptoMar
 			Closed:      m.Closed,
 			Question:    m.Question,
 			Slug:        m.Slug,
-			StartDate:   m.StartDate.Time().UTC().Truncate(time.Second),
+			StartDate:   cryptoMarketWindowStart(m),
 			EndDate:     m.EndDate.Time().UTC().Truncate(time.Second),
 		})
 	}
 	return markets
+}
+
+func cryptoMarketWindowStart(m polytypes.Market) time.Time {
+	if !m.EventStartTime.IsZero() {
+		return m.EventStartTime.Time().UTC().Truncate(time.Second)
+	}
+	return m.StartDate.Time().UTC().Truncate(time.Second)
 }
 
 func firstAcceptingMarket(asset, timeframe string, markets []CryptoMarket) (ResolveResult, bool) {

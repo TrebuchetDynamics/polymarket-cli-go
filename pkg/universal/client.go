@@ -534,6 +534,11 @@ func (c *Client) CLOBMarket(ctx context.Context, conditionID string) (*types.CLO
 	return c.clobRead.Market(ctx, conditionID)
 }
 
+// CLOBMarketByToken resolves a token ID to its parent CLOB market IDs.
+func (c *Client) CLOBMarketByToken(ctx context.Context, tokenID string) (*types.CLOBMarketByTokenResponse, error) {
+	return c.clobRead.MarketByToken(ctx, tokenID)
+}
+
 // CurrentPositions returns current open positions for a user.
 func (c *Client) CurrentPositions(ctx context.Context, user string) ([]types.Position, error) {
 	return c.data.CurrentPositions(ctx, user)

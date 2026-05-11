@@ -54,7 +54,7 @@ func newBuilderCommand(jsonOut bool) *cobra.Command {
 		Short: "Manage builder credentials",
 		Long: `Builder helpers manage CLOB L2 credentials and legacy
 builder-relayer HMAC credentials. Use 'builder auto' for CLOB L2 creds,
-'auth headless-onboard' for V2 relayer keys, and 'clob
+'auth login' for V2 relayer keys, and 'clob
 create-builder-fee-key' for order attribution.`,
 	}
 	cmd.AddCommand(newBuilderOnboardCommand(jsonOut))
@@ -82,7 +82,7 @@ These are CLOB L2 trading creds — they authenticate book/balance reads,
 relayer GETs (/nonce, /deployed), and orders signed by the same address.
 They are NOT V2 Relayer API Keys: the relayer's POST /submit (used by
 deposit-wallet deploy and approve flows) requires a separate key minted
-by 'polygolem auth headless-onboard' or the settings-page Create button.
+by 'polygolem auth login' or an existing settings-page relayer key.
 A profiled EOA without that relayer key will see relayer-write 401s even
 with valid CLOB L2 creds. See docs/ONBOARDING.md.
 

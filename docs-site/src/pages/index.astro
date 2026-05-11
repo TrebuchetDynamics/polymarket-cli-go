@@ -138,7 +138,7 @@ $ polygolem orderbook spread --token-id 1391568931...637394586
         <h2>Trade in four commands</h2>
         <pre><code>{`export POLYMARKET_PRIVATE_KEY="0x..."
 
-polygolem auth headless-onboard                     # mint V2 relayer key (gasless)
+polygolem auth login                                # SIWE login + V2 relayer key (gasless)
 polygolem deposit-wallet onboard --fund-amount 0.71 # deploy + approve + fund
 polygolem clob update-balance --asset-type collateral
 polygolem clob market-order --token <ID> --side buy --amount 1 --price 0.012 --order-type FOK
@@ -158,11 +158,10 @@ polygolem clob market-order --token <ID> --side buy --amount 1 --price 0.012 --o
         </p>
         <div class="callout">
           <p>
-            <strong>⚠ New users need one browser login.</strong> Polymarket&apos;s L1 auth
-            endpoint does not currently support ERC-1271 validation, so a brand-new
-            EOA needs one browser login at polymarket.com to mint the
-            deposit-wallet-bound CLOB API key. After that, all trading is fully
-            headless.
+            <strong>Polymarket login signs with the EOA.</strong> That is the address
+            shown in the website SIWE prompt. The deposit wallet remains the trading
+            wallet for pUSD, POLY_1271 orders, CTF positions, approvals, and settlement.
+            <code>polygolem auth login</code> performs the SIWE/profile/relayer step headlessly.
             <a href="/docs/guides/deposit-wallet-lifecycle">See the full onboarding →</a>
           </p>
         </div>

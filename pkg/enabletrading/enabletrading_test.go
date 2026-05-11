@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
+	sdkclob "github.com/TrebuchetDynamics/polygolem/pkg/clob"
+	sdkrelayer "github.com/TrebuchetDynamics/polygolem/pkg/relayer"
 	"github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
@@ -170,6 +173,43 @@ func TestEnableTradingHeadlessDryRunDoesNotSignOrSubmit(t *testing.T) {
 	}
 }
 
+func TestEnableTradingHeadlessLivePathPollsDeployAndSubmitsApprovals(t *testing.T) {
+	relayerClient := &fakeWalletRelayer{nonce: "11"}
+	clobClient := &fakeCLOBKeyClient{key: sdkclob.APIKey{Key: "api-key", Secret: "api-secret", Passphrase: "api-pass"}}
+
+	result, err := EnableTradingHeadless(context.Background(), EnableTradingParams{
+		OwnerPrivateKey:       testPrivateKey,
+		DepositWalletAddress:  testDepositWallet,
+		DeployIfNeeded:        true,
+		CreateOrDeriveCLOBKey: true,
+		ApproveTokens:         true,
+		MaxApproval:           true,
+		ClobAuthTimestamp:     "1778372101",
+		ApprovalDeadline:      sdkrelayer.BuildDeadline(240),
+		CLOB:                  clobClient,
+		Relayer:               relayerClient,
+	})
+	if err != nil {
+		t.Fatalf("EnableTradingHeadless live path: %v", err)
+	}
+
+	if !relayerClient.submittedCreate || !relayerClient.polledCreate {
+		t.Fatalf("deploy was not submitted and polled: %+v", relayerClient)
+	}
+	if !clobClient.called {
+		t.Fatal("CLOB key client was not called")
+	}
+	if !relayerClient.submittedBatch {
+		t.Fatal("approval batch was not submitted")
+	}
+	if !result.Deployed || !result.CLOBAuthSigned || !result.APIKeysCreatedOrDerived || !result.TokenApprovalsSigned || !result.TokenApprovalsSubmitted || !result.ReadyToTrade {
+		t.Fatalf("unexpected readiness result: %+v", result)
+	}
+	if len(result.TxHashes) != 2 || result.TxHashes[0] != "0xdeploy" || result.TxHashes[1] != "0xbatch" {
+		t.Fatalf("tx hashes=%v", result.TxHashes)
+	}
+}
+
 func TestSafetyValidationFailsClosed(t *testing.T) {
 	if _, err := BuildClobAuthTypedData(ClobAuthParams{
 		Address:   testEOA,
@@ -239,4 +279,46 @@ func recoverAddress(t *testing.T, hash []byte, sigHex string) string {
 		t.Fatal(err)
 	}
 	return ethcrypto.PubkeyToAddress(*pub).Hex()
+}
+
+type fakeWalletRelayer struct {
+	deployed        bool
+	nonce           string
+	submittedCreate bool
+	polledCreate    bool
+	submittedBatch  bool
+}
+
+func (f *fakeWalletRelayer) IsDeployed(ctx context.Context, ownerAddress string) (bool, error) {
+	return f.deployed, nil
+}
+
+func (f *fakeWalletRelayer) SubmitWalletCreate(ctx context.Context, ownerAddress string) (*sdkrelayer.RelayerTransaction, error) {
+	f.submittedCreate = true
+	return &sdkrelayer.RelayerTransaction{TransactionID: "deploy-1", State: string(sdkrelayer.StateNew), Type: "WALLET-CREATE"}, nil
+}
+
+func (f *fakeWalletRelayer) PollTransaction(ctx context.Context, txID string, maxAttempts int, interval time.Duration) (*sdkrelayer.RelayerTransaction, error) {
+	f.polledCreate = true
+	f.deployed = true
+	return &sdkrelayer.RelayerTransaction{TransactionID: txID, TransactionHash: "0xdeploy", State: string(sdkrelayer.StateMined), Type: "WALLET-CREATE"}, nil
+}
+
+func (f *fakeWalletRelayer) GetNonce(ctx context.Context, ownerAddress string) (string, error) {
+	return f.nonce, nil
+}
+
+func (f *fakeWalletRelayer) SubmitWalletBatch(ctx context.Context, ownerAddress, walletAddress, nonce, signature, deadline string, calls []DepositWalletCall) (*sdkrelayer.RelayerTransaction, error) {
+	f.submittedBatch = true
+	return &sdkrelayer.RelayerTransaction{TransactionID: "batch-1", TransactionHash: "0xbatch", State: string(sdkrelayer.StateMined), Type: "WALLET"}, nil
+}
+
+type fakeCLOBKeyClient struct {
+	called bool
+	key    sdkclob.APIKey
+}
+
+func (f *fakeCLOBKeyClient) CreateOrDeriveAPIKey(ctx context.Context, privateKey string) (sdkclob.APIKey, error) {
+	f.called = true
+	return f.key, nil
 }

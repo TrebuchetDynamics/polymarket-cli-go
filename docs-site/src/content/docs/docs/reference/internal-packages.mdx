@@ -94,10 +94,12 @@ Builder relayer client for WALLET-CREATE and WALLET batch operations.
 ```go
 import "github.com/TrebuchetDynamics/polygolem/internal/relayer"
 client, _ := relayer.New("https://relayer-v2.polymarket.com", builderConfig, 137)
+clientV2, _ := relayer.NewV2("https://relayer-v2.polymarket.com", v2APIKey, 137)
 ```
 
 | Method | Returns |
 |--------|---------|
+| `MintV2APIKey(ctx, httpClient, relayerURL)` | `V2APIKey` |
 | `SubmitWalletCreate(ctx, ownerAddr)` | `*RelayerTransaction` |
 | `SubmitWalletBatch(ctx, owner, wallet, nonce, sig, deadline, calls)` | `*RelayerTransaction` |
 | `GetNonce(ctx, ownerAddr)` | `string` |
@@ -127,7 +129,7 @@ client := dataapi.NewClient("https://data-api.polymarket.com", nil)
 | `MarketsTraded(ctx, user)` | `*TotalMarketsTraded` |
 | `OpenInterest(ctx, tokenID)` | `*OpenInterest` |
 | `TraderLeaderboard(ctx, limit)` | `[]TraderLeaderboardEntry` |
-| `LiveVolume(ctx, limit)` | `*LiveVolumeResponse` |
+| `LiveVolume(ctx, eventID)` | `*LiveVolumeResponse` |
 
 ### `internal/stream`
 

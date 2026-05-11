@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 const testPrivateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
@@ -68,9 +70,28 @@ func TestBuildApprovalCallsReturnsSix(t *testing.T) {
 }
 
 func TestBuildDeadlineDefault(t *testing.T) {
+	before := time.Now().Unix()
 	d := BuildDeadline(0)
 	if d == "" {
 		t.Fatal("expected non-empty deadline default")
+	}
+	got, err := strconv.ParseInt(d, 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got < before+MinWalletBatchDeadlineSeconds {
+		t.Fatalf("deadline=%d want at least now+%d", got, MinWalletBatchDeadlineSeconds)
+	}
+}
+
+func TestBuildDeadlineClampsTooShortWindows(t *testing.T) {
+	before := time.Now().Unix()
+	got, err := strconv.ParseInt(BuildDeadline(60), 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got < before+MinWalletBatchDeadlineSeconds {
+		t.Fatalf("deadline=%d want clamped to at least now+%d", got, MinWalletBatchDeadlineSeconds)
 	}
 }
 

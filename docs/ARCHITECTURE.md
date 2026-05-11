@@ -19,10 +19,11 @@ Stable interfaces for downstream Go consumers (e.g., `go-bot`).
 | `pkg/bridge` | Bridge API client — supported assets, deposit addresses, quotes. |
 | `pkg/data` | Read-only Data API analytics client returning `pkg/types` DTOs. |
 | `pkg/gamma` | Read-only Gamma API surface for embedded use (26 methods). |
+| `pkg/marketdata` | Normalized live best bid, best ask, spread, midpoint, tick-size, last-trade, and book snapshots from public stream events. |
 | `pkg/marketresolver` | Resolve market identifiers (ID, slug, token-id) to a canonical view. |
 | `pkg/pagination` | Cursor and offset pagination with concurrent batching. |
 | `pkg/relayer` | Builder relayer primitives for wallet create and wallet batch flows. |
-| `pkg/stream` | Read-only public CLOB WebSocket market stream client. |
+| `pkg/stream` | Read-only public CLOB WebSocket market stream client, including V2 custom feature events. |
 | `pkg/types` | Public DTOs shared by SDK packages. |
 | `pkg/universal` | Single client wrapping Gamma + CLOB + Data API + Discovery + Stream (70+ methods). |
 
@@ -123,7 +124,7 @@ SDK-level commitment to keep its API stable across minor versions.
 
 Gamma, Data API, CLOB market/account/order DTOs, contract registry/readiness
 helpers, and public market stream DTOs are promoted public DTO families.
-`pkg/gamma`, `pkg/data`, `pkg/clob`, `pkg/contracts`, `pkg/stream`, and the corresponding
+`pkg/gamma`, `pkg/data`, `pkg/clob`, `pkg/contracts`, `pkg/stream`, `pkg/marketdata`, and the corresponding
 `pkg/universal` methods return `pkg/types` for markets, events, tags, series,
 comments, profiles, positions, trades, holders, leaderboards, open interest,
 live volume, CLOB market data, books, prices, and price history, or

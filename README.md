@@ -121,7 +121,8 @@ Covered by the 2026-05-08 Polygon mainnet reference run:
 **Market Data**
 
 - Gamma + CLOB market discovery
-- Public CLOB WebSocket market stream
+- Public CLOB WebSocket market stream, including V2 custom feature events
+- Normalized live best bid, best ask, spread, midpoint, tick size, last trade, and book snapshots
 - Order book price + spread helpers
 
 **Safety**
@@ -155,8 +156,7 @@ See [docs/SAFETY.md](docs/SAFETY.md) for the full safety model.
 ```bash
 export POLYMARKET_PRIVATE_KEY="0x..."
 
-polygolem auth headless-onboard                     # mint V2 relayer key (gasless)
-polygolem deposit-wallet onboard --fund-amount 0.71 # deploy + approve + fund
+polygolem deposit-wallet onboard --fund-amount 0.71 # auth + deploy + approve + enable trading + fund
 polygolem clob update-balance --asset-type collateral
 polygolem clob market-order --token <ID> --side buy --amount 1 --price 0.012 --order-type FOK
 # {
@@ -175,12 +175,14 @@ that funds the deposit wallet — `WALLET-CREATE`, the 6-call approval batch,
 and every CLOB settlement are sponsored by Polymarket-run services. See
 [the walkthrough](docs/LIVE-TRADE-WALKTHROUGH.md) for the per-tx breakdown.
 
-> ⚠️ **New users need one browser login.** Polymarket's L1 auth endpoint
-> (`/auth/api-key`) does not currently support ERC-1271 validation, so a
-> brand-new EOA needs one browser login at polymarket.com to mint the
-> deposit-wallet-bound CLOB API key. **After that, all trading is fully
-> headless.** Existing Polymarket users with an already-minted CLOB key skip
-> this entirely. See [docs/BROWSER-SETUP.md](docs/BROWSER-SETUP.md).
+> **Identity model:** Polymarket login signs with the EOA. That is why
+> polymarket.com may ask `0x33e4...` to sign the SIWE message. The deposit
+> wallet remains the trading wallet: it holds pUSD, appears as the POLY_1271
+> order maker/signer, receives CTF positions, and handles settlement.
+> `polygolem deposit-wallet onboard` performs the SIWE/profile/relayer step
+> automatically when no relayer key is configured. `polygolem auth login` is
+> still available as an explicit refresh/inspection command.
+> Browser setup is now fallback-only; see [docs/BROWSER-SETUP.md](docs/BROWSER-SETUP.md).
 
 ### After a Fill
 
@@ -229,6 +231,7 @@ is a thin wrapper around importable `pkg/` packages:
 | [`pkg/clob`](pkg/clob) | CLOB V2 — market data, orders, balances, builder fees |
 | [`pkg/gamma`](pkg/gamma) | Read-only Gamma market discovery (26 methods) |
 | [`pkg/stream`](pkg/stream) | Public CLOB WebSocket market stream |
+| [`pkg/marketdata`](pkg/marketdata) | Live share-price snapshots from stream events |
 | [`pkg/relayer`](pkg/relayer) | V2 Relayer client — WALLET-CREATE, batch, nonce |
 | [`pkg/settlement`](pkg/settlement) | V2 winner redemption planning, adapter calls, and readiness gates |
 
@@ -262,6 +265,7 @@ details are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 |---|---|
 | Find an active market | `polygolem discover search --query "..."` |
 | Inspect the book | `polygolem clob book <token-id>` |
+| Resolve a token's CLOB market | `polygolem clob market-by-token <token-id>` |
 | Check my deposit wallet status | `polygolem deposit-wallet status` |
 | Place a limit buy | `polygolem clob create-order --token <ID> --side buy --price 0.5 --size 10` |
 | Place a market FOK buy | `polygolem clob market-order --token <ID> --side buy --amount 1 --price <slippage_cap>` |
@@ -276,8 +280,8 @@ Full CLI reference (auto-generated, every flag and example):
 ## Environment
 
 - **Required for any authenticated command:** `POLYMARKET_PRIVATE_KEY`.
-- **Auto-minted by polygolem on first use:** V2 relayer key, CLOB L2 key
-  (existing users) — persisted to local env files.
+- **Automatic by polygolem:** V2 relayer key is minted and persisted on first
+  wallet use; CLOB L2 keys are created or derived on demand for order auth.
 - **Optional:** `POLYMARKET_BUILDER_CODE` for V2 order attribution.
 
 The deposit wallet address is derived locally from the private key; no API
@@ -291,7 +295,8 @@ call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
 |---|---|
 | [Live Trade Walkthrough](docs/LIVE-TRADE-WALKTHROUGH.md) | End-to-end 2026-05-08 reference run: every tx, gas figure, and pUSD movement from EOA private key to a filled buy + sell. |
 | [Onboarding](docs/ONBOARDING.md) | Single source of truth — complete deposit wallet flow, troubleshooting. |
-| [Browser Setup](docs/BROWSER-SETUP.md) | One-time browser login for new users; security guidance. |
+| [Headless Enable Trading](docs/ENABLE-TRADING-HEADLESS.md) | SDK support for the UI ClobAuth and token-approval signing prompts. |
+| [Browser Fallback](docs/BROWSER-SETUP.md) | Manual signing fallback and security guidance when headless login is blocked. |
 | [Safety](docs/SAFETY.md) | Risk controls, deposit-wallet-only enforcement, circuit breakers. |
 | [Contracts](docs/CONTRACTS.md) | Contract addresses, factory ABI, CREATE2 derivation, and deployment status source-of-truth rules. |
 | [Architecture](docs/ARCHITECTURE.md) | Package boundaries and dependency direction. |

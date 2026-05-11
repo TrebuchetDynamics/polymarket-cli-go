@@ -1,0 +1,107 @@
+---
+title: Headless Enable Trading
+description: Build and sign the Polymarket UI Enable Trading prompts from the Go SDK.
+---
+
+Polymarket login signs with the EOA. The deposit wallet remains the trading
+wallet for pUSD, POLY_1271 orders, CTF positions, approvals, and redemption.
+
+After a deposit wallet is deployed, polymarket.com can still show two
+Enable Trading prompts:
+
+- sign ClobAuth typed data to create or derive CLOB API keys;
+- sign a DepositWallet Batch typed-data payload to approve token spending.
+
+Polygolem exposes those prompts in `pkg/enabletrading`.
+
+The CLI path is `polygolem deposit-wallet onboard`. It runs ClobAuth
+creation/derivation and submits the 2-call UI token approval batch after the
+deposit wallet deploy and standard approval phases. Use
+`--skip-enable-trading` only when you want to leave those prompts unresolved.
+
+For an already-deployed wallet, run:
+
+```bash
+polygolem deposit-wallet enable-trading
+```
+
+When relayer credentials are missing, this command performs headless SIWE
+login, profile registration, V2 relayer key minting, and env-file persistence
+before it submits the approval batch. No browser or mobile wallet confirmation
+is required for Polygolem's headless trading path.
+
+The browser can still ask for ClobAuth because polymarket.com keeps
+browser-local API-key state. That prompt does not block Polygolem's headless
+trading path when CLI validation passes.
+
+## Dry Run
+
+```go
+result, err := enabletrading.EnableTradingHeadless(ctx, enabletrading.EnableTradingParams{
+    OwnerPrivateKey:       privateKey,
+    DepositWalletAddress:  depositWallet,
+    CreateOrDeriveCLOBKey: true,
+    ApproveTokens:         true,
+    MaxApproval:           true,
+    DryRun:                true,
+})
+```
+
+Dry run returns `ClobAuthTypedData`, `ApprovalBatchTypedData`, and planned
+actions without signing, submitting, or creating API keys.
+
+## Lower-Level Builders
+
+```go
+clobTD, _ := enabletrading.BuildClobAuthTypedData(enabletrading.ClobAuthParams{
+    Address:   eoa,
+    ChainID:   137,
+    Timestamp: unixTimestamp,
+    Nonce:     0,
+})
+
+clobSig, _ := enabletrading.SignClobAuthTypedData(privateKey, clobTD)
+
+calls := enabletrading.BuildEnableTradingApprovalCalls()
+
+batchTD, _ := enabletrading.BuildEnableTradingApprovalBatchTypedData(enabletrading.ApprovalBatchParams{
+    DepositWallet: depositWallet,
+    ChainID:       137,
+    Nonce:         walletNonce,
+    Deadline:      deadline,
+    Calls:         calls,
+})
+
+batchSig, _ := enabletrading.SignDepositWalletApprovalBatch(privateKey, batchTD)
+```
+
+## Approval Batch
+
+The observed UI approval batch is:
+
+| Token | Spender | Amount |
+|---|---|---|
+| pUSD | CTF | max uint256 |
+| USDC.e | CollateralOnramp | max uint256 |
+
+This is distinct from the exchange approval batch and the V2 adapter approval
+batch. Unknown targets or spenders fail closed.
+
+## Validate
+
+```bash
+polygolem deposit-wallet status --check-enable-trading
+```
+
+This signs local validation payloads and checks the on-chain ERC-20 allowances
+for pUSD to CTF and USDC.e to CollateralOnramp. It also treats an existing
+CLOB key that can be derived via `/auth/derive-api-key` as ready, even when no
+CLOB key is exported in the shell. Signatures and secrets are not printed.
+
+## Safety
+
+- `MaxApproval` must be explicit.
+- Chain ID must be Polygon mainnet `137`.
+- The ClobAuth message text is fixed.
+- DepositWallet `verifyingContract` must equal `message.wallet`.
+- Private keys, API secrets, passphrases, and full signatures are not logged.

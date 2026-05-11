@@ -22,9 +22,14 @@ delivers across reconnects.
 ```go
 import sdkstream "github.com/TrebuchetDynamics/polygolem/pkg/stream"
 
-client := sdkstream.NewMarketClient(sdkstream.DefaultConfig(""))
+cfg := sdkstream.DefaultConfig("")
+cfg.CustomFeatureEnabled = true
+client := sdkstream.NewMarketClient(cfg)
 client.OnPriceChange = func(msg sdkstream.PriceChangeMessage) {
     _ = msg.PriceChanges
+}
+client.OnBestBidAsk = func(msg sdkstream.BestBidAskMessage) {
+    _ = msg.BestBid
 }
 _ = client.Connect(ctx)
 _ = client.SubscribeAssets(ctx, []string{"7132104567..."})
@@ -35,6 +40,8 @@ _ = client.SubscribeAssets(ctx, []string{"7132104567..."})
 | Feature | Status |
 |---------|--------|
 | Market channel subscribe (book / price / trade) | Implemented |
+| Market channel custom features (`best_bid_ask`, `new_market`, `market_resolved`) | Implemented with `CustomFeatureEnabled` |
+| Tick-size change events | Implemented |
 | Automatic reconnect with backoff | Implemented |
 | Message dedup across reconnects | Implemented |
 | User channel (authenticated) | **Not implemented** |
@@ -46,11 +53,20 @@ The CLI emits one JSON object per message on stdout, suitable for piping into
 `jq` or a downstream consumer.
 
 ```bash
-polygolem stream market --asset-ids <token-id-1>,<token-id-2> --max-messages 10
+polygolem stream market --asset-ids <token-id-1>,<token-id-2> \
+  --custom-features --level 2 --max-messages 10
+```
+
+For bot-friendly snapshots with best bid, best ask, midpoint, last trade, and
+current book levels, use the normalized market-data command:
+
+```bash
+polygolem marketdata live --asset-ids <token-id-1>,<token-id-2> --max-messages 10
 ```
 
 `--max-messages 0` streams until the process is interrupted. `--url` can point
-to a local WebSocket test server.
+to a local WebSocket test server. `marketdata live` enables custom features by
+default so top-of-book `best_bid_ask` events update the normalized snapshots.
 
 <Aside type="note">
 For latency-sensitive use cases, prefer the Go SDK directly over the CLI: the
@@ -70,6 +86,7 @@ When the upstream connection drops, the client:
 ## Related
 
 - [Orderbook Data](/guides/orderbook-data) — REST equivalents for one-shot reads
+- [Go SDK Contracts](/reference/sdk) — `pkg/stream` and `pkg/marketdata`
 - [`docs/ARCHITECTURE.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/ARCHITECTURE.md) — `pkg/stream` package boundary
 - [Polymarket API Overview](/concepts/polymarket-api) — every API in one place
 

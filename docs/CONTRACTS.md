@@ -264,7 +264,7 @@ This is pure local computation — no on-chain call needed for derivation.
 
 ### 4.2 How to Obtain
 
-Preferred V2 relayer keys are minted by `polygolem auth headless-onboard`
+Preferred V2 relayer keys are minted by `polygolem auth login`
 through SIWE login plus `POST /relayer/api/auth`. The settings page remains a
 manual fallback for legacy builder-relayer HMAC credentials.
 
@@ -331,7 +331,7 @@ The relayer pays gas for all on-chain operations. Users need pUSD for trading am
 ### 6.1 What Is Automated
 
 1. **CLOB L2 credential issuance** — `polygolem builder auto`
-2. **V2 relayer key issuance** — `polygolem auth headless-onboard`
+2. **V2 relayer key issuance** — `polygolem auth login`
 3. **Builder fee key issuance** — `polygolem clob create-builder-fee-key`
 
 ### 6.2 Wallet Lifecycle Automation

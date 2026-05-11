@@ -57,6 +57,37 @@ func TestDocumentationSafety(t *testing.T) {
 		}
 	}
 
+	loginDocs := []string{
+		"README.md",
+		"docs/ONBOARDING.md",
+		"docs/BROWSER-SETUP.md",
+		"docs-site/src/content/docs/docs/guides/deposit-wallet-lifecycle.mdx",
+		"docs-site/src/content/docs/docs/guides/builder-auto.mdx",
+	}
+	for _, relativePath := range loginDocs {
+		content := readRepositoryFile(t, root, relativePath)
+		for _, required := range []string{
+			"polygolem auth login",
+			"Polymarket login signs with the EOA",
+			"deposit wallet",
+		} {
+			if !strings.Contains(content, required) {
+				t.Fatalf("%s must document headless auth login wording %q", relativePath, required)
+			}
+		}
+		for _, blocked := range []string{
+			"New users need one browser login",
+			"browser login is required",
+			"Requires browser login for new users",
+			"pure headless onboarding is not possible",
+			"Deposit-wallet-owned API keys cannot be created headlessly",
+		} {
+			if strings.Contains(content, blocked) {
+				t.Fatalf("%s contains stale browser-first onboarding claim %q", relativePath, blocked)
+			}
+		}
+	}
+
 	reference := readRepositoryFile(t, root, "docs/history/REFERENCE-RUST-CLI.md")
 	expectedReferenceText := "- `market-order`: builds, signs, and posts a market order through `post_order`."
 	if !strings.Contains(reference, expectedReferenceText) {

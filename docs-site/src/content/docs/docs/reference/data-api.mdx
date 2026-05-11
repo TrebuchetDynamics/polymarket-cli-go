@@ -19,8 +19,12 @@ polygolem data value --user 0x...
 polygolem data markets-traded --user 0x...
 polygolem data open-interest --token-id <token-id>
 polygolem data leaderboard --limit 20
-polygolem data live-volume --limit 20
+polygolem data live-volume --limit <event-id>
 ```
+
+The current `live-volume` CLI flag is named `--limit`, but the SDK method and
+upstream query use an event ID. Treat the flag value as the upstream `id`
+parameter.
 
 ## SDK
 
@@ -35,8 +39,30 @@ import "github.com/TrebuchetDynamics/polygolem/pkg/data"
 client := data.NewClient(data.Config{})
 positions, err := client.CurrentPositionsWithLimit(ctx, user, 20)
 leaders, err := client.TraderLeaderboard(ctx, 20)
-volume, err := client.LiveVolume(ctx, 20)
+volume, err := client.LiveVolume(ctx, eventID)
 ```
+
+## REST Mapping
+
+| Polygolem method | REST path | Auth | Notes |
+|---|---|---|---|
+| `Health` | `GET /` | Public | Reachability check |
+| `CurrentPositions`, `CurrentPositionsWithLimit` | `GET /positions?user=...&limit=...` | Public | Open positions for a wallet |
+| `ClosedPositions`, `ClosedPositionsWithLimit` | `GET /closed-positions?user=...&limit=...` | Public | Closed positions and realized PnL |
+| `Trades` | `GET /trades?user=...&limit=...` | Public | Public trades for a wallet |
+| `Activity` | `GET /activity?user=...&limit=...` | Public | Public activity stream |
+| `TopHolders` | `GET /holders?market=...&limit=...` | Public | Top holders grouped by market/token response shape |
+| `TotalValue` | `GET /value?user=...` | Public | Portfolio value; polygolem accepts object or array response |
+| `MarketsTraded` | `GET /traded?user=...` | Public | Total markets traded |
+| `OpenInterest` | `GET /oi?market=...` | Public | Open interest for one market/token |
+| `LiveVolume` | `GET /live-volume?id=...` | Public | Live volume for an event ID |
+
+## Rate Limits
+
+The upstream Data API currently documents a general `1000 requests / 10s` rate
+limit. `/positions`, `/closed-positions`, and `/trades` each have a lower
+`200 requests / 10s` limit. Health checks are lower again at `100 requests /
+10s`.
 
 ## Position Fields For Settlement
 
@@ -64,3 +90,4 @@ collateral adapter that matches `negativeRisk`.
 - [Go SDK Contracts](/reference/sdk)
 - [Redeeming Winning Positions](/guides/redeem-winners)
 - [Polymarket API Overview](/concepts/polymarket-api)
+- Upstream: [Polymarket Data API](https://docs.polymarket.com/api-reference/rate-limits)

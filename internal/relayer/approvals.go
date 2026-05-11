@@ -8,12 +8,14 @@ import (
 )
 
 const (
-	pusdAddress = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
-	ctfAddress  = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+	pusdAddress  = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
+	ctfAddress   = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+	usdceAddress = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
 
 	ctfExchangeV2     = "0xE111180000d2663C0091e4f400237545B87B996B"
 	negRiskExchangeV2 = "0xe2222d279d744050d28e00520010520000310F59"
 	negRiskAdapterV2  = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
+	collateralOnramp  = "0x93070a847efEf7F70739046A929D47a521F5B8ee"
 
 	// V2 collateral adapters — split/merge/redeem from a deposit wallet
 	// route through these. Required spenders for the post-trading
@@ -115,6 +117,28 @@ func BuildAdapterApprovalCalls() []DepositWalletCall {
 // without signing.
 func BuildAdapterApprovalCallsJSON() (string, error) {
 	raw, err := marshalCalls(BuildAdapterApprovalCalls())
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// BuildEnableTradingApprovalCalls returns the two ERC-20 approvals observed
+// in polymarket.com's "Enable Trading" UI after deposit-wallet deployment:
+// pUSD -> CTF and USDC.e -> CollateralOnramp, both max uint256. This batch is
+// distinct from the six-call exchange trading approval set and the four-call
+// V2 collateral-adapter approval set.
+func BuildEnableTradingApprovalCalls() []DepositWalletCall {
+	return []DepositWalletCall{
+		buildApproveCall(pusdAddress, ctfAddress),
+		buildApproveCall(usdceAddress, collateralOnramp),
+	}
+}
+
+// BuildEnableTradingApprovalCallsJSON mirrors BuildApprovalCallsJSON for the
+// UI Enable Trading approval set.
+func BuildEnableTradingApprovalCallsJSON() (string, error) {
+	raw, err := marshalCalls(BuildEnableTradingApprovalCalls())
 	if err != nil {
 		return "", err
 	}

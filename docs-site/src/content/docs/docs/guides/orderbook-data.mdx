@@ -111,6 +111,22 @@ polygolem orderbook last-trade --token-id 71321045679252212594626385532706912750
 }
 ```
 
+## Live market data
+
+For live bot feeds, use `marketdata live` instead of stitching raw stream
+messages yourself. It subscribes to the same public market WebSocket as
+`stream market`, tracks each token's latest book, and emits enriched snapshots
+with `best_bid`, `best_ask`, `spread`, `midpoint`, `tick_size`,
+`last_trade_price`, `bids`, and `asks`. It requests V2 custom feature events by
+default so `best_bid_ask` updates can refresh top-of-book snapshots without a
+full book delta.
+
+```bash
+polygolem marketdata live \
+  --asset-ids 71321045679252212594626385532706912750332728571942134274583709853755746957851 \
+  --max-messages 10
+```
+
 ## Using the Go SDK
 
 If you want best-first orderbook reads from a Go program, prefer the
@@ -125,6 +141,8 @@ reader := orderbook.NewReader("")
 book, err := reader.OrderBook(ctx, tokenID)
 // book.Bids[0].Price, book.Asks[0].Size, ...
 ```
+
+For live snapshots, use `pkg/stream` with `pkg/marketdata.NewTracker()`.
 
 See [Go-Bot Integration](/guides/go-bot-integration) for the full SDK story.
 

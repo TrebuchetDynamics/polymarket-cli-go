@@ -5,16 +5,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/auth"
+	"github.com/TrebuchetDynamics/polygolem/internal/gamma"
 	"github.com/TrebuchetDynamics/polygolem/internal/relayer"
 	"github.com/TrebuchetDynamics/polygolem/internal/rpc"
+	sdkclob "github.com/TrebuchetDynamics/polygolem/pkg/clob"
 	"github.com/TrebuchetDynamics/polygolem/pkg/contracts"
 	"github.com/TrebuchetDynamics/polygolem/pkg/data"
+	sdkenabletrading "github.com/TrebuchetDynamics/polygolem/pkg/enabletrading"
 	"github.com/TrebuchetDynamics/polygolem/pkg/settlement"
 	"github.com/spf13/cobra"
 )
@@ -57,6 +62,7 @@ func depositWalletCmd(jsonOut bool) *cobra.Command {
 	cmd.AddCommand(depositWalletBatchCmd(jsonOut))
 	cmd.AddCommand(depositWalletApproveCmd(jsonOut))
 	cmd.AddCommand(depositWalletApproveAdaptersCmd(jsonOut))
+	cmd.AddCommand(depositWalletEnableTradingCmd(jsonOut))
 	cmd.AddCommand(depositWalletSettlementStatusCmd(jsonOut))
 	cmd.AddCommand(depositWalletRedeemableCmd(jsonOut))
 	cmd.AddCommand(depositWalletRedeemCmd(jsonOut))
@@ -130,7 +136,7 @@ func depositWalletDeployCmd(jsonOut bool) *cobra.Command {
 					"note":                "deposit wallet already has code on Polygon; skipped WALLET-CREATE",
 				})
 			}
-			rc, err := relayerClientFromEnv()
+			rc, authResult, err := relayerClientForAutomation(cmd.Context(), cmd.ErrOrStderr(), key)
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -159,6 +165,7 @@ func depositWalletDeployCmd(jsonOut bool) *cobra.Command {
 				"state":         final.State,
 				"owner":         owner,
 				"depositWallet": wallet,
+				"auth":          authResult,
 			})
 		},
 	}
@@ -183,7 +190,7 @@ func depositWalletNonceCmd(jsonOut bool) *cobra.Command {
 				return fmt.Errorf("init signer: %w", err)
 			}
 			owner := signer.Address()
-			rc, err := relayerClientFromEnv()
+			rc, _, err := relayerClientForAutomation(cmd.Context(), cmd.ErrOrStderr(), key)
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -203,18 +210,20 @@ func depositWalletNonceCmd(jsonOut bool) *cobra.Command {
 
 func depositWalletStatusCmd(jsonOut bool) *cobra.Command {
 	var txID string
+	var checkEnableTrading bool
+	var rpcURL string
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Check deposit wallet deployment status or transaction state",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			rc, err := relayerClientFromEnv()
-			if err != nil {
-				return fmt.Errorf("init relayer client: %w", err)
-			}
 			key, err := requirePrivateKey()
 			if err != nil {
 				return err
+			}
+			rc, _, err := relayerClientForAutomation(cmd.Context(), cmd.ErrOrStderr(), key)
+			if err != nil {
+				return fmt.Errorf("init relayer client: %w", err)
 			}
 			signer, err := auth.NewPrivateKeySigner(key, 137)
 			if err != nil {
@@ -249,7 +258,7 @@ func depositWalletStatusCmd(jsonOut bool) *cobra.Command {
 			if err != nil {
 				nonce = "error: " + err.Error()
 			}
-			return printJSON(cmd, map[string]interface{}{
+			result := map[string]interface{}{
 				"owner":                  owner,
 				"depositWallet":          wallet,
 				"deployed":               relayerDeployed || onchainDeployed,
@@ -257,10 +266,20 @@ func depositWalletStatusCmd(jsonOut bool) *cobra.Command {
 				"onchainCodeDeployed":    onchainDeployed,
 				"deploymentStatusSource": deploymentStatusSource(relayerDeployed, onchainDeployed),
 				"walletNonce":            nonce,
-			})
+			}
+			if checkEnableTrading {
+				validation, err := validateEnableTradingReadiness(cmd.Context(), key, wallet, nonce, clobCredentialsReadyForCLI(cmd.Context(), key), firstNonEmptyCLI(rpcURL, os.Getenv("POLYGON_RPC_URL")))
+				if err != nil {
+					return err
+				}
+				result["enableTrading"] = validation
+			}
+			return printJSON(cmd, result)
 		},
 	}
 	cmd.Flags().StringVar(&txID, "tx-id", "", "transaction ID to poll")
+	cmd.Flags().BoolVar(&checkEnableTrading, "check-enable-trading", false, "validate ClobAuth signing and UI Enable Trading token approvals")
+	cmd.Flags().StringVar(&rpcURL, "rpc-url", "", "Polygon RPC URL for --check-enable-trading allowance checks (default: POLYGON_RPC_URL or public node)")
 	return cmd
 }
 
@@ -310,7 +329,7 @@ Use --auto-approve to build and submit the standard 6-call approval batch
 				}
 			}
 
-			rc, err := relayerClientFromEnv()
+			rc, _, err := relayerClientForAutomation(cmd.Context(), cmd.ErrOrStderr(), key)
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -345,7 +364,7 @@ Use --auto-approve to build and submit the standard 6-call approval batch
 	cmd.Flags().StringVar(&callsJSON, "calls-json", "", "JSON array of DepositWalletCall objects")
 	cmd.Flags().StringVar(&walletAddress, "wallet", "", "deposit wallet address (default: derived from EOA)")
 	cmd.Flags().StringVar(&nonce, "nonce", "", "WALLET nonce (default: fetched from relayer)")
-	cmd.Flags().Int64Var(&deadline, "deadline", 240, "deadline seconds from now")
+	cmd.Flags().Int64Var(&deadline, "deadline", relayer.MinWalletBatchDeadlineSeconds, "deadline seconds from now")
 	return cmd
 }
 
@@ -384,7 +403,7 @@ With --submit, signs and submits the WALLET batch via the relayer.`,
 			if err != nil {
 				return fmt.Errorf("derive deposit wallet: %w", err)
 			}
-			rc, err := relayerClientFromEnv()
+			rc, _, err := relayerClientForAutomation(cmd.Context(), cmd.ErrOrStderr(), key)
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -484,7 +503,7 @@ V2 deposit-wallet redeem must route through the collateral adapters.`,
 				return fmt.Errorf("parse adapter approval calls: %w", err)
 			}
 
-			rc, err := relayerClientFromEnv()
+			rc, _, err := relayerClientForAutomation(cmd.Context(), cmd.ErrOrStderr(), key)
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
@@ -516,6 +535,70 @@ V2 deposit-wallet redeem must route through the collateral adapters.`,
 	}
 	cmd.Flags().BoolVar(&submit, "submit", false, "sign and submit the adapter approval batch (requires --confirm APPROVE_ADAPTERS)")
 	cmd.Flags().StringVar(&confirm, "confirm", "", "live-money confirmation token; must be 'APPROVE_ADAPTERS' when --submit is set")
+	return cmd
+}
+
+func depositWalletEnableTradingCmd(jsonOut bool) *cobra.Command {
+	var dryRun bool
+	cmd := &cobra.Command{
+		Use:   "enable-trading",
+		Short: "Complete the UI Enable Trading signs for an existing deposit wallet",
+		Long: `Signs the same two prompts polymarket.com shows after deposit-wallet deploy:
+
+1. ClobAuth — EOA-signed message to create or derive CLOB API keys.
+2. Approve Tokens — DepositWallet.Batch signing for the 2-call UI token
+   approval batch: pUSD -> CTF and USDC.e -> CollateralOnramp.
+
+Use this when the wallet is already deployed but the UI still shows
+"Enable Trading" or "Approve Tokens". If relayer credentials are missing,
+Polygolem signs SIWE locally, registers the profile if needed, mints and
+persists the V2 relayer key, then continues automatically.
+
+The browser may still ask for a local ClobAuth signature because
+polymarket.com stores browser-local API state; this command prepares
+Polygolem's headless trading path and submits the on-chain deposit-wallet
+approvals.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			key, err := requirePrivateKey()
+			if err != nil {
+				return err
+			}
+			signer, err := auth.NewPrivateKeySigner(key, 137)
+			if err != nil {
+				return fmt.Errorf("init signer: %w", err)
+			}
+			owner := signer.Address()
+			wallet, err := auth.MakerAddressForSignatureType(owner, 137, 3)
+			if err != nil {
+				return fmt.Errorf("derive deposit wallet: %w", err)
+			}
+			if dryRun {
+				rc, err := relayerClientFromEnv()
+				if err != nil {
+					return fmt.Errorf("init relayer client: %w", err)
+				}
+				result, err := dryRunEnableTradingSigns(cmd.Context(), key, owner, wallet, rc)
+				if err != nil {
+					return err
+				}
+				return printJSON(cmd, result)
+			}
+			rc, authResult, err := relayerClientForAutomation(cmd.Context(), cmd.ErrOrStderr(), key)
+			if err != nil {
+				return fmt.Errorf("init relayer client: %w", err)
+			}
+			result, err := submitEnableTradingSigns(cmd.Context(), key, owner, wallet, rc)
+			if err != nil {
+				return err
+			}
+			result["owner"] = owner
+			result["depositWallet"] = wallet
+			result["auth"] = authResult
+			return printJSON(cmd, result)
+		},
+	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "build and validate typed data without signing, creating API keys, or submitting approvals")
 	return cmd
 }
 
@@ -677,20 +760,27 @@ func parsePOLAmount(s string) (*big.Int, error) {
 func depositWalletOnboardCmd(jsonOut bool) *cobra.Command {
 	var skipDeploy bool
 	var skipApprove bool
+	var skipEnableTrading bool
 	var fundAmount string
 	cmd := &cobra.Command{
 		Use:   "onboard",
-		Short: "Full deposit wallet onboarding: deploy + approve + fund",
+		Short: "Full deposit wallet onboarding: deploy + approve + enable trading + fund",
 		Long: `Run the complete deposit wallet setup sequence:
 
 1. Derive the deterministic deposit wallet address
 2. Deploy via WALLET-CREATE (skip with --skip-deploy if already deployed)
 3. Submit the 10-call approval batch for trading and V2 settlement adapters
    (skip with --skip-approve)
-4. Transfer pUSD from EOA to deposit wallet (requires --fund-amount)
+4. Sign ClobAuth and submit the 2-call UI Enable Trading approval batch
+   (skip with --skip-enable-trading)
+5. Transfer pUSD from EOA to deposit wallet (requires --fund-amount)
 
 After onboarding, sync CLOB:
-  polygolem clob update-balance --asset-type collateral`,
+  polygolem clob update-balance --asset-type collateral
+
+If relayer credentials are missing, Polygolem signs SIWE locally, registers
+the profile if needed, mints and persists the V2 relayer key, then continues
+automatically.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, err := requirePrivateKey()
@@ -706,13 +796,14 @@ After onboarding, sync CLOB:
 			if err != nil {
 				return fmt.Errorf("derive deposit wallet: %w", err)
 			}
-			rc, err := relayerClientFromEnv()
+			rc, authResult, err := relayerClientForAutomation(cmd.Context(), cmd.ErrOrStderr(), key)
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}
 			result := map[string]interface{}{
 				"owner":         owner,
 				"depositWallet": wallet,
+				"auth":          authResult,
 			}
 
 			if !skipDeploy {
@@ -761,6 +852,14 @@ After onboarding, sync CLOB:
 				}
 			}
 
+			if !skipEnableTrading {
+				enableResult, err := submitEnableTradingSigns(cmd.Context(), key, owner, wallet, rc)
+				if err != nil {
+					return fmt.Errorf("enable trading signs: %w", err)
+				}
+				result["enableTrading"] = enableResult
+			}
+
 			if strings.TrimSpace(fundAmount) != "" {
 				amountFloat, err := parsePUSDAmount(fundAmount)
 				if err != nil {
@@ -790,8 +889,229 @@ After onboarding, sync CLOB:
 	}
 	cmd.Flags().BoolVar(&skipDeploy, "skip-deploy", false, "skip WALLET-CREATE (wallet already deployed)")
 	cmd.Flags().BoolVar(&skipApprove, "skip-approve", false, "skip approval batch")
+	cmd.Flags().BoolVar(&skipEnableTrading, "skip-enable-trading", false, "skip ClobAuth and UI Enable Trading token approval signs")
 	cmd.Flags().StringVar(&fundAmount, "fund-amount", "", "pUSD amount to transfer from EOA to deposit wallet (e.g. 0.71)")
 	return cmd
+}
+
+func dryRunEnableTradingSigns(ctx context.Context, privateKey, owner, wallet string, rc *relayer.Client) (map[string]interface{}, error) {
+	clobTD, err := sdkenabletrading.BuildClobAuthTypedData(sdkenabletrading.ClobAuthParams{
+		Address:   owner,
+		ChainID:   sdkenabletrading.PolygonChainID,
+		Timestamp: fmt.Sprintf("%d", time.Now().Unix()),
+		Nonce:     0,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := sdkenabletrading.HashClobAuthTypedData(clobTD); err != nil {
+		return nil, err
+	}
+	nonce, err := rc.GetNonce(ctx, owner)
+	if err != nil {
+		return nil, fmt.Errorf("fetch nonce: %w", err)
+	}
+	calls := sdkenabletrading.BuildEnableTradingApprovalCalls()
+	deadline := relayer.BuildDeadline(240)
+	batchTD, err := sdkenabletrading.BuildEnableTradingApprovalBatchTypedData(sdkenabletrading.ApprovalBatchParams{
+		DepositWallet: wallet,
+		ChainID:       sdkenabletrading.PolygonChainID,
+		Nonce:         nonce,
+		Deadline:      deadline,
+		Calls:         calls,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := sdkenabletrading.SignDepositWalletApprovalBatch(privateKey, batchTD); err != nil {
+		return nil, fmt.Errorf("validate DepositWallet approval signature: %w", err)
+	}
+	return map[string]interface{}{
+		"owner":                     owner,
+		"depositWallet":             wallet,
+		"dryRun":                    true,
+		"clobAuthBuildable":         true,
+		"approvalBatchSignable":     true,
+		"tokenApprovalCallCount":    len(calls),
+		"tokenApprovalTargets":      []string{contracts.PUSD, contracts.USDCE},
+		"tokenApprovalSpenders":     []string{contracts.CTF, contracts.CollateralOnramp},
+		"wouldCreateOrDeriveAPIKey": true,
+		"wouldSubmitApprovals":      true,
+	}, nil
+}
+
+func submitEnableTradingSigns(ctx context.Context, privateKey, owner, wallet string, rc *relayer.Client) (map[string]interface{}, error) {
+	clobTD, err := sdkenabletrading.BuildClobAuthTypedData(sdkenabletrading.ClobAuthParams{
+		Address:   owner,
+		ChainID:   sdkenabletrading.PolygonChainID,
+		Timestamp: fmt.Sprintf("%d", time.Now().Unix()),
+		Nonce:     0,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := sdkenabletrading.SignClobAuthTypedData(privateKey, clobTD); err != nil {
+		return nil, err
+	}
+	c := sdkclob.NewClient(sdkclob.Config{BaseURL: clobBaseURLFromEnv()})
+	if _, err := c.CreateOrDeriveAPIKey(ctx, privateKey); err != nil {
+		return nil, fmt.Errorf("create or derive CLOB API key: %w", err)
+	}
+
+	calls := sdkenabletrading.BuildEnableTradingApprovalCalls()
+	nonce, err := rc.GetNonce(ctx, owner)
+	if err != nil {
+		return nil, fmt.Errorf("fetch nonce: %w", err)
+	}
+	deadline := relayer.BuildDeadline(240)
+	batchTD, err := sdkenabletrading.BuildEnableTradingApprovalBatchTypedData(sdkenabletrading.ApprovalBatchParams{
+		DepositWallet: wallet,
+		ChainID:       sdkenabletrading.PolygonChainID,
+		Nonce:         nonce,
+		Deadline:      deadline,
+		Calls:         calls,
+	})
+	if err != nil {
+		return nil, err
+	}
+	sig, err := sdkenabletrading.SignDepositWalletApprovalBatch(privateKey, batchTD)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := rc.SubmitWalletBatch(ctx, owner, wallet, nonce, sig, deadline, calls)
+	if err != nil {
+		return nil, fmt.Errorf("submit UI Enable Trading approval batch: %w", err)
+	}
+	return map[string]interface{}{
+		"clobAuthSigned":          true,
+		"apiKeysCreatedOrDerived": true,
+		"tokenApprovalsSigned":    true,
+		"tokenApprovalsSubmitted": true,
+		"transactionID":           tx.TransactionID,
+		"state":                   tx.State,
+		"callCount":               len(calls),
+		"includes":                []string{"clob-auth", "ui-token-approvals"},
+	}, nil
+}
+
+type clobCredentialReadiness struct {
+	Ready  bool
+	Source string
+}
+
+func validateEnableTradingReadiness(ctx context.Context, privateKey, wallet, nonce string, clobCredentials clobCredentialReadiness, rpcURL string) (map[string]interface{}, error) {
+	signer, err := auth.NewPrivateKeySigner(privateKey, 137)
+	if err != nil {
+		return nil, fmt.Errorf("init signer: %w", err)
+	}
+	if _, ok := new(big.Int).SetString(strings.TrimSpace(nonce), 10); !ok {
+		return nil, fmt.Errorf("wallet nonce unavailable for enable-trading validation: %s", nonce)
+	}
+	clobTD, err := sdkenabletrading.BuildClobAuthTypedData(sdkenabletrading.ClobAuthParams{
+		Address:   signer.Address(),
+		ChainID:   sdkenabletrading.PolygonChainID,
+		Timestamp: fmt.Sprintf("%d", time.Now().Unix()),
+		Nonce:     0,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := sdkenabletrading.SignClobAuthTypedData(privateKey, clobTD); err != nil {
+		return nil, fmt.Errorf("sign ClobAuth validation payload: %w", err)
+	}
+	calls := sdkenabletrading.BuildEnableTradingApprovalCalls()
+	if err := sdkenabletrading.ValidateEnableTradingApprovalCalls(calls); err != nil {
+		return nil, err
+	}
+	deadline := relayer.BuildDeadline(240)
+	batchTD, err := sdkenabletrading.BuildEnableTradingApprovalBatchTypedData(sdkenabletrading.ApprovalBatchParams{
+		DepositWallet: wallet,
+		ChainID:       sdkenabletrading.PolygonChainID,
+		Nonce:         nonce,
+		Deadline:      deadline,
+		Calls:         calls,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := sdkenabletrading.SignDepositWalletApprovalBatch(privateKey, batchTD); err != nil {
+		return nil, fmt.Errorf("sign DepositWallet approval validation payload: %w", err)
+	}
+
+	approvalChecks, tokenApprovalsReady, err := enableTradingApprovalChecks(ctx, wallet, rpcURL)
+	if err != nil {
+		return nil, err
+	}
+	ready := clobCredentials.Ready && tokenApprovalsReady
+	out := map[string]interface{}{
+		"clobAuthSignable":          true,
+		"clobCredentialsConfigured": clobCredentials.Source == "env",
+		"clobCredentialsReady":      clobCredentials.Ready,
+		"clobCredentialsSource":     clobCredentials.Source,
+		"approvalCallsValid":        true,
+		"approvalBatchSignable":     true,
+		"tokenApprovalsReady":       tokenApprovalsReady,
+		"approvalChecks":            approvalChecks,
+		"ready":                     ready,
+	}
+	if !ready {
+		out["nextAction"] = "polygolem deposit-wallet onboard"
+	}
+	return out, nil
+}
+
+func clobCredentialsReadyForCLI(ctx context.Context, privateKey string) clobCredentialReadiness {
+	key, ok := clobL2CredentialsFromEnv()
+	if ok && key.Validate() == nil {
+		return clobCredentialReadiness{Ready: true, Source: "env"}
+	}
+	c := sdkclob.NewClient(sdkclob.Config{BaseURL: clobBaseURLFromEnv()})
+	derived, err := c.DeriveAPIKey(ctx, privateKey)
+	if err != nil {
+		return clobCredentialReadiness{Ready: false, Source: "missing"}
+	}
+	if strings.TrimSpace(derived.Key) == "" || strings.TrimSpace(derived.Secret) == "" || strings.TrimSpace(derived.Passphrase) == "" {
+		return clobCredentialReadiness{Ready: false, Source: "missing"}
+	}
+	return clobCredentialReadiness{Ready: true, Source: "derived"}
+}
+
+func enableTradingApprovalChecks(ctx context.Context, wallet, rpcURL string) ([]map[string]interface{}, bool, error) {
+	required := []struct {
+		label   string
+		token   string
+		spender string
+	}{
+		{label: "pusd_ctf", token: contracts.PUSD, spender: contracts.CTF},
+		{label: "usdce_collateral_onramp", token: contracts.USDCE, spender: contracts.CollateralOnramp},
+	}
+	checks := make([]map[string]interface{}, 0, len(required))
+	allReady := true
+	for _, row := range required {
+		allowance, err := rpc.ERC20Allowance(ctx, row.token, wallet, row.spender, rpcURL)
+		if err != nil {
+			return nil, false, fmt.Errorf("check ERC20 allowance %s: %w", row.label, err)
+		}
+		ready := allowance.Sign() > 0
+		if !ready {
+			allReady = false
+		}
+		checks = append(checks, map[string]interface{}{
+			"name":      row.label,
+			"token":     row.token,
+			"spender":   row.spender,
+			"allowance": allowance.String(),
+			"ready":     ready,
+		})
+	}
+	return checks, allReady, nil
+}
+
+func clobBaseURLFromEnv() string {
+	if value := firstEnv("POLYMARKET_CLOB_URL", "CLOB_URL"); value != "" {
+		return value
+	}
+	return clobBaseURL
 }
 
 func depositWalletDeployed(ctx context.Context, rc *relayer.Client, owner string, wallet string) (bool, error) {
@@ -824,14 +1144,61 @@ func parsePUSDAmount(s string) (*big.Int, error) {
 	if s == "" {
 		return nil, fmt.Errorf("empty amount")
 	}
-	bf, _, err := big.ParseFloat(s, 10, 6, big.ToNearestEven)
-	if err != nil {
-		return nil, fmt.Errorf("parse amount: %w", err)
+	if strings.HasPrefix(s, "-") || strings.HasPrefix(s, "+") {
+		return nil, fmt.Errorf("amount must be unsigned decimal")
 	}
-	multiplier := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(6), nil))
-	result := new(big.Float).Mul(bf, multiplier)
-	intResult, _ := result.Int(nil)
-	return intResult, nil
+	parts := strings.Split(s, ".")
+	if len(parts) > 2 {
+		return nil, fmt.Errorf("invalid amount %q", s)
+	}
+	wholePart := parts[0]
+	if wholePart == "" {
+		wholePart = "0"
+	}
+	if !decimalDigitsOnly(wholePart) {
+		return nil, fmt.Errorf("invalid integer part: %s", parts[0])
+	}
+	fracPart := ""
+	if len(parts) == 2 {
+		fracPart = parts[1]
+		if !decimalDigitsOnly(fracPart) {
+			return nil, fmt.Errorf("invalid fractional part: %s", fracPart)
+		}
+		for len(fracPart) > 6 && strings.HasSuffix(fracPart, "0") {
+			fracPart = strings.TrimSuffix(fracPart, "0")
+		}
+		if len(fracPart) > 6 {
+			return nil, fmt.Errorf("pUSD supports at most 6 decimals")
+		}
+	}
+	for len(fracPart) < 6 {
+		fracPart += "0"
+	}
+	whole, ok := new(big.Int).SetString(wholePart, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid integer part: %s", wholePart)
+	}
+	result := new(big.Int).Mul(whole, big.NewInt(1000000))
+	if fracPart != "" {
+		frac, ok := new(big.Int).SetString(fracPart, 10)
+		if !ok {
+			return nil, fmt.Errorf("invalid fractional part: %s", fracPart)
+		}
+		result.Add(result, frac)
+	}
+	return result, nil
+}
+
+func decimalDigitsOnly(s string) bool {
+	if s == "" {
+		return true
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func builderConfigFromEnv() (auth.BuilderConfig, error) {
@@ -846,28 +1213,181 @@ func builderConfigFromEnv() (auth.BuilderConfig, error) {
 	return bc, nil
 }
 
+type relayerClientAuthResult struct {
+	Source      string `json:"source"`
+	AutoMinted  bool   `json:"autoMinted"`
+	PersistedTo string `json:"persistedTo,omitempty"`
+}
+
 // relayerClientFromEnv builds a relayer.Client from environment variables.
 // Prefers the V2 plain-header scheme (RELAYER_API_KEY +
-// RELAYER_API_KEY_ADDRESS, generated by `polygolem auth headless-onboard`)
-// when both are present; falls back to the legacy POLY_BUILDER_* HMAC
-// scheme otherwise.
+// RELAYER_API_KEY_ADDRESS, generated by `polygolem auth login`)
+// when both are present in either process env or a known Polygolem env file;
+// falls back to the legacy POLY_BUILDER_* HMAC scheme otherwise.
 func relayerClientFromEnv() (*relayer.Client, error) {
 	relayerURL := strings.TrimSpace(os.Getenv("POLYMARKET_RELAYER_URL"))
 	if relayerURL == "" {
 		relayerURL = defaultRelayerURL
 	}
 
+	if key, _, ok := relayerV2KeyFromProcessEnv(); ok {
+		return relayer.NewV2(relayerURL, key, 137)
+	}
+
+	if bc, err := builderConfigFromEnv(); err == nil {
+		return relayer.New(relayerURL, bc, 137)
+	}
+	if key, _, ok := relayerV2KeyFromFiles(); ok {
+		return relayer.NewV2(relayerURL, key, 137)
+	}
+	return nil, fmt.Errorf("builder credentials not configured: set POLYMARKET_BUILDER_API_KEY, POLYMARKET_BUILDER_SECRET, and POLYMARKET_BUILDER_PASSPHRASE (or BUILDER_API_KEY / BUILDER_SECRET / BUILDER_PASS_PHRASE)")
+}
+
+func relayerClientForAutomation(ctx context.Context, stderr io.Writer, privateKey string) (*relayer.Client, relayerClientAuthResult, error) {
+	relayerURL := strings.TrimSpace(os.Getenv("POLYMARKET_RELAYER_URL"))
+	if relayerURL == "" {
+		relayerURL = defaultRelayerURL
+	}
+	if key, source, ok := relayerV2KeyFromProcessEnv(); ok {
+		client, err := relayer.NewV2(relayerURL, key, 137)
+		return client, relayerClientAuthResult{Source: source}, err
+	}
+	if bc, err := builderConfigFromEnv(); err == nil {
+		client, err := relayer.New(relayerURL, bc, 137)
+		return client, relayerClientAuthResult{Source: "legacy-builder-env"}, err
+	}
+	if key, source, ok := relayerV2KeyFromFiles(); ok {
+		client, err := relayer.NewV2(relayerURL, key, 137)
+		return client, relayerClientAuthResult{Source: source}, err
+	}
+
+	key, target, err := mintRelayerV2KeyForAutomation(ctx, stderr, privateKey)
+	if err != nil {
+		return nil, relayerClientAuthResult{}, err
+	}
+	client, err := relayer.NewV2(relayerURL, key, 137)
+	return client, relayerClientAuthResult{
+		Source:      "auto-siwe-login",
+		AutoMinted:  true,
+		PersistedTo: target,
+	}, err
+}
+
+func mintRelayerV2KeyForAutomation(ctx context.Context, stderr io.Writer, privateKey string) (relayer.V2APIKey, string, error) {
+	signer, err := auth.NewPrivateKeySigner(privateKey, 137)
+	if err != nil {
+		return relayer.V2APIKey{}, "", fmt.Errorf("init signer: %w", err)
+	}
+	gammaURL := firstNonEmptyCLI(os.Getenv("POLYMARKET_GAMMA_URL"), defaultGammaBaseURL)
+	relayerURL := firstNonEmptyCLI(os.Getenv("POLYMARKET_RELAYER_URL"), defaultRelayerV2BaseURL)
+	if stderr != nil {
+		fmt.Fprintf(stderr, "No relayer credentials loaded; running headless auth login automatically...\n")
+	}
+	loginCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	session, err := auth.NewSIWESession(signer, gammaURL)
+	if err != nil {
+		return relayer.V2APIKey{}, "", fmt.Errorf("new siwe session: %w", err)
+	}
+	if err := session.Login(loginCtx); err != nil {
+		return relayer.V2APIKey{}, "", fmt.Errorf("siwe login: %w", err)
+	}
+	maker, err := auth.MakerAddressForSignatureType(signer.Address(), 137, 3)
+	if err != nil {
+		return relayer.V2APIKey{}, "", fmt.Errorf("derive deposit wallet maker: %w", err)
+	}
+	body := gamma.NewCreateProfileRequest(
+		signer.Address(),
+		maker,
+		"metamask",
+		time.Now().UnixMilli(),
+	)
+	if _, err := gamma.CreateProfile(loginCtx, session.HTTPClient(), gammaURL, body); err != nil && !strings.Contains(err.Error(), "HTTP 409") {
+		return relayer.V2APIKey{}, "", fmt.Errorf("create profile: %w", err)
+	}
+	key, err := relayer.MintV2APIKey(loginCtx, session.HTTPClient(), relayerURL)
+	if err != nil {
+		return relayer.V2APIKey{}, "", fmt.Errorf("mint v2 relayer key: %w", err)
+	}
+	target := relayerEnvFileCandidates()[0]
+	abs, err := filepath.Abs(target)
+	if err != nil {
+		return relayer.V2APIKey{}, "", fmt.Errorf("resolve relayer env file: %w", err)
+	}
+	if err := persistRelayerV2Key(abs, key, true); err != nil {
+		return relayer.V2APIKey{}, "", fmt.Errorf("persist relayer key: %w", err)
+	}
+	_ = os.Setenv("RELAYER_API_KEY", key.Key)
+	_ = os.Setenv("RELAYER_API_KEY_ADDRESS", key.Address)
+	if stderr != nil {
+		fmt.Fprintf(stderr, "Relayer credentials minted and saved to %s\n", abs)
+	}
+	return key, abs, nil
+}
+
+func relayerV2KeyFromProcessEnv() (relayer.V2APIKey, string, bool) {
 	v2Key := strings.TrimSpace(os.Getenv("RELAYER_API_KEY"))
 	v2Addr := strings.TrimSpace(os.Getenv("RELAYER_API_KEY_ADDRESS"))
 	if v2Key != "" && v2Addr != "" {
-		return relayer.NewV2(relayerURL, relayer.V2APIKey{Key: v2Key, Address: v2Addr}, 137)
+		return relayer.V2APIKey{Key: v2Key, Address: v2Addr}, "env", true
 	}
+	return relayer.V2APIKey{}, "", false
+}
 
-	bc, err := builderConfigFromEnv()
-	if err != nil {
-		return nil, err
+func relayerV2KeyFromFiles() (relayer.V2APIKey, string, bool) {
+	for _, path := range relayerEnvFileCandidates() {
+		values, ok := readSimpleEnvFile(path)
+		if !ok {
+			continue
+		}
+		v2Key := strings.TrimSpace(values["RELAYER_API_KEY"])
+		v2Addr := strings.TrimSpace(values["RELAYER_API_KEY_ADDRESS"])
+		if v2Key != "" && v2Addr != "" {
+			return relayer.V2APIKey{Key: v2Key, Address: v2Addr}, path, true
+		}
 	}
-	return relayer.New(relayerURL, bc, 137)
+	return relayer.V2APIKey{}, "", false
+}
+
+func relayerEnvFileCandidates() []string {
+	if override := strings.TrimSpace(os.Getenv("POLYGOLEM_RELAYER_ENV_FILE")); override != "" {
+		return []string{override}
+	}
+	return []string{
+		defaultRelayerEnvFile,
+		"../.env.relayer-v2",
+		".env.relayer-v2",
+		"../go-bot/.env",
+		"../.env",
+		".env",
+	}
+}
+
+func readSimpleEnvFile(path string) (map[string]string, bool) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	out := make(map[string]string)
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		line = strings.TrimPrefix(line, "export ")
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		value = strings.Trim(value, `"'`)
+		if key != "" {
+			out[key] = value
+		}
+	}
+	return out, true
 }
 
 func requirePrivateKey() (string, error) {
@@ -1107,7 +1627,7 @@ positions.`,
 				})
 			}
 
-			rc, err := relayerClientFromEnv()
+			rc, _, err := relayerClientForAutomation(cmd.Context(), cmd.ErrOrStderr(), key)
 			if err != nil {
 				return fmt.Errorf("init relayer client: %w", err)
 			}

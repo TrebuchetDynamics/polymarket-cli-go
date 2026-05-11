@@ -497,7 +497,7 @@ This is **not** a CI step.
 ### Step 1 — Build the latest binary
 
 ```bash
-cd go-bot/polygolem
+cd polygolem
 go build -o polygolem ./cmd/polygolem
 ```
 

@@ -85,6 +85,15 @@ func (c *Client) Market(ctx context.Context, conditionID string) (*types.CLOBMar
 	return marketFromInternal(row), nil
 }
 
+// MarketByToken resolves a token ID to its parent CLOB market IDs.
+func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*types.CLOBMarketByTokenResponse, error) {
+	row, err := c.inner.MarketByToken(ctx, tokenID)
+	if err != nil {
+		return nil, err
+	}
+	return marketByTokenFromInternal(row), nil
+}
+
 // OrderBook returns L2 order-book depth for a token.
 func (c *Client) OrderBook(ctx context.Context, tokenID string) (*types.CLOBOrderBook, error) {
 	row, err := c.inner.OrderBook(ctx, tokenID)
@@ -225,6 +234,17 @@ func marketFromInternal(row *polytypes.CLOBMarket) *types.CLOBMarket {
 	}
 	out := marketValueFromInternal(*row)
 	return &out
+}
+
+func marketByTokenFromInternal(row *polytypes.CLOBMarketByTokenResponse) *types.CLOBMarketByTokenResponse {
+	if row == nil {
+		return nil
+	}
+	return &types.CLOBMarketByTokenResponse{
+		ConditionID:      row.ConditionID,
+		PrimaryTokenID:   row.PrimaryTokenID,
+		SecondaryTokenID: row.SecondaryTokenID,
+	}
 }
 
 func marketsFromInternal(rows []polytypes.CLOBMarket) []types.CLOBMarket {

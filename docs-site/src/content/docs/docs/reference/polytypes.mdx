@@ -129,6 +129,12 @@ type CLOBPaginatedMarkets struct {
     Limit       int          `json:"limit"`
 }
 
+type CLOBMarketByTokenResponse struct {
+    ConditionID      string `json:"condition_id"`
+    PrimaryTokenID   string `json:"primary_token_id"`
+    SecondaryTokenID string `json:"secondary_token_id"`
+}
+
 type PriceHistory struct {
     History []PricePoint `json:"history"`
 }

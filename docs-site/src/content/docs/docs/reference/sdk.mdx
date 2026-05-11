@@ -87,6 +87,7 @@ type Client struct { /* unexported fields */ }
 type Config struct {
     BaseURL string
     BuilderCode string
+    Credentials APIKey
 }
 
 func NewClient(cfg Config) *Client
@@ -100,6 +101,7 @@ func (c *Client) Health(ctx context.Context) error
 func (c *Client) ServerTime(ctx context.Context) (*types.CLOBServerTime, error)
 func (c *Client) Markets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
 func (c *Client) Market(ctx context.Context, conditionID string) (*types.CLOBMarket, error)
+func (c *Client) MarketByToken(ctx context.Context, tokenID string) (*types.CLOBMarketByTokenResponse, error)
 func (c *Client) OrderBook(ctx context.Context, tokenID string) (*types.CLOBOrderBook, error)
 func (c *Client) OrderBooks(ctx context.Context, params []types.CLOBBookParams) ([]types.CLOBOrderBook, error)
 func (c *Client) Price(ctx context.Context, tokenID, side string) (string, error)
@@ -181,6 +183,8 @@ type Config struct {
     ReconnectDelay    time.Duration
     ReconnectMaxDelay time.Duration
     ReconnectMax      int
+    Level             int
+    CustomFeatureEnabled bool
 }
 
 func NewMarketClient(cfg Config) *MarketClient
@@ -209,10 +213,106 @@ type PriceLevel struct
 type PriceChangeMessage struct
 type PriceChangeEntry struct
 type LastTradeMessage struct
+type TickSizeChangeMessage struct
+type BestBidAskMessage struct
+type NewMarketMessage struct
+type MarketResolvedMessage struct
 ```
 
 `pkg/stream` is public market data only. Authenticated user streams are not
-part of this contract.
+part of this contract. Set `Config.CustomFeatureEnabled = true` to request
+top-of-book and market lifecycle events from the V2 market channel.
+
+## `pkg/marketdata` — Live Share-Price Snapshots
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/marketdata"
+```
+
+`pkg/marketdata` consumes public `pkg/stream` market-channel messages and
+maintains the latest normalized view per CLOB token: best bid, best ask,
+midpoint, last trade, and sorted book levels.
+
+### Contract: Types
+
+```go
+type Tracker struct { /* unexported fields */ }
+
+type Snapshot struct {
+    EventType string
+    AssetID string
+    Market string
+    Timestamp string
+    BestBid string
+    BestAsk string
+    Spread string
+    Midpoint string
+    TickSize string
+    PreviousTickSize string
+    LastTradePrice string
+    LastTradeSize string
+    LastTradeSide string
+    TransactionHash string
+    UpdateHash string
+    Bids []Level
+    Asks []Level
+}
+
+type Level struct {
+    Price string
+    Size string
+}
+```
+
+### Contract: Methods
+
+```go
+func NewTracker() *Tracker
+func (t *Tracker) ApplyBook(msg stream.BookMessage) Snapshot
+func (t *Tracker) ApplyPriceChange(msg stream.PriceChangeMessage) []Snapshot
+func (t *Tracker) ApplyLastTrade(msg stream.LastTradeMessage) Snapshot
+func (t *Tracker) ApplyBestBidAsk(msg stream.BestBidAskMessage) Snapshot
+func (t *Tracker) ApplyTickSizeChange(msg stream.TickSizeChangeMessage) Snapshot
+func (t *Tracker) Snapshot(assetID string) (Snapshot, bool)
+```
+
+The CLI surface is `polygolem marketdata live --asset-ids ...`, which wires
+`pkg/stream` into this tracker and emits one enriched JSON snapshot per update.
+
+## `pkg/enabletrading` — Headless Enable Trading
+
+```go
+import "github.com/TrebuchetDynamics/polygolem/pkg/enabletrading"
+```
+
+Builds and signs the same typed-data prompts polymarket.com shows after
+deposit-wallet deployment:
+
+- ClobAuth API-key generation, signed by the EOA.
+- DepositWallet Batch token approvals, signed by the EOA for the deposit wallet.
+
+### Contract: Typed Data Builders
+
+```go
+func BuildClobAuthTypedData(params ClobAuthParams) (*ClobAuthTypedData, error)
+func HashClobAuthTypedData(td *ClobAuthTypedData) ([]byte, error)
+func SignClobAuthTypedData(privateKey string, td *ClobAuthTypedData) (string, error)
+
+func BuildEnableTradingApprovalCalls() []DepositWalletCall
+func BuildEnableTradingApprovalBatchTypedData(params ApprovalBatchParams) (*DepositWalletBatchTypedData, error)
+func SignDepositWalletApprovalBatch(privateKey string, td *DepositWalletBatchTypedData) (string, error)
+func ValidateEnableTradingApprovalCalls(calls []DepositWalletCall) error
+```
+
+### Contract: High-Level Helper
+
+```go
+func EnableTradingHeadless(ctx context.Context, params EnableTradingParams) (*EnableTradingResult, error)
+```
+
+`DryRun` returns typed data and planned actions without signing or submitting.
+Live submission requires callers to provide CLOB and relayer clients through
+the narrow interfaces on `EnableTradingParams`.
 
 ## `pkg/gamma` — Read-Only Market Metadata
 
@@ -536,12 +636,13 @@ func (c *Client) LastTradePrice(ctx context.Context, tokenID string) (string, er
 func (c *Client) LastTradesPrices(ctx context.Context, params []types.CLOBBookParams) (map[string]string, error)
 ```
 
-### Contract: Methods — CLOB Markets (7 methods)
+### Contract: Methods — CLOB Markets (8 methods)
 
 ```go
 func (c *Client) PricesHistory(ctx context.Context, params *types.CLOBPriceHistoryParams) (*types.CLOBPriceHistory, error)
 func (c *Client) CLOBMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
 func (c *Client) CLOBMarket(ctx context.Context, conditionID string) (*types.CLOBMarket, error)
+func (c *Client) CLOBMarketByToken(ctx context.Context, tokenID string) (*types.CLOBMarketByTokenResponse, error)
 func (c *Client) SimplifiedMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
 func (c *Client) SamplingMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
 func (c *Client) SamplingSimplifiedMarkets(ctx context.Context, nextCursor string) (*types.CLOBPaginatedMarkets, error)
@@ -772,6 +873,7 @@ const CollateralOfframp = "0x2957922Eb93258b93368531d39fAcCA3B4dC5854"
 const PermissionedRamp  = "0xebC2459Ec962869ca4c0bd1E06368272732BCb08"
 const PUSD = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
 const CTF = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+const USDCE = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
 
 type Registry struct {
     ChainID int
@@ -788,6 +890,7 @@ type Registry struct {
     PermissionedRamp string
     PUSD string
     CTF string
+    USDCE string
 }
 
 type DeploymentStatus struct {
@@ -893,6 +996,8 @@ func NewSigner(privateKeyHex string, chainID int64) (*PrivateKeySigner, error)
 func BuildApprovalCalls() []DepositWalletCall
 func BuildAdapterApprovalCalls() []DepositWalletCall
 func BuildAdapterApprovalCallsJSON() (string, error)
+func BuildEnableTradingApprovalCalls() []DepositWalletCall
+func BuildEnableTradingApprovalCallsJSON() (string, error)
 func BuildDeadline(secondsFromNow int64) string
 func SignWalletBatch(signer *PrivateKeySigner, walletAddress, nonce, deadline string, calls []DepositWalletCall) (string, error)
 func OnboardDepositWallet(ctx context.Context, client *Client, privateKey string, opts OnboardOptions) (*OnboardResult, error)
@@ -904,6 +1009,8 @@ func DepositWalletCodeDeployed(ctx context.Context, depositWallet string, rpcURL
 `BuildAdapterApprovalCalls` returns the four redeem-readiness approvals
 (pUSD `approve` + CTF `setApprovalForAll` for `CtfCollateralAdapter` and
 `NegRiskCtfCollateralAdapter`). Both batches are idempotent.
+`BuildEnableTradingApprovalCalls` returns the two UI Enable Trading approvals:
+pUSD to CTF and USDC.e to `CollateralOnramp`.
 
 ### Contract: Client Methods
 

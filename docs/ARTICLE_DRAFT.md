@@ -101,7 +101,7 @@ export POLYMARKET_PRIVATE_KEY="0x..."
 ### Step 1: Register Profile + Mint Relayer Key
 
 ```bash
-polygolem auth headless-onboard
+polygolem auth login
 ```
 
 This does: SIWE login → `POST /profiles` → mint V2 relayer key → persist to `.env.relayer-v2`.
@@ -214,10 +214,10 @@ polygolem version
 
 **For developers:** The auth flow is simpler than it looks. Standard EOA ECDSA for L1, ERC-7739 only for order signing. Don't over-engineer what the browser doesn't.
 
-**For automation:** New users still need one browser login to mint the
-deposit-wallet-owned CLOB key. After that boundary is crossed,
-`polygolem auth headless-onboard`, deposit-wallet deploy, approvals, funding,
-orders, cancels, and settlement can run headlessly.
+**For automation:** Polymarket login signs with the EOA; the deposit wallet
+remains the trading wallet. `polygolem auth login`, `builder auto`,
+deposit-wallet deploy, approvals, funding, orders, cancels, and settlement can
+run headlessly.
 
 ---
 
@@ -228,9 +228,9 @@ orders, cancels, and settlement can run headlessly.
 export POLYMARKET_PRIVATE_KEY=$(polygolem auth export-key --generate | jq -r '.privateKey')
 
 # 2. Full headless signup
-polygolem auth headless-onboard
+polygolem auth login
 polygolem deposit-wallet deploy --wait
-polygolem clob create-api-key-for-address --owner $(polygolem deposit-wallet derive | jq -r '.depositWallet')
+polygolem builder auto
 polygolem deposit-wallet onboard --fund-amount 0.71
 
 # 3. Check status

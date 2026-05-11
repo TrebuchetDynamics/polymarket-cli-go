@@ -85,11 +85,18 @@ func SignWalletBatch(signer *auth.PrivateKeySigner, walletAddress string, nonce,
 	return "0x" + hex.EncodeToString(sig), nil
 }
 
+// MinWalletBatchDeadlineSeconds is the shortest WALLET batch validity window
+// we send to the production relayer. Shorter windows can be rejected with
+// "deadline too soon"; polymarket.com currently uses roughly this window for
+// deposit-wallet approvals.
+const MinWalletBatchDeadlineSeconds int64 = 1800
+
 // BuildDeadline returns a deadline string for a WALLET batch, defaulting to
-// now + 240 seconds (matching the TypeScript relayer client behavior).
+// now + MinWalletBatchDeadlineSeconds and clamping shorter caller-provided
+// windows up to that minimum.
 func BuildDeadline(secondsFromNow int64) string {
-	if secondsFromNow <= 0 {
-		secondsFromNow = 240
+	if secondsFromNow < MinWalletBatchDeadlineSeconds {
+		secondsFromNow = MinWalletBatchDeadlineSeconds
 	}
 	return fmt.Sprintf("%d", time.Now().Unix()+secondsFromNow)
 }

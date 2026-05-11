@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 	"github.com/TrebuchetDynamics/polygolem/internal/transport"
 )
 
@@ -37,6 +38,35 @@ func TestOrderBookGetUsesReadOnlyEndpoint(t *testing.T) {
 	}
 }
 
+func TestMarketByTokenCallsV2Endpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if r.URL.Path != "/markets-by-token/token-1" {
+			t.Fatalf("path = %q, want /markets-by-token/token-1", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"condition_id":"condition-1",
+			"primary_token_id":"token-yes",
+			"secondary_token_id":"token-no"
+		}`))
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	got, err := client.MarketByToken(context.Background(), "token-1")
+	if err != nil {
+		t.Fatalf("MarketByToken returned error: %v", err)
+	}
+	if got.ConditionID != "condition-1" || got.PrimaryTokenID != "token-yes" || got.SecondaryTokenID != "token-no" {
+		t.Fatalf("unexpected market-by-token response: %+v", got)
+	}
+}
+
 func TestPriceCallsCorrectEndpoint(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("token_id") != "abc" {
@@ -59,6 +89,33 @@ func TestPriceCallsCorrectEndpoint(t *testing.T) {
 	}
 	if price != "0.52" {
 		t.Fatalf("Price = %q, want 0.52", price)
+	}
+}
+
+func TestPricesDoesNotFallbackToLegacyEndpoint(t *testing.T) {
+	var sawLegacy bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/prices":
+			http.Error(w, "upstream unavailable", http.StatusBadGateway)
+		case "/prices-post":
+			sawLegacy = true
+			http.Error(w, "legacy endpoint must not be called", http.StatusTeapot)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	_, err := client.Prices(context.Background(), []polytypes.BookParams{{TokenID: "token-1", Side: "BUY"}})
+	if err == nil {
+		t.Fatal("expected /prices error")
+	}
+	if sawLegacy {
+		t.Fatal("Prices called legacy /prices-post fallback; V2-only clients must not")
 	}
 }
 

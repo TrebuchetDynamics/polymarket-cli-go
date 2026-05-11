@@ -1,13 +1,13 @@
 ---
 title: Bridge & Funding
-description: Use the polygolem bridge command to inspect supported assets, get quotes, and create deposit addresses for Polymarket funding.
+description: Use the polygolem bridge command to inspect supported assets and create deposit addresses for Polymarket funding.
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
 The `polygolem bridge` family wraps Polymarket's Bridge API. Use it to discover
-supported chains, request a quote, and create a deposit address that the bridge
-will sweep into Polygon-native USDC.
+supported chains and create a deposit address that the bridge will credit as
+pUSD on Polygon.
 
 <Aside type="caution">
 For accounts created **after May 2026**, bridging USDC to your EOA is _not_
@@ -25,71 +25,56 @@ polygolem bridge assets
 
 ```json
 {
-  "assets": [
-    { "chain": "ethereum", "symbol": "USDC", "decimals": 6 },
-    { "chain": "arbitrum", "symbol": "USDC", "decimals": 6 },
-    { "chain": "base",     "symbol": "USDC", "decimals": 6 }
+  "supportedAssets": [
+    {
+      "chainId": "8453",
+      "chainName": "Base",
+      "token": {
+        "name": "USD Coin",
+        "symbol": "USDC",
+        "address": "0x...",
+        "decimals": 6
+      },
+      "minCheckoutUsd": 45
+    }
   ]
-}
-```
-
-## Get a quote
-
-Estimate fees and expected pUSD on the receiving side:
-
-```bash
-polygolem bridge quote \
-  --from-chain base \
-  --from-asset USDC \
-  --amount 50.00
-```
-
-```json
-{
-  "from_amount": "50.00",
-  "to_amount":   "49.92",
-  "fee":         "0.08",
-  "estimated_seconds": 90
 }
 ```
 
 ## Create a deposit address
 
 The bridge issues a one-shot address scoped to your destination wallet. Send
-USDC to this address from the chosen source chain, and the bridge sweeps it to
-Polygon:
+supported collateral to this address from the chosen source chain, and the
+bridge credits pUSD to the destination wallet on Polygon:
 
 ```bash
-polygolem bridge deposit-address \
-  --address 0xYourPolygonAddress \
-  --from-chain base \
-  --from-asset USDC
+polygolem bridge deposit 0xYourPolymarketWallet
 ```
 
 ```json
 {
-  "deposit_address": "0x...",
-  "expires_at":      1746628800,
-  "chain":           "base",
-  "asset":           "USDC"
+  "address": {
+    "evm": "0x...",
+    "svm": "...",
+    "btc": "bc1..."
+  },
+  "note": "Only certain chains and tokens are supported. See /supported-assets for details."
 }
 ```
 
-## Check deposit status
+## Quote and status SDK methods
 
-After you send funds, poll for sweep state:
+The public Go SDK also wraps `POST /quote` and `GET /status/{address}`:
 
-```bash
-polygolem bridge deposit-status --deposit-address 0x...
+```go
+client := bridge.NewClient("", nil)
+quote, err := client.GetQuote(ctx, bridge.QuoteRequest{ /* ... */ })
+status, err := client.GetDepositStatus(ctx, depositAddress)
 ```
 
-```json
-{
-  "status": "completed",
-  "tx_hash": "0x...",
-  "amount":  "49.92"
-}
-```
+Those endpoints do not have CLI commands yet. Use
+[Bridge API](/docs/reference/bridge-api) for the exact request and response
+contracts.
 
 ## What's next after bridging
 
@@ -107,4 +92,5 @@ explanation.
 
 - `polygolem bridge --help` — every flag
 - [`docs/COMMANDS.md`](https://github.com/TrebuchetDynamics/polygolem/blob/main/docs/COMMANDS.md) — canonical command list
+- [Bridge API](/docs/reference/bridge-api) — endpoint mapping
 - [Deposit Wallets & Signature Types](/concepts/deposit-wallets) — required for post-May-2026 accounts

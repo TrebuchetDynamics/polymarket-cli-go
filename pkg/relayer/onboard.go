@@ -20,7 +20,8 @@ type OnboardOptions struct {
 	DeployPollMaxAttempts int
 	// DeployPollInterval controls deploy polling. Defaults to 2 seconds.
 	DeployPollInterval time.Duration
-	// ApprovalDeadlineSeconds is passed to BuildDeadline. Defaults to 240.
+	// ApprovalDeadlineSeconds is passed to BuildDeadline. Values shorter than
+	// MinWalletBatchDeadlineSeconds are clamped to the relayer-safe minimum.
 	ApprovalDeadlineSeconds int64
 }
 

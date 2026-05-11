@@ -2,8 +2,11 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -37,6 +40,7 @@ func TestRelayerClientFromEnvPrefersV2(t *testing.T) {
 
 func TestRelayerClientFromEnvFallsBackToLegacy(t *testing.T) {
 	t.Setenv("POLYMARKET_RELAYER_URL", "https://relayer-v2.example.com")
+	t.Setenv("POLYGOLEM_RELAYER_ENV_FILE", filepath.Join(t.TempDir(), "missing.env"))
 	t.Setenv("RELAYER_API_KEY", "")
 	t.Setenv("RELAYER_API_KEY_ADDRESS", "")
 	t.Setenv("POLYMARKET_BUILDER_API_KEY", "legacy-key")
@@ -53,6 +57,7 @@ func TestRelayerClientFromEnvFallsBackToLegacy(t *testing.T) {
 }
 
 func TestRelayerClientFromEnvErrorsWhenNoCredsAtAll(t *testing.T) {
+	t.Setenv("POLYGOLEM_RELAYER_ENV_FILE", filepath.Join(t.TempDir(), "missing.env"))
 	t.Setenv("RELAYER_API_KEY", "")
 	t.Setenv("RELAYER_API_KEY_ADDRESS", "")
 	t.Setenv("POLYMARKET_BUILDER_API_KEY", "")
@@ -72,6 +77,7 @@ func TestRelayerClientFromEnvIgnoresPartialV2(t *testing.T) {
 	// legacy. (Legacy creds also missing here, so we expect an error.)
 	t.Setenv("RELAYER_API_KEY", "v2-uuid")
 	t.Setenv("RELAYER_API_KEY_ADDRESS", "")
+	t.Setenv("POLYGOLEM_RELAYER_ENV_FILE", filepath.Join(t.TempDir(), "missing.env"))
 	t.Setenv("POLYMARKET_BUILDER_API_KEY", "")
 	t.Setenv("POLYMARKET_BUILDER_SECRET", "")
 	t.Setenv("POLYMARKET_BUILDER_PASSPHRASE", "")
@@ -82,6 +88,61 @@ func TestRelayerClientFromEnvIgnoresPartialV2(t *testing.T) {
 	if _, err := relayerClientFromEnv(); err == nil {
 		t.Fatal("expected error when V2 is partial and legacy is missing")
 	}
+}
+
+func TestRelayerClientFromEnvLoadsRelayerKeyFromEnvFile(t *testing.T) {
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, ".env.relayer-v2")
+	if err := os.WriteFile(envFile, []byte("RELAYER_API_KEY=file-key\nRELAYER_API_KEY_ADDRESS=0xabc\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("POLYGOLEM_RELAYER_ENV_FILE", envFile)
+	t.Setenv("RELAYER_API_KEY", "")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "")
+	t.Setenv("POLYMARKET_BUILDER_API_KEY", "")
+	t.Setenv("POLYMARKET_BUILDER_SECRET", "")
+	t.Setenv("POLYMARKET_BUILDER_PASSPHRASE", "")
+
+	rc, err := relayerClientFromEnv()
+	if err != nil {
+		t.Fatalf("relayerClientFromEnv with env file: %v", err)
+	}
+	if rc == nil {
+		t.Fatal("returned nil client")
+	}
+}
+
+func TestParsePUSDAmountUsesExactSixDecimalBaseUnits(t *testing.T) {
+	tests := map[string]string{
+		"3.053937":  "3053937",
+		"3.0539370": "3053937",
+		"0.000001":  "1",
+		"42":        "42000000",
+	}
+	for input, want := range tests {
+		got, err := parsePUSDAmount(input)
+		if err != nil {
+			t.Fatalf("parsePUSDAmount(%q): %v", input, err)
+		}
+		if got.String() != want {
+			t.Fatalf("parsePUSDAmount(%q)=%s, want %s", input, got, want)
+		}
+	}
+}
+
+func TestParsePUSDAmountRejectsTooManyNonZeroDecimals(t *testing.T) {
+	if _, err := parsePUSDAmount("0.0000001"); err == nil {
+		t.Fatal("expected error for sub-micro pUSD amount")
+	}
+}
+
+func mustReadFileForTest(t *testing.T, path string) string {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return string(raw)
 }
 
 func TestDepositWalletStatusOutputsWalletNonce(t *testing.T) {
@@ -324,6 +385,426 @@ func TestDepositWalletApproveAdaptersSubmitsBatch(t *testing.T) {
 	}
 	if v, _ := data["approvals"].(float64); v != 4 {
 		t.Fatalf("approvals=%v want 4", data["approvals"])
+	}
+}
+
+func TestDepositWalletOnboardIncludesEnableTradingSigns(t *testing.T) {
+	const privateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	submitCallCounts := make([]int, 0, 2)
+	nonce := 40
+	relayerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/nonce":
+			nonce++
+			_ = json.NewEncoder(w).Encode(map[string]any{"nonce": fmt.Sprintf("%d", nonce)})
+		case "/submit":
+			var body struct {
+				DepositWalletParams struct {
+					Calls []map[string]string `json:"calls"`
+				} `json:"depositWalletParams"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("decode submit body: %v", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			submitCallCounts = append(submitCallCounts, len(body.DepositWalletParams.Calls))
+			switch len(submitCallCounts) {
+			case 1:
+				if len(body.DepositWalletParams.Calls) != 10 {
+					t.Errorf("first batch call count=%d want 10", len(body.DepositWalletParams.Calls))
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"transactionID": "tx-standard-approve", "state": "STATE_NEW"})
+			case 2:
+				if len(body.DepositWalletParams.Calls) != 2 {
+					t.Errorf("second batch call count=%d want 2", len(body.DepositWalletParams.Calls))
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"transactionID": "tx-enable-trading", "state": "STATE_NEW"})
+			default:
+				t.Errorf("unexpected extra submit call %d", len(submitCallCounts))
+				http.Error(w, "unexpected submit", http.StatusTeapot)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer relayerSrv.Close()
+
+	clobSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/api-key":
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "clob-key",
+				"secret":     "clob-secret",
+				"passphrase": "clob-pass",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer clobSrv.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", privateKey)
+	t.Setenv("POLYMARKET_RELAYER_URL", relayerSrv.URL)
+	t.Setenv("POLYMARKET_CLOB_URL", clobSrv.URL)
+	t.Setenv("RELAYER_API_KEY", "v2-uuid")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "0xabc")
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "onboard", "--skip-deploy")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false envelope=%s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("data decode: %v\n%s", err, got.Data)
+	}
+	enableTrading, ok := data["enableTrading"].(map[string]any)
+	if !ok {
+		t.Fatalf("enableTrading result missing: %v", data)
+	}
+	if enableTrading["clobAuthSigned"] != true || enableTrading["apiKeysCreatedOrDerived"] != true || enableTrading["tokenApprovalsSigned"] != true || enableTrading["tokenApprovalsSubmitted"] != true {
+		t.Fatalf("enableTrading flags unexpected: %v", enableTrading)
+	}
+	if enableTrading["callCount"] != float64(2) {
+		t.Fatalf("enableTrading callCount=%v want 2", enableTrading["callCount"])
+	}
+	if len(submitCallCounts) != 2 || submitCallCounts[0] != 10 || submitCallCounts[1] != 2 {
+		t.Fatalf("submit call counts=%v want [10 2]", submitCallCounts)
+	}
+}
+
+func TestDepositWalletEnableTradingSubmitsSigns(t *testing.T) {
+	const privateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	var submitCalls int
+	relayerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/nonce":
+			_ = json.NewEncoder(w).Encode(map[string]any{"nonce": "51"})
+		case "/submit":
+			submitCalls++
+			var body struct {
+				DepositWalletParams struct {
+					Calls []map[string]string `json:"calls"`
+				} `json:"depositWalletParams"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("decode submit body: %v", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if len(body.DepositWalletParams.Calls) != 2 {
+				t.Errorf("enable-trading call count=%d want 2", len(body.DepositWalletParams.Calls))
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"transactionID": "tx-enable-trading", "state": "STATE_NEW"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer relayerSrv.Close()
+
+	clobSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/api-key":
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "clob-key",
+				"secret":     "clob-secret",
+				"passphrase": "clob-pass",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer clobSrv.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", privateKey)
+	t.Setenv("POLYMARKET_RELAYER_URL", relayerSrv.URL)
+	t.Setenv("POLYMARKET_CLOB_URL", clobSrv.URL)
+	t.Setenv("RELAYER_API_KEY", "v2-uuid")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "0xabc")
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "enable-trading")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false envelope=%s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("data decode: %v\n%s", err, got.Data)
+	}
+	if data["clobAuthSigned"] != true || data["apiKeysCreatedOrDerived"] != true || data["tokenApprovalsSubmitted"] != true {
+		t.Fatalf("enable-trading flags unexpected: %v", data)
+	}
+	if data["callCount"] != float64(2) {
+		t.Fatalf("callCount=%v want 2", data["callCount"])
+	}
+	if submitCalls != 1 {
+		t.Fatalf("submitCalls=%d want 1", submitCalls)
+	}
+}
+
+func TestDepositWalletEnableTradingDryRunDoesNotSubmit(t *testing.T) {
+	const privateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	var submitCalls int
+	relayerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/nonce":
+			_ = json.NewEncoder(w).Encode(map[string]any{"nonce": "52"})
+		case "/submit":
+			submitCalls++
+			http.Error(w, "unexpected submit", http.StatusTeapot)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer relayerSrv.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", privateKey)
+	t.Setenv("POLYMARKET_RELAYER_URL", relayerSrv.URL)
+	t.Setenv("RELAYER_API_KEY", "v2-uuid")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "0xabc")
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "enable-trading", "--dry-run")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false envelope=%s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("data decode: %v\n%s", err, got.Data)
+	}
+	if data["dryRun"] != true || data["wouldSubmitApprovals"] != true || data["approvalBatchSignable"] != true {
+		t.Fatalf("dry-run data unexpected: %v", data)
+	}
+	if submitCalls != 0 {
+		t.Fatalf("submitCalls=%d want 0", submitCalls)
+	}
+}
+
+func TestDepositWalletEnableTradingAutoMintsRelayerKeyWhenMissing(t *testing.T) {
+	const privateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	envFile := filepath.Join(t.TempDir(), ".env.relayer-v2")
+	var authMinted bool
+	var submitCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/nonce":
+			if r.URL.Query().Get("type") == "WALLET" {
+				_ = json.NewEncoder(w).Encode(map[string]any{"nonce": "61"})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]string{"nonce": "siwe-nonce"})
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "polymarket_session", Value: "session"})
+			_, _ = w.Write([]byte(`{"ok":true}`))
+		case "/profiles":
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "profile-1", "proxyWallet": "0xproxy"})
+		case "/relayer/api/auth":
+			authMinted = true
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":    "auto-relayer-key",
+				"address":   "0x2c7536E3605D9C16a7a3D7b1898e529396a65c23",
+				"createdAt": "2026-05-10T00:00:00Z",
+			})
+		case "/submit":
+			submitCalls++
+			_ = json.NewEncoder(w).Encode(map[string]any{"transactionID": "tx-enable-trading", "state": "STATE_NEW"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	clobSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/api-key":
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "clob-key",
+				"secret":     "clob-secret",
+				"passphrase": "clob-pass",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer clobSrv.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", privateKey)
+	t.Setenv("POLYGOLEM_RELAYER_ENV_FILE", envFile)
+	t.Setenv("POLYMARKET_GAMMA_URL", server.URL)
+	t.Setenv("POLYMARKET_RELAYER_URL", server.URL)
+	t.Setenv("POLYMARKET_CLOB_URL", clobSrv.URL)
+	t.Setenv("RELAYER_API_KEY", "")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "")
+	t.Setenv("POLYMARKET_BUILDER_API_KEY", "")
+	t.Setenv("POLYMARKET_BUILDER_SECRET", "")
+	t.Setenv("POLYMARKET_BUILDER_PASSPHRASE", "")
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "enable-trading")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false envelope=%s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("data decode: %v\n%s", err, got.Data)
+	}
+	if !authMinted {
+		t.Fatal("expected automatic relayer auth mint")
+	}
+	if submitCalls != 1 {
+		t.Fatalf("submitCalls=%d want 1", submitCalls)
+	}
+	if !strings.Contains(mustReadFileForTest(t, envFile), "RELAYER_API_KEY=auto-relayer-key") {
+		t.Fatalf("auto-minted relayer key was not persisted to %s", envFile)
+	}
+}
+
+func TestDepositWalletStatusCheckEnableTradingValidatesSignaturesAndAllowances(t *testing.T) {
+	const privateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	relayerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/deployed":
+			_ = json.NewEncoder(w).Encode(map[string]any{"deployed": true})
+		case "/nonce":
+			_ = json.NewEncoder(w).Encode(map[string]any{"nonce": "9"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer relayerSrv.Close()
+
+	rpcSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Method string `json:"method"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode rpc body: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if body.Method != "eth_call" {
+			t.Errorf("method=%q want eth_call", body.Method)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"result":  "0x" + strings.Repeat("f", 64),
+		})
+	}))
+	defer rpcSrv.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", privateKey)
+	t.Setenv("POLYMARKET_RELAYER_URL", relayerSrv.URL)
+	t.Setenv("POLYGON_RPC_URL", rpcSrv.URL)
+	t.Setenv("RELAYER_API_KEY", "v2-uuid")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "0xabc")
+	t.Setenv("POLYMARKET_CLOB_API_KEY", "configured-clob-key")
+	t.Setenv("POLYMARKET_CLOB_SECRET", "configured-clob-secret")
+	t.Setenv("POLYMARKET_CLOB_PASSPHRASE", "configured-clob-pass")
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "status", "--check-enable-trading")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false envelope=%s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("data decode: %v\n%s", err, got.Data)
+	}
+	enableTrading, ok := data["enableTrading"].(map[string]any)
+	if !ok {
+		t.Fatalf("enableTrading validation missing: %v", data)
+	}
+	if enableTrading["clobAuthSignable"] != true || enableTrading["approvalBatchSignable"] != true || enableTrading["tokenApprovalsReady"] != true || enableTrading["ready"] != true {
+		t.Fatalf("enableTrading validation unexpected: %v", enableTrading)
+	}
+	checks, ok := enableTrading["approvalChecks"].([]any)
+	if !ok || len(checks) != 2 {
+		t.Fatalf("approvalChecks=%v want 2 checks", enableTrading["approvalChecks"])
+	}
+}
+
+func TestDepositWalletStatusCheckEnableTradingTreatsDerivableCLOBKeyAsReady(t *testing.T) {
+	const privateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+	relayerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/deployed":
+			_ = json.NewEncoder(w).Encode(map[string]any{"deployed": true})
+		case "/nonce":
+			_ = json.NewEncoder(w).Encode(map[string]any{"nonce": "10"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer relayerSrv.Close()
+
+	rpcSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"result":  "0x" + strings.Repeat("f", 64),
+		})
+	}))
+	defer rpcSrv.Close()
+
+	clobSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"apiKey":     "derived-clob-key",
+				"secret":     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"passphrase": "derived-pass",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer clobSrv.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", privateKey)
+	t.Setenv("POLYMARKET_RELAYER_URL", relayerSrv.URL)
+	t.Setenv("POLYGON_RPC_URL", rpcSrv.URL)
+	t.Setenv("POLYMARKET_CLOB_URL", clobSrv.URL)
+	t.Setenv("RELAYER_API_KEY", "v2-uuid")
+	t.Setenv("RELAYER_API_KEY_ADDRESS", "0xabc")
+	t.Setenv("POLYMARKET_CLOB_API_KEY", "")
+	t.Setenv("POLYMARKET_CLOB_SECRET", "")
+	t.Setenv("POLYMARKET_CLOB_PASSPHRASE", "")
+
+	stdout, stderr, err := executeRootForTest("--json", "deposit-wallet", "status", "--check-enable-trading")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v\nstderr:\n%s", err, stderr)
+	}
+	got := parseJSONEnvelopeForTest(t, stdout)
+	if !got.OK {
+		t.Fatalf("ok=false envelope=%s", stdout)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(got.Data, &data); err != nil {
+		t.Fatalf("data decode: %v\n%s", err, got.Data)
+	}
+	enableTrading, ok := data["enableTrading"].(map[string]any)
+	if !ok {
+		t.Fatalf("enableTrading validation missing: %v", data)
+	}
+	if enableTrading["clobCredentialsReady"] != true || enableTrading["clobCredentialsSource"] != "derived" || enableTrading["ready"] != true {
+		t.Fatalf("enableTrading validation unexpected: %v", enableTrading)
 	}
 }
 

@@ -98,6 +98,121 @@ func TestMarketClientSubscribeAndDispatchesPublicDTOs(t *testing.T) {
 	}
 }
 
+func TestMarketClientSubscribeWithCustomFeaturesAndDispatchesV2MarketEvents(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	receivedSubscribe := make(chan map[string]interface{}, 1)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		var sub map[string]interface{}
+		if err := conn.ReadJSON(&sub); err != nil {
+			t.Errorf("read subscribe: %v", err)
+			return
+		}
+		receivedSubscribe <- sub
+
+		_ = conn.WriteJSON(map[string]interface{}{
+			"event_type":    "tick_size_change",
+			"asset_id":      "token-1",
+			"market":        "condition-1",
+			"old_tick_size": "0.01",
+			"new_tick_size": "0.001",
+			"timestamp":     "1757908892351",
+		})
+		_ = conn.WriteJSON(map[string]interface{}{
+			"event_type": "best_bid_ask",
+			"asset_id":   "token-1",
+			"market":     "condition-1",
+			"best_bid":   "0.73",
+			"best_ask":   "0.77",
+			"spread":     "0.04",
+			"timestamp":  "1766789469958",
+		})
+		_ = conn.WriteJSON(map[string]interface{}{
+			"event_type": "market_resolved",
+			"id":         "1031769",
+			"market":     "condition-1",
+			"assets_ids": []string{"token-yes", "token-no"},
+			"timestamp":  "1766790415550",
+			"tags":       []string{"stocks"},
+		})
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	client := NewMarketClient(Config{
+		URL:                  wsURL,
+		PingInterval:         time.Hour,
+		PongTimeout:          time.Second,
+		Reconnect:            false,
+		CustomFeatureEnabled: true,
+		Level:                2,
+	})
+
+	gotTick := make(chan TickSizeChangeMessage, 1)
+	gotBest := make(chan BestBidAskMessage, 1)
+	gotResolved := make(chan MarketResolvedMessage, 1)
+	client.OnTickSizeChange = func(msg TickSizeChangeMessage) { gotTick <- msg }
+	client.OnBestBidAsk = func(msg BestBidAskMessage) { gotBest <- msg }
+	client.OnMarketResolved = func(msg MarketResolvedMessage) { gotResolved <- msg }
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := client.Connect(ctx); err != nil {
+		t.Fatalf("Connect returned error: %v", err)
+	}
+	defer client.Close()
+	if err := client.SubscribeAssets(ctx, []string{"token-1"}); err != nil {
+		t.Fatalf("SubscribeAssets returned error: %v", err)
+	}
+
+	select {
+	case sub := <-receivedSubscribe:
+		if sub["type"] != "market" {
+			t.Fatalf("type = %v, want market", sub["type"])
+		}
+		if sub["custom_feature_enabled"] != true {
+			t.Fatalf("custom_feature_enabled = %v, want true", sub["custom_feature_enabled"])
+		}
+		if sub["level"] != float64(2) {
+			t.Fatalf("level = %v, want 2", sub["level"])
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for subscribe payload")
+	}
+
+	select {
+	case msg := <-gotTick:
+		if msg.NewTickSize != "0.001" || msg.OldTickSize != "0.01" {
+			t.Fatalf("unexpected tick-size event: %+v", msg)
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for tick-size event")
+	}
+	select {
+	case msg := <-gotBest:
+		if msg.BestBid != "0.73" || msg.BestAsk != "0.77" || msg.Spread != "0.04" {
+			t.Fatalf("unexpected best-bid-ask event: %+v", msg)
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for best-bid-ask event")
+	}
+	select {
+	case msg := <-gotResolved:
+		if msg.ID != "1031769" || len(msg.AssetIDs) != 2 || msg.Tags[0] != "stocks" {
+			t.Fatalf("unexpected market-resolved event: %+v", msg)
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for market-resolved event")
+	}
+}
+
 func TestMarketStreamDTOsUnmarshalCurrentFields(t *testing.T) {
 	var trade LastTradeMessage
 	if err := json.Unmarshal([]byte(`{

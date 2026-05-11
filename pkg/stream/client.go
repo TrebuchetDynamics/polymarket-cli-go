@@ -17,13 +17,15 @@ const defaultMarketURL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 
 // Config holds WebSocket connection configuration.
 type Config struct {
-	URL               string
-	PingInterval      time.Duration
-	PongTimeout       time.Duration
-	Reconnect         bool
-	ReconnectDelay    time.Duration
-	ReconnectMaxDelay time.Duration
-	ReconnectMax      int
+	URL                  string
+	PingInterval         time.Duration
+	PongTimeout          time.Duration
+	Reconnect            bool
+	ReconnectDelay       time.Duration
+	ReconnectMaxDelay    time.Duration
+	ReconnectMax         int
+	Level                int
+	CustomFeatureEnabled bool
 }
 
 // DefaultConfig returns production market-stream defaults. Pass an empty URL
@@ -40,10 +42,14 @@ func DefaultConfig(url string) Config {
 type MarketClient struct {
 	inner *internalstream.MarketClient
 
-	OnBook        func(BookMessage)
-	OnPriceChange func(PriceChangeMessage)
-	OnLastTrade   func(LastTradeMessage)
-	OnError       func(error)
+	OnBook           func(BookMessage)
+	OnPriceChange    func(PriceChangeMessage)
+	OnLastTrade      func(LastTradeMessage)
+	OnTickSizeChange func(TickSizeChangeMessage)
+	OnBestBidAsk     func(BestBidAskMessage)
+	OnNewMarket      func(NewMarketMessage)
+	OnMarketResolved func(MarketResolvedMessage)
+	OnError          func(error)
 }
 
 // NewMarketClient creates a public market WebSocket client. A zero-valued
@@ -67,6 +73,26 @@ func NewMarketClient(cfg Config) *MarketClient {
 	inner.OnLastTrade = func(msg internalstream.LastTradeMessage) {
 		if client.OnLastTrade != nil {
 			client.OnLastTrade(lastTradeFromInternal(msg))
+		}
+	}
+	inner.OnTickSizeChange = func(msg internalstream.TickSizeChangeMessage) {
+		if client.OnTickSizeChange != nil {
+			client.OnTickSizeChange(tickSizeChangeFromInternal(msg))
+		}
+	}
+	inner.OnBestBidAsk = func(msg internalstream.BestBidAskMessage) {
+		if client.OnBestBidAsk != nil {
+			client.OnBestBidAsk(bestBidAskFromInternal(msg))
+		}
+	}
+	inner.OnNewMarket = func(msg internalstream.NewMarketMessage) {
+		if client.OnNewMarket != nil {
+			client.OnNewMarket(newMarketFromInternal(msg))
+		}
+	}
+	inner.OnMarketResolved = func(msg internalstream.MarketResolvedMessage) {
+		if client.OnMarketResolved != nil {
+			client.OnMarketResolved(marketResolvedFromInternal(msg))
 		}
 	}
 	inner.OnError = func(err error) {
@@ -147,6 +173,65 @@ type LastTradeMessage struct {
 	TransactionHash string `json:"transaction_hash,omitempty"`
 }
 
+// TickSizeChangeMessage is a WebSocket tick-size update event.
+type TickSizeChangeMessage struct {
+	EventType   string `json:"event_type"`
+	AssetID     string `json:"asset_id"`
+	Market      string `json:"market"`
+	OldTickSize string `json:"old_tick_size"`
+	NewTickSize string `json:"new_tick_size"`
+	Timestamp   string `json:"timestamp"`
+}
+
+// BestBidAskMessage is a top-of-book update event.
+type BestBidAskMessage struct {
+	EventType string `json:"event_type"`
+	AssetID   string `json:"asset_id"`
+	Market    string `json:"market"`
+	BestBid   string `json:"best_bid"`
+	BestAsk   string `json:"best_ask"`
+	Spread    string `json:"spread"`
+	Timestamp string `json:"timestamp"`
+}
+
+// NewMarketMessage is a market lifecycle creation event.
+type NewMarketMessage struct {
+	EventType             string                 `json:"event_type"`
+	ID                    string                 `json:"id"`
+	Question              string                 `json:"question"`
+	Market                string                 `json:"market"`
+	Slug                  string                 `json:"slug"`
+	Description           string                 `json:"description"`
+	AssetIDs              []string               `json:"assets_ids"`
+	Outcomes              []string               `json:"outcomes"`
+	EventMessage          map[string]interface{} `json:"event_message,omitempty"`
+	Timestamp             string                 `json:"timestamp"`
+	Tags                  []string               `json:"tags"`
+	ConditionID           string                 `json:"condition_id"`
+	CLOBTokenIDs          []string               `json:"clob_token_ids"`
+	Active                bool                   `json:"active"`
+	SportsMarketType      string                 `json:"sports_market_type,omitempty"`
+	Line                  string                 `json:"line,omitempty"`
+	GameStartTime         string                 `json:"game_start_time,omitempty"`
+	OrderPriceMinTickSize string                 `json:"order_price_min_tick_size,omitempty"`
+	GroupItemTitle        string                 `json:"group_item_title,omitempty"`
+	TakerBaseFee          string                 `json:"taker_base_fee,omitempty"`
+	FeesEnabled           bool                   `json:"fees_enabled,omitempty"`
+	FeeSchedule           map[string]interface{} `json:"fee_schedule,omitempty"`
+}
+
+// MarketResolvedMessage is a market lifecycle resolution event.
+type MarketResolvedMessage struct {
+	EventType      string   `json:"event_type"`
+	ID             string   `json:"id"`
+	Market         string   `json:"market"`
+	AssetIDs       []string `json:"assets_ids"`
+	WinningAssetID string   `json:"winning_asset_id"`
+	WinningOutcome string   `json:"winning_outcome"`
+	Timestamp      string   `json:"timestamp"`
+	Tags           []string `json:"tags"`
+}
+
 // Deduplicator removes duplicate raw WebSocket messages.
 type Deduplicator struct {
 	inner *internalstream.Deduplicator
@@ -174,25 +259,29 @@ func (d *Deduplicator) Stats() (in, dup, out int64) {
 
 func configToInternal(cfg Config) internalstream.Config {
 	return internalstream.Config{
-		URL:               cfg.URL,
-		PingInterval:      cfg.PingInterval,
-		PongTimeout:       cfg.PongTimeout,
-		Reconnect:         cfg.Reconnect,
-		ReconnectDelay:    cfg.ReconnectDelay,
-		ReconnectMaxDelay: cfg.ReconnectMaxDelay,
-		ReconnectMax:      cfg.ReconnectMax,
+		URL:                  cfg.URL,
+		PingInterval:         cfg.PingInterval,
+		PongTimeout:          cfg.PongTimeout,
+		Reconnect:            cfg.Reconnect,
+		ReconnectDelay:       cfg.ReconnectDelay,
+		ReconnectMaxDelay:    cfg.ReconnectMaxDelay,
+		ReconnectMax:         cfg.ReconnectMax,
+		Level:                cfg.Level,
+		CustomFeatureEnabled: cfg.CustomFeatureEnabled,
 	}
 }
 
 func configFromInternal(cfg internalstream.Config) Config {
 	return Config{
-		URL:               cfg.URL,
-		PingInterval:      cfg.PingInterval,
-		PongTimeout:       cfg.PongTimeout,
-		Reconnect:         cfg.Reconnect,
-		ReconnectDelay:    cfg.ReconnectDelay,
-		ReconnectMaxDelay: cfg.ReconnectMaxDelay,
-		ReconnectMax:      cfg.ReconnectMax,
+		URL:                  cfg.URL,
+		PingInterval:         cfg.PingInterval,
+		PongTimeout:          cfg.PongTimeout,
+		Reconnect:            cfg.Reconnect,
+		ReconnectDelay:       cfg.ReconnectDelay,
+		ReconnectMaxDelay:    cfg.ReconnectMaxDelay,
+		ReconnectMax:         cfg.ReconnectMax,
+		Level:                cfg.Level,
+		CustomFeatureEnabled: cfg.CustomFeatureEnabled,
 	}
 }
 
@@ -255,5 +344,68 @@ func lastTradeFromInternal(msg internalstream.LastTradeMessage) LastTradeMessage
 		FeeRateBps:      msg.FeeRateBps,
 		Timestamp:       msg.Timestamp,
 		TransactionHash: msg.TransactionHash,
+	}
+}
+
+func tickSizeChangeFromInternal(msg internalstream.TickSizeChangeMessage) TickSizeChangeMessage {
+	return TickSizeChangeMessage{
+		EventType:   msg.EventType,
+		AssetID:     msg.AssetID,
+		Market:      msg.Market,
+		OldTickSize: msg.OldTickSize,
+		NewTickSize: msg.NewTickSize,
+		Timestamp:   msg.Timestamp,
+	}
+}
+
+func bestBidAskFromInternal(msg internalstream.BestBidAskMessage) BestBidAskMessage {
+	return BestBidAskMessage{
+		EventType: msg.EventType,
+		AssetID:   msg.AssetID,
+		Market:    msg.Market,
+		BestBid:   msg.BestBid,
+		BestAsk:   msg.BestAsk,
+		Spread:    msg.Spread,
+		Timestamp: msg.Timestamp,
+	}
+}
+
+func newMarketFromInternal(msg internalstream.NewMarketMessage) NewMarketMessage {
+	return NewMarketMessage{
+		EventType:             msg.EventType,
+		ID:                    msg.ID,
+		Question:              msg.Question,
+		Market:                msg.Market,
+		Slug:                  msg.Slug,
+		Description:           msg.Description,
+		AssetIDs:              append([]string(nil), msg.AssetIDs...),
+		Outcomes:              append([]string(nil), msg.Outcomes...),
+		EventMessage:          msg.EventMessage,
+		Timestamp:             msg.Timestamp,
+		Tags:                  append([]string(nil), msg.Tags...),
+		ConditionID:           msg.ConditionID,
+		CLOBTokenIDs:          append([]string(nil), msg.CLOBTokenIDs...),
+		Active:                msg.Active,
+		SportsMarketType:      msg.SportsMarketType,
+		Line:                  msg.Line,
+		GameStartTime:         msg.GameStartTime,
+		OrderPriceMinTickSize: msg.OrderPriceMinTickSize,
+		GroupItemTitle:        msg.GroupItemTitle,
+		TakerBaseFee:          msg.TakerBaseFee,
+		FeesEnabled:           msg.FeesEnabled,
+		FeeSchedule:           msg.FeeSchedule,
+	}
+}
+
+func marketResolvedFromInternal(msg internalstream.MarketResolvedMessage) MarketResolvedMessage {
+	return MarketResolvedMessage{
+		EventType:      msg.EventType,
+		ID:             msg.ID,
+		Market:         msg.Market,
+		AssetIDs:       append([]string(nil), msg.AssetIDs...),
+		WinningAssetID: msg.WinningAssetID,
+		WinningOutcome: msg.WinningOutcome,
+		Timestamp:      msg.Timestamp,
+		Tags:           append([]string(nil), msg.Tags...),
 	}
 }

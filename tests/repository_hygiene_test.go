@@ -75,10 +75,6 @@ func TestRepositoryHygiene(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "pkg/stream")); err != nil {
 		t.Fatalf("pkg/stream public boundary is missing: %v", err)
 	}
-	// Deprecated compatibility package retained for existing consumers.
-	if _, err := os.Stat(filepath.Join(root, "pkg/bookreader")); err != nil {
-		t.Fatalf("pkg/bookreader compatibility boundary is missing: %v", err)
-	}
 }
 
 func TestRepositoryDoesNotPublishResolvedRemoteBlocker(t *testing.T) {

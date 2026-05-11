@@ -140,6 +140,31 @@ func eventResponseWithStartDate(slug, conditionID, up, down, startDateISO, endDa
 	}]`
 }
 
+func eventResponseWithEventStartTime(slug, conditionID, up, down, startDateISO, eventStartTimeISO, endDateISO string) string {
+	return `[{
+		"id": "event-1",
+		"slug": "` + slug + `",
+		"title": "test market",
+		"active": true,
+		"closed": false,
+		"markets": [{
+			"id": "market-1",
+			"question": "test market",
+			"conditionId": "` + conditionID + `",
+			"slug": "` + slug + `",
+			"outcomes": ["Up", "Down"],
+			"active": true,
+			"closed": false,
+			"enableOrderBook": true,
+			"acceptingOrders": true,
+			"clobTokenIds": "[\"` + up + `\", \"` + down + `\"]",
+			"startDate": "` + startDateISO + `",
+			"eventStartTime": "` + eventStartTimeISO + `",
+			"endDate":   "` + endDateISO + `"
+		}]
+	}]`
+}
+
 func TestResolveTokenIDsForWindow_HappyPath(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -172,6 +197,39 @@ func TestResolveTokenIDsForWindow_HappyPath(t *testing.T) {
 	}
 	if !got.StartDate.Equal(time.Unix(1778114700, 0).UTC()) {
 		t.Fatalf("startDate=%v want %v", got.StartDate, time.Unix(1778114700, 0).UTC())
+	}
+}
+
+func TestResolveTokenIDsForWindowUsesEventStartTimeForRecurringCryptoMarkets(t *testing.T) {
+	window := time.Unix(1778385900, 0).UTC() // 2026-05-10T04:05:00Z
+	slug := "btc-updown-5m-1778385900"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/events":
+			if r.URL.Query().Get("slug") != slug {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(eventResponseWithEventStartTime(
+				slug, "cid", "up", "down",
+				"2026-05-09T04:12:49Z",
+				window.Format(time.RFC3339),
+				window.Add(5*time.Minute).Format(time.RFC3339),
+			)))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	resolver := NewResolver(server.URL)
+	got := resolver.ResolveTokenIDsForWindow(context.Background(), "BTC", "5m", window)
+	if got.Status != StatusAvailable {
+		t.Fatalf("status=%q source=%q start=%v", got.Status, got.Source, got.StartDate)
+	}
+	if !got.StartDate.Equal(window) || !got.EndDate.Equal(window.Add(5*time.Minute)) {
+		t.Fatalf("window=%v-%v want %v-%v", got.StartDate, got.EndDate, window, window.Add(5*time.Minute))
 	}
 }
 

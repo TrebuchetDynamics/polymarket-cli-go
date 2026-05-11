@@ -335,7 +335,14 @@ func EnableTradingHeadless(ctx context.Context, params EnableTradingParams) (*En
 				if err != nil {
 					return nil, fmt.Errorf("enabletrading: deploy wallet: %w", err)
 				}
-				result.TxHashes = appendTx(result.TxHashes, tx)
+				final := tx
+				if tx != nil && strings.TrimSpace(tx.TransactionID) != "" {
+					final, err = params.Relayer.PollTransaction(ctx, tx.TransactionID, 50, 2*time.Second)
+					if err != nil {
+						return nil, fmt.Errorf("enabletrading: poll wallet deploy: %w", err)
+					}
+				}
+				result.TxHashes = appendTx(result.TxHashes, final)
 				result.Deployed = true
 			}
 		}

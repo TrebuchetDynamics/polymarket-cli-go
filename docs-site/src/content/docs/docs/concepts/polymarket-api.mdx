@@ -21,6 +21,9 @@ Market metadata, events, search, tags, series, sports, comments, profiles.
 | Comments | List, by ID, by user |
 | Profiles | Public profile by wallet |
 
+See [Gamma API](/docs/reference/gamma-api) for the exact polygolem method to
+REST-path mapping.
+
 ## CLOB API (`clob.polymarket.com`)
 
 **Public endpoints (L0): no auth. Authenticated endpoints (L1/L2): require wallet + API key.**
@@ -33,8 +36,15 @@ Order book, pricing, market data, orders, trades, rewards.
 | Markets | L0 | List, by condition ID, simplified, sampling |
 | Orders | L2 | Place, cancel, query, heartbeat |
 | Trades | L2 | Get trades, builder trades |
-| Rewards | L2 | Config, earnings, percentages, rebates |
-| Scoring | L2 | Order scoring status |
+| Rewards | L0 | Config, earnings, percentages, rebates |
+| Scoring | L0 | Order scoring status |
+
+Important auth split: CLOB L2 credentials authenticate trading endpoints;
+relayer credentials only submit gas-sponsored smart-wallet transactions.
+Builder fee keys minted through CLOB are used as the V2 order `builder`
+attribution field, not as relayer headers.
+
+See [CLOB V2 API](/docs/reference/clob-api) for the full table.
 
 ## Data API (`data-api.polymarket.com`)
 
@@ -42,11 +52,30 @@ Order book, pricing, market data, orders, trades, rewards.
 
 Positions, volume, leaderboards, open interest, top holders.
 
+| Category | Endpoints |
+|----------|-----------|
+| Positions | Current and closed positions |
+| Trades/activity | Public trades and public activity for a wallet |
+| Portfolio | Total value and markets traded |
+| Market analytics | Holders, open interest, live volume |
+| Rankings | Trader leaderboard |
+
+See [Data API](/docs/reference/data-api).
+
 ## Bridge API (`bridge.polymarket.com`)
 
 **Read-only. No auth.**
 
 Supported assets, deposit addresses, quotes, transaction status.
+
+| Endpoint | Wrapped by |
+|----------|------------|
+| `GET /supported-assets` | SDK and CLI |
+| `POST /deposit` | SDK and CLI |
+| `GET /status/{address}` | SDK only |
+| `POST /quote` | SDK only |
+
+See [Bridge API](/docs/reference/bridge-api).
 
 ## Relayer API (`relayer-v2.polymarket.com`)
 
@@ -62,13 +91,37 @@ This is separate from CLOB L2 auth.
 | Deployment | Check if wallet deployed |
 | API Keys | Relayer key management where upstream account auth allows it |
 
+Polygolem's deposit-wallet relayer flow uses `POST /submit`,
+`GET /nonce`, `GET /transaction`, `GET /deployed`, and
+`POST /relayer/api/auth`. Upstream also exposes `GET /transactions`,
+`GET /relay-payload`, and relayer key listing endpoints that are not stable
+polygolem SDK methods yet.
+
 The relayer sponsors deposit-wallet deploy and WALLET batch transactions such
 as approvals. CLOB order placement is an authenticated API request, not a user
 gas transaction. Users still pay gas for direct EOA actions such as the initial
 pUSD transfer into the deposit wallet.
+
+See [Relayer API](/docs/reference/relayer-api).
 
 ## WebSocket (`ws-subscriptions-clob.polymarket.com`)
 
 **Market channel: no auth. User channel: L2 auth.**
 
 Real-time stream for order books, prices, trades, order events.
+
+See [Stream API](/docs/reference/stream-api).
+
+## Smart Contracts
+
+All Polymarket contracts used by these APIs are on Polygon mainnet
+(`chainId=137`). The important V2 groups are:
+
+| Group | Contracts |
+|-------|-----------|
+| Trading | CTF Exchange, Neg Risk CTF Exchange, Neg Risk Adapter |
+| Collateral | pUSD, CTF, CollateralOnramp, CollateralOfframp, collateral adapters |
+| Wallets | Deposit Wallet Factory, Proxy Factory, Gnosis Safe Factory |
+| Resolution | UMA Adapter, UMA Optimistic Oracle |
+
+See [Contracts Registry](/docs/concepts/contracts).

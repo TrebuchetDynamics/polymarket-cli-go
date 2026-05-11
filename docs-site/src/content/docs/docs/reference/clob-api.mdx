@@ -54,6 +54,7 @@ polygolem clob tick-size <token-id>
 polygolem clob price-history <token-id> --interval 1m
 polygolem clob markets --cursor ""
 polygolem clob market <condition-id>
+polygolem clob market-by-token <token-id>
 ```
 
 Authenticated commands:
@@ -103,18 +104,34 @@ the upstream "omit both filters" behavior.
 
 | Polygolem method | REST path | Auth | Notes |
 |---|---|---|---|
-| `OrderBook` | `GET /book?token_id=...` | Public | L2 book depth for one token |
-| `OrderBooks` | `POST /books` | Public | Batch books |
-| `Price` / `Prices` | `GET /price`, `POST /prices` | Public | Numeric and string prices normalize to SDK strings |
-| `Midpoint` / `Midpoints` | `GET /midpoint`, `POST /midpoints` | Public | Best-effort midpoint |
-| `Spread` | `GET /spread` | Public | Token spread |
-| `TickSize` | `GET /tick-size?token_id=...` or `GET /tick-size/{token_id}` | Public | Includes minimum tick/order fields when upstream returns them |
-| `NegRisk` | `GET /neg-risk` | Public | Selects regular vs neg-risk exchange domain |
-| `FeeRateBps` | `GET /fee-rate` | Public | Accepts current `base_fee` and legacy `fee_rate_bps` response keys |
-| `LastTradePrice` | `GET /last-trade-price` | Public | Last trade price |
-| `PricesHistory` | `GET /prices-history` | Public | OHLCV/history query |
+| `Health` | `GET /` | Public | Reachability check |
+| `ServerTime` / `CLOBServerTime` | `GET /time` | Public | Server timestamp |
 | `Markets` | `GET /markets` | Public | Cursor pagination |
 | `Market` | `GET /clob-markets/{condition_id}` | Public | One CLOB market with compact V2 fields expanded into SDK DTOs |
+| `SimplifiedMarkets` | `GET /simplified-markets` | Public | Cursor-paginated simplified market feed |
+| `SamplingMarkets` | `GET /sampling-markets` | Public | Sampling market feed |
+| `SamplingSimplifiedMarkets` | `GET /sampling-simplified-markets` | Public | Sampling simplified feed |
+| `OrderBook` | `GET /book?token_id=...` | Public | L2 book depth for one token |
+| `OrderBooks` | `POST /books` | Public | Batch books |
+| `MarketByToken` / `CLOBMarketByToken` | `GET /markets-by-token/{token_id}` | Public | Resolves a CLOB token ID to condition ID plus paired token IDs |
+| `Price` / `Prices` | `GET /price`, `POST /prices` | Public | Numeric and string prices normalize to SDK strings; V2-only, no `/prices-post` fallback |
+| `Midpoint` / `Midpoints` | `GET /midpoint`, `POST /midpoints` | Public | Best-effort midpoint |
+| `Spread` | `GET /spread` | Public | Token spread |
+| `TickSize` | `GET /tick-size?token_id=...` | Public | Includes minimum tick/order fields when upstream returns them |
+| `NegRisk` | `GET /neg-risk?token_id=...` | Public | Selects regular vs neg-risk exchange domain |
+| `FeeRateBps` | `GET /fee-rate?token_id=...` | Public | Accepts current `base_fee` and compatible `fee_rate_bps` response keys |
+| `LastTradePrice` | `GET /last-trade-price` | Public | Last trade price |
+| `LastTradesPrices` | `POST /last-trades-prices` | Public | Batch last-trade prices |
+| `PricesHistory` | `GET /prices-history` | Public | OHLCV/history query |
+| `OrderScoring` | `GET /orders/scoring?order_id=...` | Public | Single order reward-scoring eligibility |
+| `OrdersScoring` | `POST /orders/scoring` | Public | Batch order reward-scoring eligibility |
+| `RewardsConfig` | `GET /rewards/config` | Public | Liquidity reward configuration |
+| `RawRewards` | `GET /rewards/raw?market=...` | Public | Raw reward rows for a market |
+| `UserEarnings` | `GET /rewards/earnings?date=...` | Public | User earnings rows for a date |
+| `TotalEarnings` | `GET /rewards/total-earnings?date=...` | Public | Total earnings for a date |
+| `RewardPercentages` | `GET /rewards/percentages` | Public | Reward percentage rows |
+| `UserRewardsByMarket` | `GET /rewards/markets` | Public | Rewards grouped by market |
+| `RebatedFees` | `GET /rebates` | Public | Maker rebate rows |
 | `CreateOrDeriveAPIKey` | `POST /auth/api-key`, then `GET /auth/derive-api-key` fallback | L1 | Returns EOA/bootstrap L2 `{ apiKey, secret, passphrase }` |
 | `CreateOrDeriveAPIKeyForAddress` / `DeriveAPIKeyForAddress` | `POST /auth/api-key` / `GET /auth/derive-api-key` with owner override | L1 + ERC-1271 owner | Creates or derives L2 credentials owned by a deployed deposit/smart wallet |
 | `CreateAPIKeyForAddress` | `POST /auth/api-key` with owner override | L1 + ERC-1271 owner | Creates L2 credentials owned by a deployed deposit/smart wallet |
@@ -209,9 +226,9 @@ innerSig(65) || appDomainSep(32) || contents(32) || contentsType(186) || uint16B
 
 | Type | CLI alias | Polygolem live status |
 |---|---|---|
-| 0 | `eoa` | Parseable, legacy upstream path |
-| 1 | `proxy` | Parseable, legacy upstream path |
-| 2 | `safe`, `gnosis-safe` | Parseable, legacy upstream path |
+| 0 | `eoa` | Parseable only; not a supported live path for new V2 accounts |
+| 1 | `proxy` | Parseable only; not a supported live path for new V2 accounts |
+| 2 | `safe`, `gnosis-safe` | Parseable only; not a supported live path for new V2 accounts |
 | 3 | `deposit`, `deposit-wallet`, `poly-1271` | Default and supported live path |
 
 New Polymarket API users should use deposit wallets. Polygolem defaults every
@@ -226,8 +243,9 @@ contracts:
   DTOs are public through `pkg/clob`.
 - Sell-side market orders in `CreateMarketOrder`; the current implementation
   supports buy-side budgeted market orders.
-- `getClobMarketInfo()`-style consolidated V2 market parameters. Polygolem
-  currently exposes tick size, neg-risk, and fee-rate lookups separately.
+- Recent relayer transaction list and Bridge quote/status CLI commands are
+  documented on their own reference pages because they belong to different
+  Polymarket API hosts.
 
 ## Related
 

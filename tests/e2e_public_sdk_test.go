@@ -711,6 +711,8 @@ func TestPolygolemSettlementE2EStopsAtRelayerAllowlistBlocker(t *testing.T) {
 func TestPolygolemPublicSDKStreamE2EAgainstLocalWebSocket(t *testing.T) {
 	upgrader := websocket.Upgrader{}
 	subscriptions := make(chan map[string]interface{}, 1)
+	releaseServer := make(chan struct{})
+	defer close(releaseServer)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		conn, err := upgrader.Upgrade(w, request, nil)
 		if err != nil {
@@ -767,6 +769,10 @@ func TestPolygolemPublicSDKStreamE2EAgainstLocalWebSocket(t *testing.T) {
 				t.Errorf("write websocket message: %v", err)
 				return
 			}
+		}
+		select {
+		case <-releaseServer:
+		case <-request.Context().Done():
 		}
 	}))
 	defer server.Close()

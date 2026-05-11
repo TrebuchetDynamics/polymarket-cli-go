@@ -11,7 +11,7 @@ Cobra-based CLI on top.
 | Layer | Packages | Role |
 |-------|----------|------|
 | **`cmd/polygolem`** | 1 | Binary entry point. Wires Cobra and exits. |
-| **`pkg/`** | 16 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; authenticated CLOB account/order DTOs live in `pkg/clob`; contract registry/readiness lives in `pkg/contracts`; market WebSocket events use public `pkg/stream` DTOs; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; enrichment and rewards type paths still need cleanup. |
+| **`pkg/`** | 17 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; authenticated CLOB account/order DTOs live in `pkg/clob`; contract registry/readiness lives in `pkg/contracts`; V2 market WebSocket events use public `pkg/stream` DTOs; normalized live snapshots live in `pkg/marketdata`; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; enrichment and rewards type paths still need cleanup. |
 | **`internal/`** | 21 | Implementation. Not part of public API. |
 
 The CLI and public SDK both depend on the internal protocol implementation.
@@ -32,7 +32,8 @@ The `internal/` packages do not depend on `cmd/`.
 | `pkg/marketresolver` | Market + token ID resolution |
 | `pkg/bridge` | Bridge API — supported assets, deposit addresses, quotes |
 | `pkg/relayer` | Builder relayer primitives — wallet create, wallet batch, nonce, polling |
-| `pkg/stream` | Public CLOB WebSocket market stream client |
+| `pkg/stream` | Public CLOB WebSocket market stream client, including V2 custom feature events |
+| `pkg/marketdata` | Normalized live best bid, best ask, spread, midpoint, tick-size, last-trade, and book snapshots |
 | `pkg/pagination` | Cursor and offset pagination with concurrent batching |
 
 ## Internal Packages (`internal/`)

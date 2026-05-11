@@ -161,36 +161,32 @@ This guarantees:
 
 ## First-Time Onboard
 
-First-time setup has one upstream account step: create or verify the builder
-profile at `polymarket.com/settings?tab=builder`. After that, polygolem can
-derive CLOB credentials, validate relayer HMAC credentials, and run the wallet
-lifecycle from the CLI.
+First-time setup can start directly with `polygolem deposit-wallet onboard`.
+Polymarket login signs with the EOA shown in the website's SIWE prompt; the
+deposit wallet remains the trading wallet for pUSD, POLY_1271 orders, CTF
+positions, approvals, and redemption.
 
 ```bash
-# Derive CLOB credentials for account reads and same-address order auth.
+# Full wallet onboarding:
+# derive + auto SIWE/profile/relayer auth + deploy + approvals
+# + UI Enable Trading signs + fund.
 POLYMARKET_PRIVATE_KEY="0x..." \
-  polygolem builder auto
-
-# Mint a V2 relayer API key for deposit-wallet deploy and approval batches.
-POLYMARKET_PRIVATE_KEY="0x..." \
-  polygolem auth headless-onboard
-
-# Full wallet onboarding (deploy + trading approve + fund).
-POLYMARKET_PRIVATE_KEY="0x..." \
-RELAYER_API_KEY="..." \
-RELAYER_API_KEY_ADDRESS="..." \
   polygolem deposit-wallet onboard --fund-amount 50 --json
 ```
 
-`builder auto` signs a ClobAuth EIP-712 message locally and posts to
-`clob.polymarket.com/auth/api-key`. `auth headless-onboard` performs SIWE
-login and mints the V2 relayer key used by `deposit-wallet deploy` and
-`deposit-wallet approve`. Non-zero order attribution is configured separately
-with `POLYMARKET_BUILDER_CODE` or CLI `--builder-code`.
+If V2 relayer credentials are missing, wallet commands sign the Polymarket
+SIWE message locally, register the profile, mint the relayer key, persist it
+to the Polygolem env file, and continue. `polygolem auth login` is still
+available when you want to refresh or inspect that step explicitly.
 
-This single command currently runs: derive → deploy → trading approve
-(6 calls) → fund (transfer). V2 redeem readiness adds the separate
-collateral-adapter approval batch described in Phase 4.
+This single command runs: derive → deploy → trading and adapter approvals
+→ UI Enable Trading signs → fund. The UI Enable Trading leg signs ClobAuth,
+creates or derives CLOB API keys, and submits the 2-call token approval batch.
+
+For pre-provisioned CLOB credentials, run `polygolem builder auto`. Otherwise
+Polygolem derives or creates the EOA-bound CLOB key on demand for order auth.
+Non-zero order attribution is configured separately with
+`POLYMARKET_BUILDER_CODE` or CLI `--builder-code`.
 
 Then sync the CLOB balance:
 
@@ -236,6 +232,9 @@ polygolem deposit-wallet status --json
 
 # What's the deposit wallet balance?
 polygolem clob balance --asset-type collateral
+
+# Are the UI Enable Trading signs and allowances ready?
+polygolem deposit-wallet status --check-enable-trading
 
 # Check EOA onchain funds with wallet/RPC tooling; CLOB balance reads use
 # the deposit wallet cache.

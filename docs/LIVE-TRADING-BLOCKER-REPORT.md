@@ -1,26 +1,23 @@
-# Deposit-Wallet Live Trading Blocker Report — 2026-05-08
+# Archived Deposit-Wallet Live Trading Blocker Report — 2026-05-08
 
 **Test Account:** 0x33e4aD5A1367fbf7004c637F628A5b78c44Fa76C
 **Deposit Wallet:** 0x21999a074344610057c9b2B362332388a44502D4
 **Funds:** Low (exact balance unknown due to balance endpoint failure)
 
-> **Scope correction:** This report documents a live sigtype-3 deposit-wallet
-> probe. It does not describe the corrected default V2 signup model. A later
-> Playwright capture, recorded in `BLOCKERS.md` under "CORRECTION 2026-05-08",
-> showed that fresh web-UI EOA signup registers a sigtype-1 proxy profile via
-> `POST /profiles`, then mints a V2 relayer key. That proxy-profile path can be
-> replicated headlessly. The blocker below applies to the deposit-wallet-owned
-> CLOB API-key path, which remains unsupported by Polymarket's L1 auth endpoint.
+> **Archived:** This report captured an older hypothesis about
+> deposit-wallet-bound CLOB keys. The current onboarding source of truth is
+> `docs/ONBOARDING.md`: Polymarket login signs with the EOA, `polygolem auth
+> login` handles SIWE/profile/relayer credentials headlessly, and the deposit
+> wallet remains the trading wallet for POLY_1271 orders and settlement.
 
 ---
 
 ## Executive Summary
 
-The sigtype-3 deposit-wallet-only path is blocked for fresh accounts at the
-deposit-wallet-owned CLOB API key. Polymarket's L1 auth endpoint rejects the
-ERC-1271-style deposit-wallet key derivation used by that path, so balance,
-order, cancellation, and heartbeat calls fail before reaching CLOB order
-validation.
+The archived run incorrectly treated CLOB HTTP auth as a deposit-wallet-bound
+credential problem. Current Polygolem uses EOA-signed SIWE and EOA-signed
+ClobAuth for HTTP credentials, while preserving deposit-wallet identity in the
+POLY_1271 order payload and `signature_type=3` CLOB paths.
 
 Separate finding: `GET /transaction?id=...` returns an array in production.
 Polygolem's relayer polling used to expect a single object, which caused
@@ -58,7 +55,7 @@ polygolem auth status --check-deposit-key
 ### Step 2: Relayer Credential Minting ✅
 
 ```bash
-polygolem auth headless-onboard
+polygolem auth login
 ```
 
 **Result:** ✅ Success
@@ -209,11 +206,10 @@ tx := txs[0]
 
 | Workaround | Viable? | Notes |
 |------------|---------|-------|
-| Corrected V2 proxy-profile signup | ❌ Not for Polygolem | Proxy signup is a different wallet family; Polygolem's production path is deposit wallet / POLY_1271. |
-| Browser login to create deposit-wallet-owned API key | ✅ Yes for new users | One-time browser flow mints the deposit-wallet CLOB key; after that, Polygolem runs headlessly. |
-| EOA-owned API key + deposit orders | ❌ No | Server enforces owner gate |
-| Wait for Polymarket fix | ❌ Unknown | No timeline, no public commitment |
-| Deposit-wallet-only headless trading | ❌ No | Blocked by deposit-wallet API-key derivation on `/auth/derive-api-key` |
+| EOA SIWE via `polygolem auth login` | ✅ Current | Registers profile and mints V2 relayer credentials. |
+| EOA ClobAuth via `polygolem builder auto` | ✅ Current | Creates or derives CLOB L2 credentials for HTTP auth. |
+| POLY_1271 deposit-wallet orders | ✅ Current | Deposit wallet remains maker/signer in the order payload. |
+| Browser fallback | ⚠️ Fallback | Use only when headless login is blocked by an upstream/account/network issue. |
 
 ---
 

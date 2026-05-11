@@ -105,6 +105,34 @@ func TestClientMarketReturnsPublicDTO(t *testing.T) {
 	}
 }
 
+func TestClientMarketByTokenReturnsPublicDTO(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/markets-by-token/token-1" {
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"condition_id":"condition-1",
+			"primary_token_id":"token-yes",
+			"secondary_token_id":"token-no"
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{BaseURL: server.URL})
+	got, err := client.MarketByToken(context.Background(), "token-1")
+	if err != nil {
+		t.Fatalf("MarketByToken returned error: %v", err)
+	}
+
+	var publicResponse *types.CLOBMarketByTokenResponse = got
+	if publicResponse.ConditionID != "condition-1" ||
+		publicResponse.PrimaryTokenID != "token-yes" ||
+		publicResponse.SecondaryTokenID != "token-no" {
+		t.Fatalf("unexpected market-by-token response: %+v", publicResponse)
+	}
+}
+
 func TestClientScalarMarketDataParsesCurrentNumericDTOs(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
