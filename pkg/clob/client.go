@@ -381,6 +381,11 @@ func priceHistoryFromInternal(row *polytypes.PriceHistory) *types.CLOBPriceHisto
 	return &types.CLOBPriceHistory{History: out}
 }
 
+// OrderScoring checks if a specific order is currently scoring for maker rewards.
+func (c *Client) OrderScoring(ctx context.Context, orderID string) (bool, error) {
+	return c.inner.OrderScoring(ctx, orderID)
+}
+
 func bookParamsToInternal(params []types.CLOBBookParams) []polytypes.BookParams {
 	out := make([]polytypes.BookParams, len(params))
 	for i, param := range params {
