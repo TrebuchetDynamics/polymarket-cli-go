@@ -42,6 +42,7 @@ import (
 	sdkstream "github.com/TrebuchetDynamics/polygolem/pkg/stream"
 	"github.com/TrebuchetDynamics/polygolem/pkg/types"
 	"github.com/TrebuchetDynamics/polygolem/pkg/universal"
+	"github.com/TrebuchetDynamics/polygolem/pkg/wallet"
 )
 
 func TestPublicSDKSignatures(t *testing.T) {
@@ -157,6 +158,13 @@ func TestPublicSDKSignatures(t *testing.T) {
 	_, _, _, _, _, _, _ = universalCLOBMarkets, universalCLOBMarket, universalCLOBMarketByToken, universalOrderBook, universalOrderBooks, universalTickSize, universalPriceHistory
 	_, _, _, _, _, _, _, _, _ = universalDeriveAPIKey, universalBalance, universalOrders, universalOrder, universalTrades, universalCancel, universalCancelMarket, universalCreate, universalMarketOrder
 	_, _ = universalStream, universalStreamWithConfig
+
+	var walletProxy func(string) string = wallet.DeriveProxyWallet
+	var walletSafe func(string) string = wallet.DeriveSafeWallet
+	var walletReady func(int64, string) wallet.ReadyInfo = wallet.Readiness
+	_ = walletProxy
+	_ = walletSafe
+	_ = walletReady
 }
 `)
 
