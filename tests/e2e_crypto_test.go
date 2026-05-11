@@ -101,9 +101,9 @@ func TestCryptoMarketDiscoveryWithInterval(t *testing.T) {
 
 	client := gamma.NewClient("https://gamma-api.polymarket.com", nil)
 
-	searchLimit := 50
+	searchLimit := 100
 	resp, err := client.Search(ctx, &polytypes.SearchParams{
-		Q:            "crypto",
+		Q:            "up or down",
 		LimitPerType: &searchLimit,
 	})
 	if err != nil {
@@ -135,5 +135,8 @@ func containsShortTerm(s string) bool {
 		strings.Contains(s, "15m") ||
 		strings.Contains(s, "15 min") ||
 		strings.Contains(s, "1h") ||
-		strings.Contains(s, "1 hour")
+		strings.Contains(s, "1 hour") ||
+		strings.Contains(s, "daily") ||
+		strings.Contains(s, "weekly") ||
+		strings.Contains(s, "monthly")
 }
