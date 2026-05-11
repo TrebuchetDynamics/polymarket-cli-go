@@ -5,86 +5,109 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/TrebuchetDynamics/polygolem)](go.mod)
 [![Latest Release](https://img.shields.io/github/v/tag/TrebuchetDynamics/polygolem?label=release&sort=semver)](https://github.com/TrebuchetDynamics/polygolem/releases)
 
-**Production-safe Polymarket infrastructure for the deposit-wallet era.**
+**Production-safe Polymarket infrastructure for Go developers.**
 
-A single Go binary and SDK for trading on Polymarket V2.
+A single binary + Go SDK for trading on Polymarket V2 through deposit wallets.
+No Python. No npm. No opaque wrappers.
 
-Built for Polymarket's current deposit-wallet production model — with local
-signing, no external SDKs, and no opaque runtime layers.
+```bash
+go install github.com/TrebuchetDynamics/polygolem/cmd/polygolem@latest
+polygolem health
+# {"clob":"ok","gamma":"ok"}
+```
 
-*For operators who want verifiable trading infrastructure instead of opaque
-wrappers — validated against live Polygon mainnet flows, not mocks or paper
-environments.*
+---
+
+## Who This Is For
+
+- **Bot developers** building automated trading strategies in Go
+- **Quant developers** who want deterministic, compiled infrastructure with type safety
+- **Operators** running headless trading systems that need auditability and local signing
+- **Engineers** embedding Polymarket data and execution into larger Go services
+- **Developers** who want one dependency, not a Python virtualenv + npm + Docker compose
+
+If you are writing a Polymarket bot in Python or TypeScript, the [official CLOB clients](https://github.com/Polymarket/py-clob-client) are the right choice. If you are building in Go, or you want a single static binary with no runtime dependencies, polygolem is the only production-ready option.
+
+---
+
+## The Problem We Solve
+
+Polymarket migrated to V2 in April 2026. The new model requires **deposit wallets** (ERC-1967 proxies with ERC-1271 validation) instead of EOAs as order makers. This broke most existing tooling.
+
+| | Official Python/TS SDKs | polygolem |
+|---|---|---|
+| **Language** | Python / TypeScript | Go |
+| **Dependencies** | pip/npm + 10+ transitive packages | Go stdlib + `cobra` |
+| **Distribution** | Package manager install | Single static binary |
+| **V2 deposit wallet** | Supported (with known bugs) | Supported, production-validated |
+| **EOA signing** | Supported (produces ghost fills on V2) | **Blocked** — deposit-wallet only |
+| **Version negotiation** | Hardcoded `CLOB_VERSION = "1"` → breaks on upgrades | Dynamic `/version` query before signing |
+| **Credential security** | Auth headers leaked in error logs ([#327](https://github.com/Polymarket/clob-client/issues/327)) | Redacted in all output and logs |
+| **Tick size caching** | In-memory per-instance, stale on update | Fresh fetch per order placement |
+| **API key propagation** | 2-minute delay, no status polling | Derived on-demand with immediate use |
+| **Local signing** | Optional (can use remote signers) | **Required** — key never leaves process |
+| **External SDK in trust path** | Yes (Polymarket Python/TS SDKs) | No — all protocol code in this repo |
+| **Go embedding** | Not possible | Native `pkg/` packages |
+| **Read-only default** | No | Yes — credentials required explicitly |
+
+The official clients are excellent for Python/TS ecosystems. They support EOA, proxy, and Safe signing modes for backward compatibility. Polygolem does not — it only implements the V2 deposit-wallet production path, because EOA orders on V2 produce ghost fills that appear in the book but never settle.
+
+**Concrete issues we avoid:**
+
+- **Hardcoded `CLOB_VERSION = "1"`** in `py-clob-client` caused mass `order_version_mismatch` failures when Polymarket upgraded their EIP-712 domain in April 2026. Polygolem queries `/version` dynamically before every signing session.
+- **Auth headers leaked in error logs** (TypeScript client [#327](https://github.com/Polymarket/clob-client/issues/327)). Polygolem redacts all secrets in errors, logs, and JSON output — tested and enforced.
+- **Tick size caching bugs** ([#265](https://github.com/Polymarket/clob-client/issues/265)) cause valid orders to be rejected because stale tick sizes are cached per client instance. Polygolem fetches tick sizes fresh per order placement.
+- **No official Go client exists** — only scattered community efforts with varying completeness. Polygolem is a unified, production-validated Go-native SDK.
 
 ---
 
 ## Try It in 60 Seconds (No Credentials Needed)
 
-All outputs below come from live Polygon mainnet responses.
+All outputs below come from live Polymarket APIs.
 
 ```bash
 git clone https://github.com/TrebuchetDynamics/polygolem
 cd polygolem && go build -o polygolem ./cmd/polygolem
 
+# Health check
 ./polygolem health
 # {"clob":"ok","gamma":"ok"}
 
+# Current BTC 5-minute up/down market
+./polygolem discover crypto-5m --asset BTC
+# Returns token IDs, condition ID, window boundaries
+
+# Live order book
 ./polygolem orderbook price --token-id 1391568931...637394586
 # {"price":"0.012","token_id":"1391568931...637394586"}
 
-./polygolem orderbook spread --token-id 1391568931...637394586
-# {"spread":"0.002","token_id":"1391568931...637394586"}
-
-./polygolem discover search --query "btc 150k" --limit 3
+# All 7 active 5m crypto markets
+./polygolem discover crypto-5m --enrich
+# BTC, ETH, SOL, XRP, BNB, DOGE, HYPE with live prices
 ```
 
-That's polygolem talking to live Polymarket — no key, no credentials, no
-sign-up. Read-only is the default for everything until you set
-`POLYMARKET_PRIVATE_KEY`.
+Read-only is the default for everything until you set `POLYMARKET_PRIVATE_KEY`.
 
 ---
 
 ## Production Validation
 
-> **Production-validated:** Polygon mainnet · 2026-05-08 reference run
+> **Production-validated:** Polygon mainnet · 2026-05-11 reference run
 >
 > [Every tx hash, gas figure, and pUSD movement](docs/LIVE-TRADE-WALKTHROUGH.md)
 > is documented from EOA private key to filled buy + sell.
 
-Core trading flows are production-validated today: headless relayer onboarding,
-deposit-wallet deploy + funding, CLOB V2 trading + cancels, advanced order
-types, market discovery, streaming, and local risk controls.
+Core trading flows validated today:
+
+- Headless V2 relayer onboarding (SIWE + profile + relayer key mint)
+- Deposit-wallet deploy + funding
+- CLOB V2 order signing, placement, and cancellation
+- Advanced order types (FOK, GTD, post-only)
+- Market discovery, streaming, and paper trading
 
 ---
 
-## Why polygolem Exists
-
-In April 2026 Polymarket migrated to V2: a new exchange, a new stablecoin
-(pUSD), and a new requirement that orders be placed by **deposit wallets**
-(ERC-1967 proxies that validate signatures via ERC-1271) instead of EOAs.
-
-That broke the old assumption that an EOA is the order maker. Many existing
-Polymarket bots, wrappers, and unofficial SDKs still sign as EOAs; those paths
-can produce ghost fills that appear in the book and never settle.
-
-polygolem only knows the production-safe path:
-
-- **Deposit-wallet only** — the current production order model
-  (`signatureType=3` / `POLY_1271`, validated on-chain via ERC-1271)
-- **Local signing** — your private key never leaves the process
-- **Spec-implemented protocol** — no shimmed Python or JS SDK in the trust path
-- **CREATE2 wallet derivation verified** against the official Polymarket Python SDK
-- **Read-only by default** — every authenticated command requires explicit credentials
-
-EOA, proxy, and Gnosis Safe paths are intentionally not supported.
-
-> **Why Go?**
->
-> One language. One binary. No hidden runtime layers between your private key
-> and the exchange. No transitive npm or pip dependencies that get to see your
-> signing key.
-
-The on-chain identity model the rest of this README is built around:
+## The V2 Identity Model
 
 ```
   EOA  ──signs──▶  Order
@@ -100,54 +123,10 @@ The on-chain identity model the rest of this README is built around:
  (relayer-v2.polymarket.com)
 ```
 
-The EOA signs; the deposit wallet holds funds and is the on-order maker;
+Your EOA signs; the deposit wallet holds funds and is the on-order maker;
 Polymarket-run services pay every gas fee except your single ERC-20 funding
-transfer. See [docs/LIVE-TRADE-WALKTHROUGH.md](docs/LIVE-TRADE-WALKTHROUGH.md)
-for the full lifecycle with real txes.
-
----
-
-## What Works Today
-
-Covered by the 2026-05-08 Polygon mainnet reference run:
-
-**Trading**
-
-- Headless V2 relayer onboarding
-- Deposit-wallet deploy + funding
-- CLOB V2 trading + cancels
-- Advanced order types
-
-**Market Data**
-
-- Gamma + CLOB market discovery
-- Public CLOB WebSocket market stream, including V2 custom feature events
-- Normalized live best bid, best ask, spread, midpoint, tick size, last trade, and book snapshots
-- Order book price + spread helpers
-
-**Safety**
-
-- Read-only default CLI/SDK surface
-- Local risk controls
-- Secret redaction
-
----
-
-## Safety Model
-
-polygolem is trading infrastructure. Trust matters more than features.
-The SDK defaults toward preventing irreversible mistakes.
-
-| | |
-|---|---|
-| **Read-only by default** | Authenticated operations require an explicit private key in env. |
-| **Deposit-wallet only** | Cannot accidentally sign as an EOA, proxy, or Safe. |
-| **Local signing** | The process holds the key; no signing service in the trust path. |
-| **No external SDKs** | All wallet derivation, EIP-712, ERC-7739, and relayer calls are in this repo. |
-| **Pre-trade caps + daily limits + circuit breaker** | Configurable risk controls in `internal/risk`. |
-| **Secret redaction** | API keys and signatures are redacted in logs (`internal/transport`). |
-
-See [docs/SAFETY.md](docs/SAFETY.md) for the full safety model.
+transfer. See [the walkthrough](docs/LIVE-TRADE-WALKTHROUGH.md) for the full
+lifecycle with real txes.
 
 ---
 
@@ -156,74 +135,48 @@ See [docs/SAFETY.md](docs/SAFETY.md) for the full safety model.
 ```bash
 export POLYMARKET_PRIVATE_KEY="0x..."
 
-polygolem deposit-wallet onboard --fund-amount 0.71 # auth + deploy + approve + enable trading + fund
+# One-command onboarding: auth + deploy + approve + fund
+polygolem deposit-wallet onboard --fund-amount 0.71
+
+# Sync CLOB balance
 polygolem clob update-balance --asset-type collateral
-polygolem clob market-order --token <ID> --side buy --amount 1 --price 0.012 --order-type FOK
+
+# Place a market FOK buy
+polygolem clob market-order \
+  --token <ID> --side buy --amount 1 --price 0.012 --order-type FOK
 # {
 #   "success": true,
 #   "orderID": "0x43083109...c423d793d",
 #   "status": "matched",
 #   "makingAmount": "1",
-#   "takingAmount": "86.606666",
-#   "transactionsHashes": ["0x74ad015d...4f7adc"]
+#   "takingAmount": "86.606666"
 # }
 ```
 
-**After onboarding, every trade is fully headless.** Total user-paid cost on
-the reference run was **~$0.01 in POL gas** for the single ERC-20 transfer
-that funds the deposit wallet — `WALLET-CREATE`, the 6-call approval batch,
-and every CLOB settlement are sponsored by Polymarket-run services. See
-[the walkthrough](docs/LIVE-TRADE-WALKTHROUGH.md) for the per-tx breakdown.
+After onboarding, every trade is fully headless. Total user-paid cost on the
+reference run was **~$0.01 in POL gas** for the single ERC-20 transfer that
+funds the deposit wallet.
 
-> **Identity model:** Polymarket login signs with the EOA. That is why
-> polymarket.com may ask `0x33e4...` to sign the SIWE message. The deposit
-> wallet remains the trading wallet: it holds pUSD, appears as the POLY_1271
-> order maker/signer, receives CTF positions, and handles settlement.
-> `polygolem deposit-wallet onboard` performs the SIWE/profile/relayer step
-> automatically when no relayer key is configured. `polygolem auth login` is
-> still available as an explicit refresh/inspection command.
-> Browser setup is now fallback-only; see [docs/BROWSER-SETUP.md](docs/BROWSER-SETUP.md).
+---
 
-### After a Fill
+## Safety Model
 
-`status=matched` means the CLOB filled the order. It does not mean the market
-won. Polygolem treats post-trade state as three separate checks:
+| Guard | What it does |
+|---|---|
+| **Read-only by default** | No credentials = no authenticated operations |
+| **Deposit-wallet only** | Cannot accidentally sign as EOA, proxy, or Safe |
+| **Local signing** | Private key never leaves the process |
+| **No external SDKs** | All wallet derivation, EIP-712, ERC-7739, and relayer code is in this repo |
+| **Pre-trade caps + daily limits + circuit breaker** | Configurable in `internal/risk` |
+| **Secret redaction** | API keys and signatures are redacted in logs |
 
-- `matched`: the order filled and shares moved into the deposit wallet.
-- `winning`: the market resolved in favor of the held outcome.
-- `redeemable`: the Data API reports the held winning position can be redeemed.
-
-For V2 deposit wallets, redeem has one supported production path: the owner
-signs an EIP-712 WALLET batch, Polymarket's relayer submits it through the
-deposit-wallet factory, and the wallet call targets a pUSD collateral adapter.
-Standard markets use `CtfCollateralAdapter`; negative-risk markets use
-`NegRiskCtfCollateralAdapter`. Existing deposit wallets that only ran the
-six-call trading approval batch need a separate adapter-approval migration
-before their first V2 redeem.
-
-The first-class SDK/CLI settlement surface is `pkg/settlement` plus
-`deposit-wallet settlement-status`, `deposit-wallet redeemable`, and
-`deposit-wallet redeem`. `settlement-status` is the read-only readiness gate:
-it checks wallet bytecode, relayer credentials, Data API reachability, and
-adapter approvals before a live bot should place more orders. The redeem
-commands build the V2 adapter path and fail closed on missing adapter
-approvals. If the relayer rejects adapter calls as not allowlisted, verify the
-adapter constants against Polymarket's current contracts reference first; stale
-adapter addresses caused the 2026-05-09 live settlement blocker. If the
-addresses are current, stop. The production factory does not expose a direct
-EOA fallback and raw `ConditionalTokens` redeem is not a deposit-wallet
-fallback. SAFE/PROXY relayer examples do not apply to deposit-wallet
-positions. See
-[docs/SAFETY.md](docs/SAFETY.md),
-[docs/CONTRACTS.md](docs/CONTRACTS.md), and
-[docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md](docs/DEPOSIT-WALLET-REDEEM-VALIDATION.md).
+See [docs/SAFETY.md](docs/SAFETY.md) for the full model.
 
 ---
 
 ## Go SDK
 
-If you'd rather embed polygolem in a larger Go service, every CLI subcommand
-is a thin wrapper around importable `pkg/` packages:
+Every CLI subcommand is a thin wrapper around importable `pkg/` packages:
 
 | Package | What it does |
 |---|---|
@@ -233,29 +186,55 @@ is a thin wrapper around importable `pkg/` packages:
 | [`pkg/stream`](pkg/stream) | Public CLOB WebSocket market stream |
 | [`pkg/marketdata`](pkg/marketdata) | Live share-price snapshots from stream events |
 | [`pkg/relayer`](pkg/relayer) | V2 Relayer client — WALLET-CREATE, batch, nonce |
-| [`pkg/settlement`](pkg/settlement) | V2 winner redemption planning, adapter calls, and readiness gates |
+| [`pkg/settlement`](pkg/settlement) | V2 winner redemption planning, adapter calls, readiness gates |
+| [`pkg/marketresolver`](pkg/marketresolver) | Deterministic crypto window resolution (BTC/ETH/SOL/XRP/BNB/DOGE/HYPE) |
 
 ```go
 import (
     "context"
     "fmt"
+    "time"
 
+    "github.com/TrebuchetDynamics/polygolem/pkg/marketresolver"
     "github.com/TrebuchetDynamics/polygolem/pkg/universal"
 )
 
-c := universal.NewClient(universal.Config{})
 ctx := context.Background()
+client := universal.NewClient(universal.Config{})
 
-const btcYesToken = "13915689317269078219168496739008737517740566192006337297676041270492637394586"
+// Resolve current BTC 5m window
+resolver := marketresolver.NewResolver("")
+result := resolver.ResolveTokenIDsForWindow(ctx, "BTC", "5m", time.Now().UTC())
+// result.Status = "available"
+// result.UpTokenID = "208311606920..."
+// result.DownTokenID = "988679547673..."
 
-price, _ := c.Price(ctx, btcYesToken, "buy")
-spread, _ := c.Spread(ctx, btcYesToken)
-fmt.Printf("BTC $150k YES — price %s, spread %s\n", price, spread)
-// BTC $150k YES — price 0.012, spread 0.002
+price, _ := client.Price(ctx, result.UpTokenID, "buy")
+spread, _ := client.Spread(ctx, result.UpTokenID)
+fmt.Printf("BTC 5m YES — price %s, spread %s\n", price, spread)
 ```
 
-Full package boundaries, dependency direction, and internal implementation
-details are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Full package boundaries in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## Crypto Market Discovery
+
+Polymarket runs 5-minute up/down markets for major crypto assets. Polygolem
+discovers them deterministically — no search index lag:
+
+```bash
+# All 7 active 5m markets in one call
+polygolem discover crypto-5m --enrich
+
+# Specific window
+polygolem discover crypto-window --asset BTC --interval 5m
+
+# Paper trade the current window in one step
+polygolem paper trade --asset BTC --interval 5m --side up --size 1
+```
+
+Assets supported: BTC, ETH, SOL, XRP, BNB, DOGE, HYPE.
 
 ---
 
@@ -264,24 +243,24 @@ details are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | I want to... | Run |
 |---|---|
 | Find an active market | `polygolem discover search --query "..."` |
+| List all 5m crypto markets | `polygolem discover crypto-5m` |
 | Inspect the book | `polygolem clob book <token-id>` |
-| Resolve a token's CLOB market | `polygolem clob market-by-token <token-id>` |
-| Check my deposit wallet status | `polygolem deposit-wallet status` |
+| Check deposit wallet status | `polygolem deposit-wallet status` |
 | Place a limit buy | `polygolem clob create-order --token <ID> --side buy --price 0.5 --size 10` |
-| Place a market FOK buy | `polygolem clob market-order --token <ID> --side buy --amount 1 --price <slippage_cap>` |
+| Place a market FOK buy | `polygolem clob market-order --token <ID> --side buy --amount 1 --price <cap>` |
 | Cancel everything | `polygolem clob cancel-all` |
-| Read my collateral balance | `polygolem clob balance --asset-type collateral` |
+| Read collateral balance | `polygolem clob balance --asset-type collateral` |
+| Paper trade | `polygolem paper trade --asset BTC --interval 5m --side up` |
 
-Full CLI reference (auto-generated, every flag and example):
-[docs/COMMANDS.md](docs/COMMANDS.md).
+Full CLI reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ---
 
 ## Environment
 
-- **Required for any authenticated command:** `POLYMARKET_PRIVATE_KEY`.
-- **Automatic by polygolem:** V2 relayer key is minted and persisted on first
-  wallet use; CLOB L2 keys are created or derived on demand for order auth.
+- **Required for authenticated commands:** `POLYMARKET_PRIVATE_KEY`.
+- **Automatic:** V2 relayer key is minted and persisted on first wallet use;
+  CLOB L2 keys are created or derived on demand.
 - **Optional:** `POLYMARKET_BUILDER_CODE` for V2 order attribution.
 
 The deposit wallet address is derived locally from the private key; no API
@@ -293,16 +272,16 @@ call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
 
 | Document | What it covers |
 |---|---|
-| [Live Trade Walkthrough](docs/LIVE-TRADE-WALKTHROUGH.md) | End-to-end 2026-05-08 reference run: every tx, gas figure, and pUSD movement from EOA private key to a filled buy + sell. |
-| [Onboarding](docs/ONBOARDING.md) | Single source of truth — complete deposit wallet flow, troubleshooting. |
-| [Headless Enable Trading](docs/ENABLE-TRADING-HEADLESS.md) | SDK support for the UI ClobAuth and token-approval signing prompts. |
-| [Browser Fallback](docs/BROWSER-SETUP.md) | Manual signing fallback and security guidance when headless login is blocked. |
-| [Safety](docs/SAFETY.md) | Risk controls, deposit-wallet-only enforcement, circuit breakers. |
-| [Contracts](docs/CONTRACTS.md) | Contract addresses, factory ABI, CREATE2 derivation, and deployment status source-of-truth rules. |
-| [Architecture](docs/ARCHITECTURE.md) | Package boundaries and dependency direction. |
-| [Commands](docs/COMMANDS.md) | Auto-generated CLI reference. |
-| [Deposit Wallet Migration](docs/DEPOSIT-WALLET-MIGRATION.md) | V1→V2 survival guide for older bots. |
-| [polygolem.trebuchetdynamics.com](https://polygolem.trebuchetdynamics.com) | Documentation site — searchable HTML version of the full doc tree, with landing page. |
+| [Live Trade Walkthrough](docs/LIVE-TRADE-WALKTHROUGH.md) | End-to-end reference run: every tx, gas figure, and pUSD movement |
+| [Onboarding](docs/ONBOARDING.md) | Complete deposit wallet flow, troubleshooting |
+| [Headless Enable Trading](docs/ENABLE-TRADING-HEADLESS.md) | SDK for UI ClobAuth and token-approval signing |
+| [Browser Fallback](docs/BROWSER-SETUP.md) | Manual signing when headless login is blocked |
+| [Safety](docs/SAFETY.md) | Risk controls, deposit-wallet-only enforcement |
+| [Contracts](docs/CONTRACTS.md) | Contract addresses, factory ABI, CREATE2 derivation |
+| [Architecture](docs/ARCHITECTURE.md) | Package boundaries and dependency direction |
+| [Commands](docs/COMMANDS.md) | Auto-generated CLI reference |
+| [Deposit Wallet Migration](docs/DEPOSIT-WALLET-MIGRATION.md) | V1→V2 survival guide |
+| [polygolem.trebuchetdynamics.com](https://polygolem.trebuchetdynamics.com) | Searchable docs site |
 
 ---
 
@@ -312,11 +291,5 @@ call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
 ([reference run](docs/LIVE-TRADE-WALKTHROUGH.md)).
 
 Core trading flows are production-validated today.
-
-Release signing, broader exchange abstractions, and extended automation
-surfaces are still hardening.
-
-Planned: a guided read-only demo pipeline for onboarding and API graph
-exploration.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for per-version detail.
