@@ -44,6 +44,22 @@ polygolem discover crypto-window --asset ETH --interval 15m --enrich
 This hits the event directly by its deterministic slug
 (`btc-updown-5m-<unix_timestamp>`) and returns the active market with token IDs.
 
+### List all 6 active 5-minute crypto markets
+
+Scan every supported crypto asset and return the current 5m window for each:
+
+```bash
+# All 6 markets at once
+polygolem discover crypto-5m
+
+# With live CLOB price and spread (slower, one API call per market)
+polygolem discover crypto-5m --enrich
+```
+
+Assets scanned: BTC, ETH, SOL, XRP, BNB, HYPE.
+Returns token IDs, outcomes, condition IDs, and window boundaries for every
+active market in a single JSON response.
+
 ### Stream crypto markets
 
 Subscribe to live WebSocket events for crypto markets:

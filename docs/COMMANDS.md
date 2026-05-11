@@ -111,6 +111,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
   discover - Market discovery via Polymarket Gamma API
     comments - List or fetch public Gamma comments
     crypto - Discover active crypto prediction markets
+    crypto-5m - List all 6 active 5-minute crypto markets
     crypto-window - Resolve the current crypto prediction window deterministically
     enrich - Enrich market with CLOB data
     market - Get market details
@@ -1728,6 +1729,7 @@ polygolem discover [flags]
 |---|---|
 | `polygolem discover comments` | List or fetch public Gamma comments |
 | `polygolem discover crypto` | Discover active crypto prediction markets |
+| `polygolem discover crypto-5m` | List all 6 active 5-minute crypto markets |
 | `polygolem discover crypto-window` | Resolve the current crypto prediction window deterministically |
 | `polygolem discover enrich` | Enrich market with CLOB data |
 | `polygolem discover market` | Get market details |
@@ -1800,6 +1802,31 @@ polygolem discover crypto [flags]
 | `--interval` | `string` | `""` | interval filter (5m, 15m, 1h, daily, weekly) |
 | `--json` | `bool` | `false` | emit JSON output |
 | `--limit` | `int` | `20` | max results |
+
+### polygolem discover crypto-5m
+
+List all 6 active 5-minute crypto markets
+
+Resolve the current 5-minute window for all supported crypto assets
+and return a consolidated view of every active market.
+
+Assets scanned: BTC, ETH, SOL, XRP, BNB, HYPE
+
+Use --enrich to fetch live CLOB prices and spreads (slower).
+
+**Usage:**
+
+```bash
+polygolem discover crypto-5m [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--enrich` | `bool` | `false` | enrich with CLOB price and spread |
+| `-h, --help` | `bool` | `false` | help for crypto-5m |
+| `--json` | `bool` | `false` | emit JSON output |
 
 ### polygolem discover crypto-window
 

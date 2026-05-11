@@ -28,6 +28,9 @@ polygolem stream crypto --asset BTC --interval 5m --max-messages 10
 # Quick marketdata snapshots for crypto
 polygolem marketdata crypto --asset ETH --limit 5
 
+# List all 6 active 5m crypto markets
+polygolem discover crypto-5m --enrich
+
 # One-command paper trade on current window
 polygolem paper trade --asset BTC --interval 5m --side up --size 1
 ```

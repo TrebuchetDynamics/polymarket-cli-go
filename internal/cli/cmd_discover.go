@@ -437,6 +437,105 @@ Examples:
 	windowCmd.Flags().BoolVar(&cryptoEnrich, "enrich", false, "enrich with CLOB price and spread")
 	cmd.AddCommand(windowCmd)
 
+	var fiveMinEnrich bool
+	fiveMinCmd := &cobra.Command{
+		Use:   "crypto-5m",
+		Short: "List all 6 active 5-minute crypto markets",
+		Long: `Resolve the current 5-minute window for all supported crypto assets
+and return a consolidated view of every active market.
+
+Assets scanned: BTC, ETH, SOL, XRP, BNB, HYPE
+
+Use --enrich to fetch live CLOB prices and spreads (slower).`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			assets := []string{"BTC", "ETH", "SOL", "XRP", "BNB", "HYPE"}
+			windowStart, err := currentWindowStart("5m")
+			if err != nil {
+				return err
+			}
+
+			type marketResult struct {
+				Asset       string   `json:"asset"`
+				EventID     string   `json:"event_id,omitempty"`
+				EventTitle  string   `json:"event_title,omitempty"`
+				EventSlug   string   `json:"event_slug,omitempty"`
+				MarketID    string   `json:"market_id,omitempty"`
+				Question    string   `json:"question,omitempty"`
+				ConditionID string   `json:"condition_id,omitempty"`
+				TokenIDs    []string `json:"token_ids,omitempty"`
+				Outcomes    []string `json:"outcomes,omitempty"`
+				WindowStart string   `json:"window_start,omitempty"`
+				WindowEnd   string   `json:"window_end,omitempty"`
+				Price       string   `json:"price,omitempty"`
+				Spread      string   `json:"spread,omitempty"`
+				Status      string   `json:"status"`
+				Error       string   `json:"error,omitempty"`
+			}
+
+			var results []marketResult
+			for _, asset := range assets {
+				slug := marketresolver.CryptoWindowSlug(asset, "5m", windowStart)
+				if slug == "" {
+					results = append(results, marketResult{Asset: asset, Status: "error", Error: "unsupported asset"})
+					continue
+				}
+
+				evt, err := w.gamma.EventBySlug(cmd.Context(), slug)
+				if err != nil {
+					results = append(results, marketResult{Asset: asset, Status: "not_found", Error: err.Error()})
+					continue
+				}
+
+				var found bool
+				for _, market := range evt.Markets {
+					if !market.Active || market.Closed {
+						continue
+					}
+					tokenIDs := parseClobTokenIDs(market.ClobTokenIDs)
+					mr := marketResult{
+						Asset:       asset,
+						EventID:     evt.ID,
+						EventTitle:  evt.Title,
+						EventSlug:   evt.Slug,
+						MarketID:    market.ID,
+						Question:    market.Question,
+						ConditionID: market.ConditionID,
+						TokenIDs:    tokenIDs,
+						Outcomes:    []string(market.Outcomes),
+						WindowStart: windowStart.UTC().Format(time.RFC3339),
+						WindowEnd:   market.EndDateISO,
+						Status:      "active",
+					}
+					if fiveMinEnrich && len(tokenIDs) > 0 {
+						if price, err := w.clob.Price(cmd.Context(), tokenIDs[0], "BUY"); err == nil {
+							mr.Price = price
+						}
+						if spread, err := w.clob.Spread(cmd.Context(), tokenIDs[0]); err == nil {
+							mr.Spread = spread
+						}
+					}
+					results = append(results, mr)
+					found = true
+					break
+				}
+				if !found {
+					results = append(results, marketResult{Asset: asset, Status: "no_active_market"})
+				}
+			}
+
+			return w.printJSON(cmd, map[string]interface{}{
+				"interval":     "5m",
+				"window_start": windowStart.UTC().Format(time.RFC3339),
+				"assets":       assets,
+				"count":        len(results),
+				"markets":      results,
+			})
+		},
+	}
+	fiveMinCmd.Flags().BoolVar(&fiveMinEnrich, "enrich", false, "enrich with CLOB price and spread")
+	cmd.AddCommand(fiveMinCmd)
+
 	return cmd
 }
 
