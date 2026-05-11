@@ -123,6 +123,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
   live - Inspect live gate status
     status
   marketdata - Live CLOB orderbook and share-price snapshots
+    crypto - Get live marketdata snapshots for crypto markets
     live - Stream enriched CLOB market-data snapshots
   orderbook - Read CLOB order book data
     fee-rate - Get fee rate in bps
@@ -2027,6 +2028,7 @@ polygolem marketdata [flags]
 
 | Command | Description |
 |---|---|
+| `polygolem marketdata crypto` | Get live marketdata snapshots for crypto markets |
 | `polygolem marketdata live` | Stream enriched CLOB market-data snapshots |
 
 **Flags:**
@@ -2035,6 +2037,33 @@ polygolem marketdata [flags]
 |---|---|---|---|
 | `-h, --help` | `bool` | `false` | help for marketdata |
 | `--json` | `bool` | `false` | emit JSON output |
+
+### polygolem marketdata crypto
+
+Get live marketdata snapshots for crypto markets
+
+Discover crypto markets and fetch current CLOB snapshots (price, spread,
+order book) for each. Returns a single snapshot per market — no continuous stream.
+
+Examples:
+  polygolem marketdata crypto --asset BTC --interval 5m    # BTC 5m snapshots
+  polygolem marketdata crypto --asset ETH --limit 10       # ETH market snapshots
+
+**Usage:**
+
+```bash
+polygolem marketdata crypto [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--asset` | `string` | `""` | crypto asset filter (BTC, ETH, SOL, XRP, DOGE, BNB, HYPE) |
+| `-h, --help` | `bool` | `false` | help for crypto |
+| `--interval` | `string` | `""` | interval filter (5m, 15m, 1h) |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--limit` | `int` | `20` | max markets |
 
 ### polygolem marketdata live
 
