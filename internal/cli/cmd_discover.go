@@ -306,13 +306,15 @@ Intervals: 5m, 15m, 1h, daily, weekly (matches title patterns)`,
 					cm.Outcomes = []string(market.Outcomes)
 					cm.OutcomePrices = []string(market.OutcomePrices)
 
-					// Enrich with CLOB data if requested
-					if cryptoEnrich && cm.TokenID != "" {
-						if price, err := w.clob.Price(cmd.Context(), cm.TokenID, "BUY"); err == nil {
-							cm.Price = price
-						}
-						if spread, err := w.clob.Spread(cmd.Context(), cm.TokenID); err == nil {
-							cm.Spread = spread
+					if cryptoEnrich {
+						tokenIDs := parseClobTokenIDs(market.ClobTokenIDs)
+						if len(tokenIDs) > 0 {
+							if price, err := w.clob.Price(cmd.Context(), tokenIDs[0], "BUY"); err == nil {
+								cm.Price = price
+							}
+							if spread, err := w.clob.Spread(cmd.Context(), tokenIDs[0]); err == nil {
+								cm.Spread = spread
+							}
 						}
 					}
 

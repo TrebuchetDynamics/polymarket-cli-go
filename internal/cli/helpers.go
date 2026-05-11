@@ -26,6 +26,18 @@ func splitCSV(value string) []string {
 	return out
 }
 
+func parseClobTokenIDs(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+		return []string{raw}
+	}
+	return ids
+}
+
 type batchOrderJSON struct {
 	Token          string `json:"token"`
 	TokenID        string `json:"tokenID"`

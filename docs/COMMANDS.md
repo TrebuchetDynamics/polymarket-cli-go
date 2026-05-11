@@ -139,6 +139,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
     sell
   preflight - Inspect local CLI readiness
   stream - Polymarket WebSocket streams
+    crypto - Stream live crypto market events
     market - Stream public CLOB market events
   version - Print version
 ```
@@ -2329,6 +2330,7 @@ polygolem stream [flags]
 
 | Command | Description |
 |---|---|
+| `polygolem stream crypto` | Stream live crypto market events |
 | `polygolem stream market` | Stream public CLOB market events |
 
 **Flags:**
@@ -2337,6 +2339,37 @@ polygolem stream [flags]
 |---|---|---|---|
 | `-h, --help` | `bool` | `false` | help for stream |
 | `--json` | `bool` | `false` | emit JSON output |
+
+### polygolem stream crypto
+
+Stream live crypto market events
+
+Discover active crypto markets and stream their WebSocket events in real-time.
+
+Auto-discovers crypto markets by asset and interval, extracts token IDs, and
+subscribes to the CLOB market stream for live order book and price updates.
+
+Examples:
+  polygolem stream crypto --asset BTC --interval 5m          # Stream BTC 5m markets
+  polygolem stream crypto --asset ETH --max-messages 100     # Stream ETH markets
+  polygolem stream crypto --asset SOL --custom-features      # With best-bid-ask events
+
+**Usage:**
+
+```bash
+polygolem stream crypto [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--asset` | `string` | `""` | crypto asset filter (BTC, ETH, SOL, XRP, DOGE, BNB, HYPE) |
+| `--custom-features` | `bool` | `false` | request best-bid-ask and market lifecycle events |
+| `-h, --help` | `bool` | `false` | help for crypto |
+| `--interval` | `string` | `""` | interval filter (5m, 15m, 1h) |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--max-messages` | `int` | `0` | stop after this many messages; 0 streams until interrupted |
 
 ### polygolem stream market
 
