@@ -11,7 +11,7 @@ Cobra-based CLI on top.
 | Layer | Packages | Role |
 |-------|----------|------|
 | **`cmd/polygolem`** | 1 | Binary entry point. Wires Cobra and exits. |
-| **`pkg/`** | 17 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; authenticated CLOB account/order DTOs live in `pkg/clob`; contract registry/readiness lives in `pkg/contracts`; V2 market WebSocket events use public `pkg/stream` DTOs; normalized live snapshots live in `pkg/marketdata`; `pkg/bookreader` is deprecated in favor of `pkg/orderbook`; enrichment and rewards type paths still need cleanup. |
+| **`pkg/`** | 21 | Public Go SDK contracts. Gamma, Data API, and read-only CLOB DTOs use public `pkg/types`; authenticated CLOB account/order DTOs live in `pkg/clob`; contract registry/readiness lives in `pkg/contracts`; V2 market WebSocket events use public `pkg/stream` DTOs; normalized live snapshots live in `pkg/marketdata`; `pkg/plugins` defines extensibility interfaces; `pkg/experimental/` hosts APIs staged for SDK promotion. |
 | **`internal/`** | 21 | Implementation. Not part of public API. |
 
 The CLI and public SDK both depend on the internal protocol implementation.
@@ -21,20 +21,34 @@ The `internal/` packages do not depend on `cmd/`.
 
 | Package | Purpose |
 |---------|---------|
-| `pkg/universal` | Single client for Gamma + CLOB + Data API + Discovery + Stream |
-| `pkg/gamma` | Full Gamma API surface — 26 methods (markets, events, tags, comments, profiles) |
-| `pkg/data` | Read-only Data API analytics client returning `pkg/types` DTOs |
-| `pkg/types` | Public DTOs shared by SDK packages |
+| `pkg/bridge` | Bridge API client — supported assets, deposit addresses, quotes |
+| `pkg/builder` | Builder attribution and fee configuration for order placement |
 | `pkg/clob` | CLOB market-data plus authenticated account/order DTOs |
 | `pkg/contracts` | Polygon contract registry and deposit-wallet bytecode checks |
-| `pkg/orderbook` | Read-only CLOB order-book reader |
-| `pkg/bookreader` | Deprecated compatibility wrapper for `pkg/orderbook` |
-| `pkg/marketresolver` | Market + token ID resolution |
-| `pkg/bridge` | Bridge API — supported assets, deposit addresses, quotes |
-| `pkg/relayer` | Builder relayer primitives — wallet create, wallet batch, nonce, polling |
-| `pkg/stream` | Public CLOB WebSocket market stream client, including V2 custom feature events |
+| `pkg/ctf` | Conditional Tokens Framework (CTF) helpers for position management |
+| `pkg/data` | Read-only Data API analytics client returning `pkg/types` DTOs |
+| `pkg/enabletrading` | Headless enable-trading flow: ClobAuth API keys and token approvals |
+| `pkg/funding` | Deposit-wallet funding helpers (ERC-20 transfers and balance checks) |
+| `pkg/gamma` | Full Gamma API surface — 26 methods (markets, events, tags, comments, profiles) |
 | `pkg/marketdata` | Normalized live best bid, best ask, spread, midpoint, tick-size, last-trade, and book snapshots |
+| `pkg/marketresolver` | Market + token ID resolution |
+| `pkg/orderbook` | Read-only CLOB order-book reader |
+| `pkg/orderresults` | Order result types and response parsing for placement outcomes |
 | `pkg/pagination` | Cursor and offset pagination with concurrent batching |
+| `pkg/plugins` | Plugin interfaces for market data and risk extensibility |
+| `pkg/relayer` | Builder relayer primitives — wallet create, wallet batch, nonce, polling |
+| `pkg/settlement` | V2 winner redemption planning, adapter calls, and readiness gates |
+| `pkg/stream` | Public CLOB WebSocket market stream client, including V2 custom feature events |
+| `pkg/types` | Public DTOs shared by SDK packages |
+| `pkg/universal` | Single client for Gamma + CLOB + Data API + Discovery + Stream |
+| `pkg/wallet` | Public deposit-wallet primitives — derive, deploy, status, batch signing |
+
+### Experimental Packages
+
+| Package | Purpose |
+|---------|---------|
+| `pkg/experimental/orders` | Fluent `OrderIntent` builder and validation (staged for SDK promotion) |
+| `pkg/experimental/auth` | EIP-712 domain helpers, signature type constants, and hex utilities (staged for SDK promotion) |
 
 ## Internal Packages (`internal/`)
 
@@ -90,7 +104,7 @@ internal/{auth, transport, polytypes}                   ← cross-cutting
 internal/{wallet, orders, execution, risk, paper, marketdiscovery}
         ^
         |
-pkg/{universal, gamma, data, types, clob, contracts, stream, orderbook, bookreader, marketresolver, bridge, relayer, pagination}
+pkg/{bridge, builder, clob, contracts, ctf, data, enabletrading, funding, gamma, marketdata, marketresolver, orderbook, orderresults, pagination, plugins, relayer, settlement, stream, types, universal, wallet}
 ```
 
 ## Mode System
