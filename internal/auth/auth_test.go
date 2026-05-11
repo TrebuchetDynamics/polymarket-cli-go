@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"strings"
 	"testing"
+	"testing/quick"
 )
 
 func TestPrivateKeySignerDerivesAddress(t *testing.T) {
@@ -55,6 +57,35 @@ func TestRedact(t *testing.T) {
 	}
 	if Redact("abcdefghijkl") != "abcd...ijkl" {
 		t.Fatalf("long: %s", Redact("abcdefghijkl"))
+	}
+}
+
+// Property: Redact is idempotent for strings longer than 8 bytes.
+func TestRedactIdempotent(t *testing.T) {
+	f := func(s string) bool {
+		if len(s) <= 8 {
+			return true // property only applies to long strings
+		}
+		once := Redact(s)
+		twice := Redact(once)
+		return once == twice
+	}
+	if err := quick.Check(f, &quick.Config{MaxCount: 1000}); err != nil {
+		t.Error(err)
+	}
+}
+
+// Property: For any string longer than 8 chars, Redact always contains "...".
+func TestRedactLongStringAlwaysEllipsizes(t *testing.T) {
+	f := func(s string) bool {
+		if len(s) <= 8 {
+			return true // property only applies to long strings
+		}
+		r := Redact(s)
+		return strings.Contains(r, "...")
+	}
+	if err := quick.Check(f, &quick.Config{MaxCount: 1000}); err != nil {
+		t.Error(err)
 	}
 }
 
