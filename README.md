@@ -1,20 +1,71 @@
-# polygolem
+<h1 align="center">polygolem</h1>
 
-[![CI](https://github.com/TrebuchetDynamics/polygolem/actions/workflows/ci.yml/badge.svg)](https://github.com/TrebuchetDynamics/polygolem/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/TrebuchetDynamics/polygolem)](go.mod)
-[![Latest Release](https://img.shields.io/github/v/tag/TrebuchetDynamics/polygolem?label=release&sort=semver)](https://github.com/TrebuchetDynamics/polygolem/releases)
+<p align="center">
+  <b>Production-safe Polymarket infrastructure for Go developers</b>
+</p>
 
-**Production-safe Polymarket infrastructure for Go developers.**
+<p align="center">
+  A single binary + Go SDK for trading on Polymarket V2 through deposit wallets.<br>
+  No Python. No npm. No opaque wrappers.
+</p>
 
-A single binary + Go SDK for trading on Polymarket V2 through deposit wallets.
-No Python. No npm. No opaque wrappers.
+<p align="center">
+  <a href="https://github.com/TrebuchetDynamics/polygolem/actions/workflows/ci.yml"><img src="https://github.com/TrebuchetDynamics/polygolem/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/TrebuchetDynamics/polygolem/releases"><img src="https://img.shields.io/github/v/tag/TrebuchetDynamics/polygolem?label=release&sort=semver" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
+  <a href="go.mod"><img src="https://img.shields.io/github/go-mod/go-version/TrebuchetDynamics/polygolem" alt="Go Version"></a>
+  <a href="https://goreportcard.com/report/github.com/TrebuchetDynamics/polygolem"><img src="https://goreportcard.com/badge/github.com/TrebuchetDynamics/polygolem" alt="Go Report Card"></a>
+</p>
+
+---
+
+## Contents
+
+- [Quick Start](#quick-start)
+- [What's New in v0.1.1](#whats-new-in-v011)
+- [Who This Is For](#who-this-is-for)
+- [The Problem We Solve](#the-problem-we-solve)
+- [Production Validation](#production-validation)
+- [Installation](#installation)
+- [Features](#features)
+- [Go SDK](#go-sdk)
+- [Crypto Market Discovery](#crypto-market-discovery)
+- [Safety Model](#safety-model)
+- [Performance](#performance)
+- [Common Workflows](#common-workflows)
+- [The V2 Identity Model](#the-v2-identity-model)
+- [Trade in Four Commands](#trade-in-four-commands)
+- [Production Users](#production-users)
+- [Contributing](#contributing)
+- [Community](#community)
+- [Docs](#docs)
+- [License](#license)
+
+---
+
+## Quick Start
 
 ```bash
 go install github.com/TrebuchetDynamics/polygolem/cmd/polygolem@latest
+
 polygolem health
 # {"clob":"ok","gamma":"ok"}
 ```
+
+No credentials needed. Read-only is the default for everything until you set
+`POLYMARKET_PRIVATE_KEY`.
+
+---
+
+## What's New in v0.1.1
+
+- **Crypto-5m discovery** — resolve all 7 active 5-minute crypto markets (BTC, ETH, SOL, XRP, BNB, DOGE, HYPE) in one command
+- **Deterministic window resolution** — `crypto-window` hits the exact current window by slug, bypassing search index lag
+- **Paper trading** — simulate orders against live CLOB data with one-command workflow
+- **V2 settlement readiness gate** — `deposit-wallet settlement-status` checks adapter approvals before redeem
+- **7 Go-specific bugs fixed** — credential redaction, hex parsing, WebSocket races, version negotiation
+
+See [CHANGELOG.md](CHANGELOG.md) for full details.
 
 ---
 
@@ -50,43 +101,12 @@ Polymarket migrated to V2 in April 2026. The new model requires **deposit wallet
 | **Go embedding** | Not possible | Native `pkg/` packages |
 | **Read-only default** | No | Yes — credentials required explicitly |
 
-The official clients are excellent for Python/TS ecosystems. They support EOA, proxy, and Safe signing modes for backward compatibility. Polygolem does not — it only implements the V2 deposit-wallet production path, because EOA orders on V2 produce ghost fills that appear in the book but never settle.
-
 **Concrete issues we avoid:**
 
 - **Hardcoded `CLOB_VERSION = "1"`** in `py-clob-client` caused mass `order_version_mismatch` failures when Polymarket upgraded their EIP-712 domain in April 2026. Polygolem queries `/version` dynamically before every signing session.
 - **Auth headers leaked in error logs** (TypeScript client [#327](https://github.com/Polymarket/clob-client/issues/327)). Polygolem redacts all secrets in errors, logs, and JSON output — tested and enforced.
 - **Tick size caching bugs** ([#265](https://github.com/Polymarket/clob-client/issues/265)) cause valid orders to be rejected because stale tick sizes are cached per client instance. Polygolem fetches tick sizes fresh per order placement.
 - **No official Go client exists** — only scattered community efforts with varying completeness. Polygolem is a unified, production-validated Go-native SDK.
-
----
-
-## Try It in 60 Seconds (No Credentials Needed)
-
-All outputs below come from live Polymarket APIs.
-
-```bash
-git clone https://github.com/TrebuchetDynamics/polygolem
-cd polygolem && go build -o polygolem ./cmd/polygolem
-
-# Health check
-./polygolem health
-# {"clob":"ok","gamma":"ok"}
-
-# Current BTC 5-minute up/down market
-./polygolem discover crypto-5m --asset BTC
-# Returns token IDs, condition ID, window boundaries
-
-# Live order book
-./polygolem orderbook price --token-id 1391568931...637394586
-# {"price":"0.012","token_id":"1391568931...637394586"}
-
-# All 7 active 5m crypto markets
-./polygolem discover crypto-5m --enrich
-# BTC, ETH, SOL, XRP, BNB, DOGE, HYPE with live prices
-```
-
-Read-only is the default for everything until you set `POLYMARKET_PRIVATE_KEY`.
 
 ---
 
@@ -107,70 +127,40 @@ Core trading flows validated today:
 
 ---
 
-## The V2 Identity Model
+## Installation
 
-```
-  EOA  ──signs──▶  Order
-   │              (signatureType=3, maker=DepositWallet, signer=DepositWallet)
-   │
-   ▼ derives (CREATE2)              ▼ submitted by
- Deposit Wallet  ◀──holds pUSD──    Polymarket matching engine
- (ERC-1967 proxy,                   (gas-sponsored fillOrders settlement)
-  validates signatures              ──┐
-  via ERC-1271)                       │
-                                      ▼
- V2 Relayer  ──sponsors──▶  WALLET-CREATE + approval batch
- (relayer-v2.polymarket.com)
-```
-
-Your EOA signs; the deposit wallet holds funds and is the on-order maker;
-Polymarket-run services pay every gas fee except your single ERC-20 funding
-transfer. See [the walkthrough](docs/LIVE-TRADE-WALKTHROUGH.md) for the full
-lifecycle with real txes.
-
----
-
-## Trade in Four Commands
+### go install (recommended)
 
 ```bash
-export POLYMARKET_PRIVATE_KEY="0x..."
-
-# One-command onboarding: auth + deploy + approve + fund
-polygolem deposit-wallet onboard --fund-amount 0.71
-
-# Sync CLOB balance
-polygolem clob update-balance --asset-type collateral
-
-# Place a market FOK buy
-polygolem clob market-order \
-  --token <ID> --side buy --amount 1 --price 0.012 --order-type FOK
-# {
-#   "success": true,
-#   "orderID": "0x43083109...c423d793d",
-#   "status": "matched",
-#   "makingAmount": "1",
-#   "takingAmount": "86.606666"
-# }
+go install github.com/TrebuchetDynamics/polygolem/cmd/polygolem@latest
 ```
 
-After onboarding, every trade is fully headless. Total user-paid cost on the
-reference run was **~$0.01 in POL gas** for the single ERC-20 transfer that
-funds the deposit wallet.
+### Build from source
+
+```bash
+git clone https://github.com/TrebuchetDynamics/polygolem
+cd polygolem && go build -o polygolem ./cmd/polygolem
+```
+
+### Requirements
+
+- Go 1.22+
+- No other dependencies — single static binary
 
 ---
 
-## Safety Model
+## Features
 
-| Guard | What it does |
-|---|---|
-| **Read-only by default** | No credentials = no authenticated operations |
-| **Deposit-wallet only** | Cannot accidentally sign as EOA, proxy, or Safe |
-| **Local signing** | Private key never leaves the process |
-| **No external SDKs** | All wallet derivation, EIP-712, ERC-7739, and relayer code is in this repo |
-| **Pre-trade caps + daily limits + circuit breaker** | Configurable in `internal/risk` |
-| **Secret redaction** | API keys and signatures are redacted in logs |
-
-See [docs/SAFETY.md](docs/SAFETY.md) for the full model.
+- **Market discovery** — Search, filter, and enrich Polymarket markets via Gamma + CLOB APIs
+- **Deterministic crypto resolution** — Resolve current 5m/15m/1h/4h windows by slug (BTC, ETH, SOL, XRP, BNB, DOGE, HYPE)
+- **Live market data** — Order books, prices, spreads, midpoints, tick sizes, last trades
+- **WebSocket streaming** — Public CLOB market stream with auto-reconnect
+- **V2 deposit wallet lifecycle** — Derive, deploy, fund, approve, trade — all headless
+- **Paper trading** — Simulate orders against live CLOB data with zero risk
+- **Settlement readiness** — Check adapter approvals before redeeming winning positions
+- **Local signing** — Private key never leaves the process; no external signing services
+- **Secret redaction** — API keys and signatures are redacted in all output and logs
+- **Read-only by default** — No credentials required for market data
 
 ---
 
@@ -238,6 +228,37 @@ Assets supported: BTC, ETH, SOL, XRP, BNB, DOGE, HYPE.
 
 ---
 
+## Safety Model
+
+| Guard | What it does |
+|---|---|
+| **Read-only by default** | No credentials = no authenticated operations |
+| **Deposit-wallet only** | Cannot accidentally sign as EOA, proxy, or Safe |
+| **Local signing** | Private key never leaves the process |
+| **No external SDKs** | All wallet derivation, EIP-712, ERC-7739, and relayer code is in this repo |
+| **Pre-trade caps + daily limits + circuit breaker** | Configurable in `internal/risk` |
+| **Secret redaction** | API keys and signatures are redacted in logs |
+
+See [docs/SAFETY.md](docs/SAFETY.md) for the full model.
+
+---
+
+## Performance
+
+Measured on Polygon mainnet during the 2026-05-11 reference run:
+
+| Operation | Gas Cost (POL) | Paid By |
+|---|---|---|
+| Deposit wallet deploy (WALLET-CREATE) | ~0.20 POL | Polymarket relayer (sponsored) |
+| Approval batch (6 calls) | ~0.12 POL | Polymarket relayer (sponsored) |
+| CLOB order fill | ~0.05 POL | Polymarket matching engine (sponsored) |
+| **User-paid total** | **~$0.01** | User (single pUSD funding transfer) |
+
+All relayer and settlement gas is sponsored by Polymarket-run services. The user
+pays only for the single ERC-20 transfer that funds the deposit wallet.
+
+---
+
 ## Common Workflows
 
 | I want to... | Run |
@@ -256,15 +277,98 @@ Full CLI reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ---
 
-## Environment
+## The V2 Identity Model
 
-- **Required for authenticated commands:** `POLYMARKET_PRIVATE_KEY`.
-- **Automatic:** V2 relayer key is minted and persisted on first wallet use;
-  CLOB L2 keys are created or derived on demand.
-- **Optional:** `POLYMARKET_BUILDER_CODE` for V2 order attribution.
+```
+  EOA  ──signs──▶  Order
+   │              (signatureType=3, maker=DepositWallet, signer=DepositWallet)
+   │
+   ▼ derives (CREATE2)              ▼ submitted by
+ Deposit Wallet  ◀──holds pUSD──    Polymarket matching engine
+ (ERC-1967 proxy,                   (gas-sponsored fillOrders settlement)
+  validates signatures              ──┐
+  via ERC-1271)                       │
+                                      ▼
+ V2 Relayer  ──sponsors──▶  WALLET-CREATE + approval batch
+ (relayer-v2.polymarket.com)
+```
 
-The deposit wallet address is derived locally from the private key; no API
-call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
+Your EOA signs; the deposit wallet holds funds and is the on-order maker;
+Polymarket-run services pay every gas fee except your single ERC-20 funding
+transfer. See [the walkthrough](docs/LIVE-TRADE-WALKTHROUGH.md) for the full
+lifecycle with real txes.
+
+---
+
+## Trade in Four Commands
+
+```bash
+export POLYMARKET_PRIVATE_KEY="0x..."
+
+# One-command onboarding: auth + deploy + approve + fund
+polygolem deposit-wallet onboard --fund-amount 0.71
+
+# Sync CLOB balance
+polygolem clob update-balance --asset-type collateral
+
+# Place a market FOK buy
+polygolem clob market-order \
+  --token <ID> --side buy --amount 1 --price 0.012 --order-type FOK
+# {
+#   "success": true,
+#   "orderID": "0x43083109...c423d793d",
+#   "status": "matched",
+#   "makingAmount": "1",
+#   "takingAmount": "86.606666"
+# }
+```
+
+After onboarding, every trade is fully headless. Total user-paid cost on the
+reference run was **~$0.01 in POL gas** for the single ERC-20 transfer that
+funds the deposit wallet.
+
+> **Note:** Polymarket login signs with the EOA. `polygolem auth login` is still
+> available as an explicit refresh/inspection command. Browser setup is
+> fallback-only; see [docs/BROWSER-SETUP.md](docs/BROWSER-SETUP.md).
+
+---
+
+## Production Users
+
+Polygolem is used in production by:
+
+- **Trebuchet Dynamics** — institutional trading desk and quant research
+
+*Want to be listed here? [Open an issue](https://github.com/TrebuchetDynamics/polygolem/issues) or reach out.*
+
+---
+
+## Contributing
+
+Polygolem is a TDD-first project. All behavior changes land with tests, and new
+tests fail before the implementation lands.
+
+- **Bug reports:** [GitHub Issues](https://github.com/TrebuchetDynamics/polygolem/issues)
+- **Feature requests:** [GitHub Issues](https://github.com/TrebuchetDynamics/polygolem/issues)
+- **Security reports:** See [SECURITY.md](SECURITY.md) (do not file public issues)
+- **Development guide:** See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+Build and test locally:
+
+```bash
+go build -o polygolem ./cmd/polygolem
+go test ./...
+go vet ./...
+gofmt -w .
+```
+
+---
+
+## Community
+
+- **GitHub Discussions** — Q&A, show-and-tell, announcements
+- **GitHub Issues** — Bug reports and feature requests
+- **Documentation** — [polygolem.trebuchetdynamics.com](https://polygolem.trebuchetdynamics.com)
 
 ---
 
@@ -285,11 +389,6 @@ call required. Full env reference in [docs/ONBOARDING.md](docs/ONBOARDING.md).
 
 ---
 
-## Status
+## License
 
-`v0.1.1` — production-validated against Polygon mainnet on **2026-05-11**
-([reference run](docs/LIVE-TRADE-WALKTHROUGH.md)).
-
-Core trading flows are production-validated today.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for per-version detail.
+[MIT](LICENSE) © Trebuchet Dynamics
