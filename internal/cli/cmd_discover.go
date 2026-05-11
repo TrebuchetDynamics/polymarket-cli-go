@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/TrebuchetDynamics/polygolem/internal/polytypes"
 	"github.com/spf13/cobra"
@@ -214,6 +215,125 @@ func discoverCmd(jsonOut bool) *cobra.Command {
 	commentsCmd.Flags().IntVar(&commentLimit, "limit", 20, "max comments")
 	commentsCmd.Flags().IntVar(&commentOffset, "offset", 0, "pagination offset")
 	cmd.AddCommand(commentsCmd)
+
+	var cryptoInterval string
+	var cryptoAsset string
+	var cryptoEnrich bool
+	cryptoCmd := &cobra.Command{
+		Use:   "crypto",
+		Short: "Discover active crypto prediction markets",
+		Long: `Search for active Polymarket crypto markets by asset and interval.
+
+Extracts markets from events and filters by title patterns. Returns token IDs
+ready for orderbook inspection or trading.
+
+Examples:
+  polygolem discover crypto --asset BTC --interval 5m    # BTC Up/Down 5m markets
+  polygolem discover crypto --asset ETH --interval 15m   # ETH Up/Down 15m markets
+  polygolem discover crypto --asset BTC --interval 5m --enrich  # With CLOB prices
+  polygolem discover crypto --limit 50                   # All crypto markets
+
+Assets: BTC, ETH, SOL, XRP, DOGE, BNB, HYPE, etc.
+Intervals: 5m, 15m, 1h, daily, weekly (matches title patterns)`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			searchQuery := cryptoAsset
+			if cryptoInterval != "" {
+				if searchQuery != "" {
+					searchQuery += " "
+				}
+				searchQuery += cryptoInterval
+			}
+			if searchQuery == "" {
+				searchQuery = "crypto"
+			}
+			resp, err := w.gamma.Search(cmd.Context(), &polytypes.SearchParams{
+				Q:            searchQuery,
+				LimitPerType: &limit,
+			})
+			if err != nil {
+				return err
+			}
+
+			// Extract markets from events and filter
+			type cryptoMarket struct {
+				EventID      string   `json:"event_id"`
+				EventTitle   string   `json:"event_title"`
+				EventSlug    string   `json:"event_slug"`
+				MarketID     string   `json:"market_id"`
+				Question     string   `json:"question"`
+				ConditionID  string   `json:"condition_id"`
+				TokenID      string   `json:"token_id"`
+				Outcomes     []string `json:"outcomes"`
+				OutcomePrices []string `json:"outcome_prices"`
+				EndDate      string   `json:"end_date"`
+				Volume24hr   float64  `json:"volume_24h"`
+				Price        string   `json:"price,omitempty"`
+				Spread       string   `json:"spread,omitempty"`
+			}
+
+			var results []cryptoMarket
+			for _, event := range resp.Events {
+				if !event.Active || event.Closed {
+					continue
+				}
+				for _, market := range event.Markets {
+					if !market.Active || market.Closed {
+						continue
+					}
+					// Filter by asset if specified
+					if cryptoAsset != "" && !strings.Contains(strings.ToUpper(market.Question), strings.ToUpper(cryptoAsset)) &&
+						!strings.Contains(strings.ToUpper(event.Title), strings.ToUpper(cryptoAsset)) {
+						continue
+					}
+					// Filter by interval if specified
+					if cryptoInterval != "" && !strings.Contains(strings.ToLower(event.Title), strings.ToLower(cryptoInterval)) &&
+						!strings.Contains(strings.ToLower(market.Question), strings.ToLower(cryptoInterval)) {
+						continue
+					}
+
+					cm := cryptoMarket{
+						EventID:     event.ID,
+						EventTitle:  event.Title,
+						EventSlug:   event.Slug,
+						MarketID:    market.ID,
+						Question:    market.Question,
+						ConditionID: market.ConditionID,
+						TokenID:     market.ClobTokenIDs,
+						EndDate:     market.EndDateISO,
+						Volume24hr:  market.Volume24hr,
+					}
+					cm.Outcomes = []string(market.Outcomes)
+					cm.OutcomePrices = []string(market.OutcomePrices)
+
+					// Enrich with CLOB data if requested
+					if cryptoEnrich && cm.TokenID != "" {
+						if price, err := w.clob.Price(cmd.Context(), cm.TokenID, "BUY"); err == nil {
+							cm.Price = price
+						}
+						if spread, err := w.clob.Spread(cmd.Context(), cm.TokenID); err == nil {
+							cm.Spread = spread
+						}
+					}
+
+					results = append(results, cm)
+				}
+			}
+
+			return w.printJSON(cmd, map[string]interface{}{
+				"query":       searchQuery,
+				"asset":       cryptoAsset,
+				"interval":    cryptoInterval,
+				"count":       len(results),
+				"markets":     results,
+			})
+		},
+	}
+	cryptoCmd.Flags().StringVar(&cryptoAsset, "asset", "", "crypto asset filter (BTC, ETH, SOL, XRP, DOGE, BNB, HYPE)")
+	cryptoCmd.Flags().StringVar(&cryptoInterval, "interval", "", "interval filter (5m, 15m, 1h, daily, weekly)")
+	cryptoCmd.Flags().IntVar(&limit, "limit", 20, "max results")
+	cryptoCmd.Flags().BoolVar(&cryptoEnrich, "enrich", false, "enrich with CLOB price and spread (slower, one API call per market)")
+	cmd.AddCommand(cryptoCmd)
 
 	return cmd
 }

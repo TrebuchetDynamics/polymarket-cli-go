@@ -110,6 +110,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
     swap-pol-pusd - Swap native POL into an exact amount of pUSD via Uniswap V3
   discover - Market discovery via Polymarket Gamma API
     comments - List or fetch public Gamma comments
+    crypto - Discover active crypto prediction markets
     enrich - Enrich market with CLOB data
     market - Get market details
     markets - List Gamma markets
@@ -1721,6 +1722,7 @@ polygolem discover [flags]
 | Command | Description |
 |---|---|
 | `polygolem discover comments` | List or fetch public Gamma comments |
+| `polygolem discover crypto` | Discover active crypto prediction markets |
 | `polygolem discover enrich` | Enrich market with CLOB data |
 | `polygolem discover market` | Get market details |
 | `polygolem discover markets` | List Gamma markets |
@@ -1757,6 +1759,41 @@ polygolem discover comments [flags]
 | `--limit` | `int` | `20` | max comments |
 | `--offset` | `int` | `0` | pagination offset |
 | `--user` | `string` | `""` | user wallet address |
+
+### polygolem discover crypto
+
+Discover active crypto prediction markets
+
+Search for active Polymarket crypto markets by asset and interval.
+
+Extracts markets from events and filters by title patterns. Returns token IDs
+ready for orderbook inspection or trading.
+
+Examples:
+  polygolem discover crypto --asset BTC --interval 5m    # BTC Up/Down 5m markets
+  polygolem discover crypto --asset ETH --interval 15m   # ETH Up/Down 15m markets
+  polygolem discover crypto --asset BTC --interval 5m --enrich  # With CLOB prices
+  polygolem discover crypto --limit 50                   # All crypto markets
+
+Assets: BTC, ETH, SOL, XRP, DOGE, BNB, HYPE, etc.
+Intervals: 5m, 15m, 1h, daily, weekly (matches title patterns)
+
+**Usage:**
+
+```bash
+polygolem discover crypto [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--asset` | `string` | `""` | crypto asset filter (BTC, ETH, SOL, XRP, DOGE, BNB, HYPE) |
+| `--enrich` | `bool` | `false` | enrich with CLOB price and spread (slower, one API call per market) |
+| `-h, --help` | `bool` | `false` | help for crypto |
+| `--interval` | `string` | `""` | interval filter (5m, 15m, 1h, daily, weekly) |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--limit` | `int` | `20` | max results |
 
 ### polygolem discover enrich
 
