@@ -267,6 +267,67 @@ func TestCreateMarketOrderRoundsBuyAmountToCLOBMarketAccuracy(t *testing.T) {
 	}
 }
 
+func TestCreateMarketOrderUsesEOABoundAuthAndDepositMaker(t *testing.T) {
+	wantDepositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
+	var deriveAddress string
+	var orderAddress string
+	var posted map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/tick-size":
+			_, _ = w.Write([]byte(`{"minimum_tick_size":"0.01","minimum_order_size":"5"}`))
+		case "/neg-risk":
+			_, _ = w.Write([]byte(`{"neg_risk":false}`))
+		case "/auth/derive-api-key":
+			deriveAddress = r.Header.Get("POLY_ADDRESS")
+			_, _ = w.Write([]byte(`{"apiKey":"deposit-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/order":
+			orderAddress = r.Header.Get("POLY_ADDRESS")
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Fatalf("decode order body: %v", err)
+			}
+			_, _ = w.Write([]byte(`{"success":true,"orderID":"0xabc","status":"matched"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	_, err := client.CreateMarketOrder(context.Background(), testOrderPrivateKey, MarketOrderParams{
+		TokenID:   "12345",
+		Side:      "buy",
+		Amount:    "1.011700",
+		Price:     "0.120000",
+		OrderType: "FOK",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.EqualFold(deriveAddress, testOrderEOA) {
+		t.Fatalf("derive POLY_ADDRESS=%s want EOA %s (HTTP-layer auth)", deriveAddress, testOrderEOA)
+	}
+	if !strings.EqualFold(orderAddress, testOrderEOA) {
+		t.Fatalf("order POLY_ADDRESS=%s want EOA %s (HTTP-layer auth)", orderAddress, testOrderEOA)
+	}
+	order, ok := posted["order"].(map[string]any)
+	if !ok {
+		t.Fatalf("posted order missing: %#v", posted)
+	}
+	if !strings.EqualFold(order["maker"].(string), wantDepositWallet) || !strings.EqualFold(order["signer"].(string), wantDepositWallet) {
+		t.Fatalf("maker/signer=%v/%v want deposit wallet %s", order["maker"], order["signer"], wantDepositWallet)
+	}
+	if order["signatureType"] != float64(signatureTypePoly1271) {
+		t.Fatalf("signatureType=%v want %d", order["signatureType"], signatureTypePoly1271)
+	}
+	if order["makerAmount"] != "1010000" || order["takerAmount"] != "8416600" {
+		t.Fatalf("amounts=%v/%v", order["makerAmount"], order["takerAmount"])
+	}
+}
+
 func TestCreateLimitOrderUsesEOABoundL2AuthAndDepositMaker(t *testing.T) {
 	wantDepositWallet := "0xfd5041047be8c192c725a66228f141196fa3cf9c"
 	var deriveAddress string
