@@ -1,6 +1,5 @@
 
 rs-clob-client/
-opensource-projects/
 
 /target/
 **/target/
@@ -24,7 +23,6 @@ CLAUDE.md
 # compiled binaries (keep cmd/*/ source tracked)
 /polygolem
 /indexer_probe
-/live_siwe_probe
 indexer_probe.pid
 indexer_probe.state.json
 indexer_probe.log
