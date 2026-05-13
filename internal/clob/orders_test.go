@@ -851,6 +851,7 @@ func TestCancelMarketDeletesMarketEndpointWithFilters(t *testing.T) {
 
 func TestCreateBatchOrdersPostsArrayToOrdersEndpoint(t *testing.T) {
 	var posted []map[string]any
+	var orderAddress string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -861,6 +862,7 @@ func TestCreateBatchOrdersPostsArrayToOrdersEndpoint(t *testing.T) {
 		case "/auth/derive-api-key":
 			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
 		case "/orders":
+			orderAddress = r.Header.Get("POLY_ADDRESS")
 			if r.Method != http.MethodPost {
 				t.Fatalf("method=%s want POST", r.Method)
 			}
@@ -892,6 +894,9 @@ func TestCreateBatchOrdersPostsArrayToOrdersEndpoint(t *testing.T) {
 	}
 	if res.Orders[0].OrderID != "0xabc" || res.Orders[1].OrderID != "0xdef" {
 		t.Fatalf("order IDs=%v", []string{res.Orders[0].OrderID, res.Orders[1].OrderID})
+	}
+	if !strings.EqualFold(orderAddress, testOrderEOA) {
+		t.Fatalf("batch POLY_ADDRESS=%s want EOA %s", orderAddress, testOrderEOA)
 	}
 }
 

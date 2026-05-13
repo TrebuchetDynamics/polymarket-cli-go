@@ -340,7 +340,7 @@ func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, param
 		return nil, err
 	}
 	body := string(bodyBytes)
-	headers, err := c.l2HeadersForAddress(&key, http.MethodPost, "/orders", &body, depositWallet)
+	headers, err := c.l2HeadersForAddress(&key, http.MethodPost, "/orders", &body, signer.Address())
 	if err != nil {
 		return nil, err
 	}
