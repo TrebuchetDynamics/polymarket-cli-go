@@ -44,10 +44,10 @@ We ran an EOA key scout that:
 5. Created an **EOA-owned CLOB API key** (works — HTTP 200)
 6. Attempted to post deposit-wallet orders with the EOA-owned key
 
-**Test A:** `order.owner=depositWallet`, `order.signer=depositWallet`, `API_KEY.owner=EOA`  
+**Test A:** `order.owner=depositWallet`, `order.signer=depositWallet`, `API_KEY.owner=EOA`
 **Result:** HTTP 400 `{"error":"the order owner has to be the owner of the API KEY"}`
 
-**Test B:** `order.owner=depositWallet`, `order.signer=EOA`, `API_KEY.owner=EOA`  
+**Test B:** `order.owner=depositWallet`, `order.signer=EOA`, `API_KEY.owner=EOA`
 **Result:** HTTP 400 `{"error":"the order owner has to be the owner of the API KEY"}`
 
 **Conclusion from tests:**
@@ -215,7 +215,7 @@ func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, draft
     if len(drafts) > MaxBatchPostSize {
         return nil, fmt.Errorf("batch size %d exceeds maximum of %d", len(drafts), MaxBatchPostSize)
     }
-    
+
     signer, err := auth.NewPrivateKeySigner(privateKey, polygonChainID)
     if err != nil {
         return nil, err
@@ -224,7 +224,7 @@ func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, draft
     if err != nil {
         return nil, fmt.Errorf("derive api key: %w", err)
     }
-    
+
     // Build all payloads
     payloads := make([]sendOrderPayload, len(drafts))
     for i, draft := range drafts {
@@ -245,7 +245,7 @@ func (c *Client) CreateBatchOrders(ctx context.Context, privateKey string, draft
             DeferExec: false,
         }
     }
-    
+
     bodyBytes, err := json.Marshal(payloads)
     if err != nil {
         return nil, err
@@ -314,21 +314,21 @@ func (c *Client) Heartbeat(ctx context.Context, privateKey string, heartbeatID s
     if err != nil {
         return fmt.Errorf("derive api key: %w", err)
     }
-    
+
     var body map[string]interface{}
     if heartbeatID != "" {
         body = map[string]interface{}{"heartbeat_id": heartbeatID}
     } else {
         body = map[string]interface{}{"heartbeat_id": nil}
     }
-    
+
     bodyBytes, _ := json.Marshal(body)
     bodyStr := string(bodyBytes)
     headers, err := c.l2Headers(privateKey, &key, http.MethodPost, "/v1/heartbeats", &bodyStr)
     if err != nil {
         return err
     }
-    
+
     var result map[string]interface{}
     if err := c.transport.PostWithHeaders(ctx, "/v1/heartbeats", body, headers, &result); err != nil {
         return fmt.Errorf("heartbeat: %w", err)
@@ -421,7 +421,7 @@ import (
     "context"
     "fmt"
     "math/big"
-    
+
     "github.com/ethereum/go-ethereum/common"
     "github.com/ethereum/go-ethereum/ethclient"
 )
@@ -443,11 +443,11 @@ func NewClient(rpcURL, privateKey string, chainID int64) (*Client, error) {
 func (c *Client) SplitPosition(ctx context.Context, conditionID common.Hash, amountUSDC float64, negRisk bool) (*TransactionReceipt, error) {
     amountWei := toWei(amountUSDC, 6)
     partition := []*big.Int{big.NewInt(1), big.NewInt(2)}  // YES, NO
-    
+
     var to common.Address
     var data []byte
     var err error
-    
+
     if negRisk {
         to = NegRiskAdapter
         data, err = negRiskAdapterABI.Pack("splitPosition",
