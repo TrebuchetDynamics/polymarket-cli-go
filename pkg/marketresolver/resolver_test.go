@@ -28,11 +28,14 @@ func TestResolveTokenIDsUsesEmbeddedPublicSearchMarkets(t *testing.T) {
 						"question": "Bitcoin Up or Down - May 6, 8:45PM-8:50PM ET",
 						"conditionId": "condition-1",
 						"slug": "btc-updown-5m-1778114700",
+						"resolutionSource": "https://data.chain.link/streams/btc-usd",
 						"outcomes": ["Up", "Down"],
 						"active": true,
 						"closed": false,
 						"enableOrderBook": true,
 						"acceptingOrders": true,
+						"orderMinSize": 5,
+						"orderPriceMinTickSize": 0.01,
 						"clobTokenIds": "[\"up-token\", \"down-token\"]"
 					}]
 				}],
@@ -57,6 +60,12 @@ func TestResolveTokenIDsUsesEmbeddedPublicSearchMarkets(t *testing.T) {
 	}
 	if got.ConditionID != "condition-1" || got.UpTokenID != "up-token" || got.DownTokenID != "down-token" {
 		t.Fatalf("unexpected tokens: %#v", got)
+	}
+	if got.ResolutionSource != "https://data.chain.link/streams/btc-usd" || got.Question == "" || got.Slug != "btc-updown-5m-1778114700" {
+		t.Fatalf("market metadata was not preserved: %#v", got)
+	}
+	if got.MinOrderSize != 5 || got.TickSize != 0.01 {
+		t.Fatalf("market execution metadata was not preserved: %#v", got)
 	}
 	if eventLookupCalled {
 		t.Fatal("resolver should use embedded public-search markets before calling event detail")
@@ -83,11 +92,14 @@ func TestResolveTokenIDsAtUsesDeterministicCryptoSlug(t *testing.T) {
 					"question": "Bitcoin Up or Down - May 6, 8:45PM-8:50PM ET",
 					"conditionId": "condition-1",
 					"slug": "btc-updown-5m-1778114700",
+					"resolutionSource": "https://data.chain.link/streams/btc-usd",
 					"outcomes": ["Up", "Down"],
 					"active": true,
 					"closed": false,
 					"enableOrderBook": true,
 					"acceptingOrders": true,
+					"orderMinSize": 5,
+					"orderPriceMinTickSize": 0.01,
 					"clobTokenIds": "[\"up-token\", \"down-token\"]",
 					"startDate": "2026-05-07T00:45:00Z",
 					"endDate":   "2026-05-07T00:50:00Z"
@@ -110,6 +122,12 @@ func TestResolveTokenIDsAtUsesDeterministicCryptoSlug(t *testing.T) {
 	}
 	if got.ConditionID != "condition-1" || got.UpTokenID != "up-token" || got.DownTokenID != "down-token" {
 		t.Fatalf("unexpected tokens: %#v", got)
+	}
+	if got.ResolutionSource != "https://data.chain.link/streams/btc-usd" || got.Question == "" || got.Slug != "btc-updown-5m-1778114700" {
+		t.Fatalf("market metadata was not preserved: %#v", got)
+	}
+	if got.MinOrderSize != 5 || got.TickSize != 0.01 {
+		t.Fatalf("market execution metadata was not preserved: %#v", got)
 	}
 	if searchCalled {
 		t.Fatal("resolver should try the deterministic slug before public search")

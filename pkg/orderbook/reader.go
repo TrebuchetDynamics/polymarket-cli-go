@@ -52,6 +52,12 @@ type Reader interface {
 	OrderBook(ctx context.Context, tokenID string) (OrderBook, error)
 }
 
+// BatchReader fetches multiple CLOB order books in one API request.
+type BatchReader interface {
+	Reader
+	OrderBooks(ctx context.Context, tokenIDs []string) ([]OrderBook, error)
+}
+
 // NewReader returns a Reader backed by the polygolem CLOB client at
 // clobBaseURL. Pass an empty string to use the Polymarket production CLOB URL.
 // The returned Reader uses the package's default HTTP transport with retry and
@@ -70,6 +76,28 @@ func (r *reader) OrderBook(ctx context.Context, tokenID string) (OrderBook, erro
 		return OrderBook{}, fmt.Errorf("polygolem orderbook: %w", err)
 	}
 	return convertBook(pb), nil
+}
+
+func (r *reader) OrderBooks(ctx context.Context, tokenIDs []string) ([]OrderBook, error) {
+	params := make([]polytypes.BookParams, 0, len(tokenIDs))
+	for _, tokenID := range tokenIDs {
+		if tokenID == "" {
+			continue
+		}
+		params = append(params, polytypes.BookParams{TokenID: tokenID})
+	}
+	if len(params) == 0 {
+		return nil, nil
+	}
+	rows, err := r.client.OrderBooks(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("polygolem orderbooks: %w", err)
+	}
+	out := make([]OrderBook, 0, len(rows))
+	for i := range rows {
+		out = append(out, convertBook(&rows[i]))
+	}
+	return out, nil
 }
 
 func convertBook(pb *polytypes.OrderBook) OrderBook {

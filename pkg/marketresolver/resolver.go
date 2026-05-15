@@ -44,17 +44,20 @@ import (
 // EndDate comes from Gamma market.endDate. Both are normalized to UTC
 // second-precision so callers can compare against an expected decision window.
 type CryptoMarket struct {
-	ConditionID string
-	Asset       string
-	Timeframe   string
-	UpTokenID   string
-	DownTokenID string
-	Accepting   bool
-	Closed      bool
-	Question    string
-	Slug        string
-	StartDate   time.Time
-	EndDate     time.Time
+	ConditionID      string
+	Asset            string
+	Timeframe        string
+	UpTokenID        string
+	DownTokenID      string
+	Accepting        bool
+	Closed           bool
+	Question         string
+	Slug             string
+	ResolutionSource string
+	MinOrderSize     float64
+	TickSize         float64
+	StartDate        time.Time
+	EndDate          time.Time
 }
 
 // Resolver finds active markets from the Gamma API.
@@ -141,7 +144,7 @@ func (r *Resolver) ResolveCryptoMarkets(ctx context.Context, asset string) ([]Cr
 func (r *Resolver) ResolveTokenIDsAt(ctx context.Context, asset, timeframe string, windowStart time.Time) ResolveResult {
 	if slug := CryptoWindowSlug(asset, timeframe, windowStart); slug != "" {
 		if evt, err := r.gamma.EventBySlug(ctx, slug); err == nil {
-			if result, ok := firstAcceptingMarket(asset, timeframe, marketsFromGamma(asset, evt.Markets)); ok {
+			if result, ok := firstAcceptingMarket(asset, timeframe, marketsFromGammaWithSource(asset, evt.ResolutionSource, evt.Markets)); ok {
 				if !windowStart.IsZero() && !result.StartDate.Equal(windowStart.UTC().Truncate(time.Second)) {
 					return ResolveResult{
 						Status:    StatusWindowMismatch,
@@ -181,7 +184,7 @@ func (r *Resolver) ResolveTokenIDsForWindow(ctx context.Context, asset, timefram
 	if err != nil {
 		return ResolveResult{Status: StatusUnresolved, Asset: asset, Timeframe: timeframe, Source: fmt.Sprintf("gamma:slug_miss:%s:%v", slug, err)}
 	}
-	result, ok := firstAcceptingMarket(asset, timeframe, marketsFromGamma(asset, evt.Markets))
+	result, ok := firstAcceptingMarket(asset, timeframe, marketsFromGammaWithSource(asset, evt.ResolutionSource, evt.Markets))
 	if !ok {
 		return ResolveResult{Status: StatusUnresolved, Asset: asset, Timeframe: timeframe, Source: "gamma:slug_event_no_accepting_market:" + slug}
 	}
@@ -226,13 +229,17 @@ func (r *Resolver) searchQuery(ctx context.Context, asset, query string) ([]Cryp
 			eventMarkets = fullEvt.Markets
 		}
 		for _, m := range eventMarkets {
-			markets = append(markets, marketsFromGamma(asset, []polytypes.Market{m})...)
+			markets = append(markets, marketsFromGammaWithSource(asset, evt.ResolutionSource, []polytypes.Market{m})...)
 		}
 	}
 	return markets, nil
 }
 
 func marketsFromGamma(asset string, gammaMarkets []polytypes.Market) []CryptoMarket {
+	return marketsFromGammaWithSource(asset, "", gammaMarkets)
+}
+
+func marketsFromGammaWithSource(asset, fallbackResolutionSource string, gammaMarkets []polytypes.Market) []CryptoMarket {
 	markets := make([]CryptoMarket, 0, len(gammaMarkets))
 	for _, m := range gammaMarkets {
 		if !m.Active || m.Closed || !m.EnableOrderBook {
@@ -246,17 +253,20 @@ func marketsFromGamma(asset string, gammaMarkets []polytypes.Market) []CryptoMar
 		}
 		tf := inferTimeframe(m.Slug, m.Question)
 		markets = append(markets, CryptoMarket{
-			ConditionID: m.ConditionID,
-			Asset:       asset,
-			Timeframe:   tf,
-			UpTokenID:   up,
-			DownTokenID: down,
-			Accepting:   m.AcceptingOrders,
-			Closed:      m.Closed,
-			Question:    m.Question,
-			Slug:        m.Slug,
-			StartDate:   cryptoMarketWindowStart(m),
-			EndDate:     m.EndDate.Time().UTC().Truncate(time.Second),
+			ConditionID:      m.ConditionID,
+			Asset:            asset,
+			Timeframe:        tf,
+			UpTokenID:        up,
+			DownTokenID:      down,
+			Accepting:        m.AcceptingOrders,
+			Closed:           m.Closed,
+			Question:         m.Question,
+			Slug:             m.Slug,
+			ResolutionSource: firstNonEmpty(m.ResolutionSource, fallbackResolutionSource),
+			MinOrderSize:     m.OrderMinSize,
+			TickSize:         m.OrderPriceMinTickSize,
+			StartDate:        cryptoMarketWindowStart(m),
+			EndDate:          m.EndDate.Time().UTC().Truncate(time.Second),
 		})
 	}
 	return markets
@@ -273,18 +283,32 @@ func firstAcceptingMarket(asset, timeframe string, markets []CryptoMarket) (Reso
 	for _, m := range markets {
 		if m.Timeframe == timeframe && m.Accepting && !m.Closed {
 			return ResolveResult{
-				Status:      StatusAvailable,
-				UpTokenID:   m.UpTokenID,
-				DownTokenID: m.DownTokenID,
-				ConditionID: m.ConditionID,
-				Asset:       asset,
-				Timeframe:   timeframe,
-				StartDate:   m.StartDate,
-				EndDate:     m.EndDate,
+				Status:           StatusAvailable,
+				UpTokenID:        m.UpTokenID,
+				DownTokenID:      m.DownTokenID,
+				ConditionID:      m.ConditionID,
+				Asset:            asset,
+				Timeframe:        timeframe,
+				Question:         m.Question,
+				Slug:             m.Slug,
+				ResolutionSource: m.ResolutionSource,
+				MinOrderSize:     m.MinOrderSize,
+				TickSize:         m.TickSize,
+				StartDate:        m.StartDate,
+				EndDate:          m.EndDate,
 			}, true
 		}
 	}
 	return ResolveResult{}, false
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func findUpDownTokenIDs(outcomes []string, tokenIDs []string) (string, string) {
@@ -432,15 +456,20 @@ const (
 // StatusWindowMismatch results, where they record the wrong-window
 // market's bounds for diagnostic logging.
 type ResolveResult struct {
-	Status      MarketStatus `json:"status"`
-	UpTokenID   string       `json:"up_token_id"`
-	DownTokenID string       `json:"down_token_id"`
-	ConditionID string       `json:"condition_id"`
-	Asset       string       `json:"asset"`
-	Timeframe   string       `json:"timeframe"`
-	Source      string       `json:"source"`
-	StartDate   time.Time    `json:"start_date,omitempty"`
-	EndDate     time.Time    `json:"end_date,omitempty"`
+	Status           MarketStatus `json:"status"`
+	UpTokenID        string       `json:"up_token_id"`
+	DownTokenID      string       `json:"down_token_id"`
+	ConditionID      string       `json:"condition_id"`
+	Asset            string       `json:"asset"`
+	Timeframe        string       `json:"timeframe"`
+	Question         string       `json:"question,omitempty"`
+	Slug             string       `json:"slug,omitempty"`
+	ResolutionSource string       `json:"resolution_source,omitempty"`
+	MinOrderSize     float64      `json:"min_order_size,omitempty"`
+	TickSize         float64      `json:"tick_size,omitempty"`
+	Source           string       `json:"source"`
+	StartDate        time.Time    `json:"start_date,omitempty"`
+	EndDate          time.Time    `json:"end_date,omitempty"`
 }
 
 // ResolveTokenIDs resolves token IDs for a given asset+timeframe.
