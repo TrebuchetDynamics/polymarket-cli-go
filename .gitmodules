@@ -1,0 +1,40 @@
+[submodule "opensource-projects/repos/Polymarket-golang"]
+	path = opensource-projects/repos/Polymarket-golang
+	url = https://github.com/0xNetuser/Polymarket-golang.git
+	ignore = dirty
+[submodule "opensource-projects/repos/ctf-exchange-v2"]
+	path = opensource-projects/repos/ctf-exchange-v2
+	url = https://github.com/Polymarket/ctf-exchange-v2.git
+	ignore = dirty
+[submodule "opensource-projects/repos/go-builder-signing-sdk"]
+	path = opensource-projects/repos/go-builder-signing-sdk
+	url = https://github.com/Polymarket/go-builder-signing-sdk.git
+	ignore = dirty
+[submodule "opensource-projects/repos/polymarket-go-gamma-client"]
+	path = opensource-projects/repos/polymarket-go-gamma-client
+	url = https://github.com/ivanzzeth/polymarket-go-gamma-client.git
+	ignore = dirty
+[submodule "opensource-projects/repos/polymarket-go-sdk"]
+	path = opensource-projects/repos/polymarket-go-sdk
+	url = https://github.com/GoPolymarket/polymarket-go-sdk.git
+	ignore = dirty
+[submodule "opensource-projects/repos/polymarket-go"]
+	path = opensource-projects/repos/polymarket-go
+	url = https://github.com/ybina/polymarket-go.git
+	ignore = dirty
+[submodule "opensource-projects/repos/polymarket-kit"]
+	path = opensource-projects/repos/polymarket-kit
+	url = https://github.com/HuakunShen/polymarket-kit.git
+	ignore = dirty
+[submodule "opensource-projects/repos/polymarket_cli"]
+	path = opensource-projects/repos/polymarket_cli
+	url = https://github.com/vazic/polymarket_cli.git
+	ignore = dirty
+[submodule "opensource-projects/repos/py-clob-client"]
+	path = opensource-projects/repos/py-clob-client
+	url = https://github.com/Polymarket/py-clob-client.git
+	ignore = dirty
+[submodule "opensource-projects/repos/rs-clob-client"]
+	path = opensource-projects/repos/rs-clob-client
+	url = https://github.com/Polymarket/rs-clob-client.git
+	ignore = dirty
