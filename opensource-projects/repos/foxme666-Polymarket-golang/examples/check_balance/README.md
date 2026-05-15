@@ -90,4 +90,3 @@ USDC使用6位小数，所以：
 - `API request failed`: 网络或API错误
 
 请检查环境变量设置和网络连接。
-

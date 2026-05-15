@@ -66,7 +66,7 @@ go run main.go
 
 - `ORDER_TYPE`: 设置为 `MARKET` 以使用市价订单
 - `ORDER_SIDE`: 订单方向，`BUY` 或 `SELL`（默认：`BUY`）
-- `AMOUNT`: 
+- `AMOUNT`:
   - 如果是 `BUY`：美元金额（例如：`100.0` 表示买入价值100美元的份额）
   - 如果是 `SELL`：份额数量（例如：`10.0` 表示卖出10个份额）
 - `MARKET_ORDER_TYPE`: 订单类型（默认：`GTC`）

@@ -120,4 +120,3 @@ USDC Balance: 100.000000 (增加 10.000000)
 | 合并 | `MergePosition()` | Yes + No → USDC |
 | 赎回 | `RedeemPosition()` | 市场结算后赎回 |
 | 转换 | `ConvertPositions()` | NegRisk No → Yes + USDC |
-
