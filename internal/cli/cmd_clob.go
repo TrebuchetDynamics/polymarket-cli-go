@@ -310,6 +310,36 @@ docs/HEADLESS-BUILDER-KEYS-INVESTIGATION.md.`,
 	addOutput(tradesCmd, &tradesOutput)
 	cmd.AddCommand(tradesCmd)
 
+	var probeOutput, probeMarket, probeAssetID, probeCursor string
+	probeCmd := &cobra.Command{
+		Use:   "market-trades-probe",
+		Short: "Probe CLOB trade scope for one market or token",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkOutput(probeOutput); err != nil {
+				return err
+			}
+			key, err := privateKey()
+			if err != nil {
+				return err
+			}
+			res, err := w.clob.MarketTradesProbe(cmd.Context(), key, clob.MarketTradesProbeRequest{
+				Market:     probeMarket,
+				AssetID:    probeAssetID,
+				NextCursor: probeCursor,
+			})
+			if err != nil {
+				return err
+			}
+			return w.printJSON(cmd, res)
+		},
+	}
+	addOutput(probeCmd, &probeOutput)
+	probeCmd.Flags().StringVar(&probeMarket, "market", "", "market condition ID")
+	probeCmd.Flags().StringVar(&probeAssetID, "asset-id", "", "CLOB token ID")
+	probeCmd.Flags().StringVar(&probeCursor, "cursor", "", "optional next_cursor for diagnostics")
+	cmd.AddCommand(probeCmd)
+
 	var cancelOutput string
 	cancelCmd := &cobra.Command{Use: "cancel <order-id>", Short: "Cancel a single open CLOB order", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

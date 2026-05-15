@@ -350,6 +350,39 @@ func TestAuthCLOBProbeCommandIsRegistered(t *testing.T) {
 	}
 }
 
+func TestCLOBMarketTradesProbeEmitsRedactedSummary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/data/trades":
+			_, _ = w.Write([]byte(`{"limit":100,"next_cursor":"LTE=","count":1,"data":[{"id":"trade-1","asset_id":"12345","owner":"secret-owner","maker_address":"0x1234567890123456789012345678901234567890","match_time":"1700000000"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	t.Setenv("POLYMARKET_PRIVATE_KEY", "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318")
+	t.Setenv("POLYMARKET_CLOB_URL", server.URL)
+	t.Setenv("POLYMARKET_CLOB_API_KEY", "configured-key")
+	t.Setenv("POLYMARKET_CLOB_SECRET", "c2VjcmV0")
+	t.Setenv("POLYMARKET_CLOB_PASSPHRASE", "pass")
+
+	stdout, stderr, err := executeRootForTest("--json", "clob", "market-trades-probe", "--asset-id", "12345")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr=%q", stderr)
+	}
+	if !strings.Contains(stdout, `"classification": "account_scoped"`) {
+		t.Fatalf("stdout=%s", stdout)
+	}
+	if strings.Contains(stdout, "secret-owner") || strings.Contains(stdout, "0x1234567890123456789012345678901234567890") {
+		t.Fatalf("stdout leaked raw row identity: %s", stdout)
+	}
+}
+
 func TestJSONAuthExportKeyConfirmedOutputsWalletImportData(t *testing.T) {
 	const privateKey = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
 	t.Setenv("POLYMARKET_PRIVATE_KEY", privateKey)
@@ -474,6 +507,7 @@ func TestDocumentedSubcommandsAreRegistered(t *testing.T) {
 		{"clob", "orders"},
 		{"clob", "order"},
 		{"clob", "trades"},
+		{"clob", "market-trades-probe"},
 		{"clob", "cancel"},
 		{"clob", "cancel-orders"},
 		{"clob", "cancel-all"},

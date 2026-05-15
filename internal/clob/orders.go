@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -141,6 +142,37 @@ type TradeRecord struct {
 	TransactionHash string `json:"transaction_hash"`
 	CreatedAt       string `json:"created_at"`
 	LastUpdated     string `json:"last_updated"`
+}
+
+type ProbeClassification string
+
+const (
+	ProbeMarketWide              ProbeClassification = "market_wide"
+	ProbeAccountScoped           ProbeClassification = "account_scoped"
+	ProbeEmptyInconclusive       ProbeClassification = "empty_inconclusive"
+	ProbeUnauthorizedUnavailable ProbeClassification = "unauthorized_or_unavailable"
+	ProbeSchemaUnknown           ProbeClassification = "schema_unknown"
+)
+
+type MarketTradesProbeRequest struct {
+	Market     string
+	AssetID    string
+	NextCursor string
+}
+
+type MarketTradesProbeResult struct {
+	Classification ProbeClassification `json:"classification"`
+	Endpoint       string              `json:"endpoint"`
+	SelectorType   string              `json:"selector_type"`
+	Selector       string              `json:"selector"`
+	HTTPStatus     int                 `json:"http_status"`
+	RowCount       int                 `json:"row_count"`
+	CursorPresent  bool                `json:"cursor_present"`
+	NextCursor     string              `json:"next_cursor,omitempty"`
+	TimestampMin   string              `json:"timestamp_min,omitempty"`
+	TimestampMax   string              `json:"timestamp_max,omitempty"`
+	ObservedFields []string            `json:"observed_fields,omitempty"`
+	Warning        string              `json:"warning,omitempty"`
 }
 
 // UnmarshalJSON accepts created_at and last_updated as either JSON string or
@@ -367,6 +399,45 @@ func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]TradeReco
 	return decodeAuthenticatedList[TradeRecord](raw, "trades")
 }
 
+func (c *Client) MarketTradesProbe(ctx context.Context, privateKey string, params MarketTradesProbeRequest) (*MarketTradesProbeResult, error) {
+	selectorType, selector, err := probeSelector(params)
+	if err != nil {
+		return nil, err
+	}
+	path := marketTradesProbePath(params)
+	raw, status, err := c.authenticatedRawGETWithStatus(ctx, privateKey, path)
+	res := &MarketTradesProbeResult{
+		Endpoint:     "/data/trades",
+		SelectorType: selectorType,
+		Selector:     selector,
+		HTTPStatus:   status,
+	}
+	if err != nil {
+		res.Classification = ProbeUnauthorizedUnavailable
+		res.Warning = redactProbeWarning(err.Error())
+		return res, nil
+	}
+	summary, err := decodeMarketTradesProbeSummary(raw)
+	if err != nil {
+		res.Classification = ProbeSchemaUnknown
+		res.Warning = "unable to parse trade response shape"
+		return res, nil
+	}
+	res.RowCount = summary.rowCount
+	res.CursorPresent = summary.cursorPresent
+	res.NextCursor = summary.nextCursor
+	res.TimestampMin = summary.timestampMin
+	res.TimestampMax = summary.timestampMax
+	res.ObservedFields = summary.observedFields
+	if summary.rowCount == 0 {
+		res.Classification = ProbeEmptyInconclusive
+		return res, nil
+	}
+	res.Classification = ProbeAccountScoped
+	res.Warning = "official /data/trades docs describe authenticated user trade history; not accepted as market-wide VPIN input"
+	return res, nil
+}
+
 func (c *Client) Order(ctx context.Context, privateKey, orderID string) (*OrderRecord, error) {
 	orderID = strings.TrimSpace(orderID)
 	if orderID == "" {
@@ -552,6 +623,22 @@ func (c *Client) authenticatedRawGET(ctx context.Context, privateKey string, pat
 	return result, nil
 }
 
+func (c *Client) authenticatedRawGETWithStatus(ctx context.Context, privateKey string, path string) (json.RawMessage, int, error) {
+	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
+	if err != nil {
+		return nil, 0, fmt.Errorf("derive deposit-wallet api key: %w", err)
+	}
+	headers, err := c.l2HeadersForAddress(&key, http.MethodGet, path, nil, polyAddress)
+	if err != nil {
+		return nil, 0, err
+	}
+	raw, status, err := c.transport.GetRawWithHeadersStatus(ctx, path, headers)
+	if err != nil {
+		return nil, status, err
+	}
+	return json.RawMessage(raw), status, nil
+}
+
 func (c *Client) authenticatedL2GET(ctx context.Context, privateKey string, path string, result interface{}) error {
 	key, polyAddress, err := c.depositWalletAPIKey(ctx, privateKey)
 	if err != nil {
@@ -585,6 +672,110 @@ func decodeAuthenticatedList[T any](raw json.RawMessage, keys ...string) ([]T, e
 		return rows, nil
 	}
 	return nil, fmt.Errorf("authenticated list response missing %s/data/results array", strings.Join(keys, "/"))
+}
+
+func probeSelector(params MarketTradesProbeRequest) (string, string, error) {
+	market := strings.TrimSpace(params.Market)
+	assetID := strings.TrimSpace(params.AssetID)
+	if (market == "") == (assetID == "") {
+		return "", "", fmt.Errorf("exactly one of market or asset_id is required")
+	}
+	if market != "" {
+		return "market", market, nil
+	}
+	return "asset_id", assetID, nil
+}
+
+func marketTradesProbePath(params MarketTradesProbeRequest) string {
+	q := url.Values{}
+	if strings.TrimSpace(params.Market) != "" {
+		q.Set("market", strings.TrimSpace(params.Market))
+	}
+	if strings.TrimSpace(params.AssetID) != "" {
+		q.Set("asset_id", strings.TrimSpace(params.AssetID))
+	}
+	if strings.TrimSpace(params.NextCursor) != "" {
+		q.Set("next_cursor", strings.TrimSpace(params.NextCursor))
+	}
+	return "/data/trades?" + q.Encode()
+}
+
+func redactProbeWarning(value string) string {
+	value = strings.ReplaceAll(value, "\n", " ")
+	for _, marker := range []string{"POLY_SIGNATURE", "POLY_API_KEY", "POLY_PASSPHRASE", "POLY_TIMESTAMP", "POLY_ADDRESS"} {
+		value = strings.ReplaceAll(value, marker, "POLY_REDACTED")
+	}
+	return value
+}
+
+type marketTradesProbeSummary struct {
+	rowCount       int
+	cursorPresent  bool
+	nextCursor     string
+	timestampMin   string
+	timestampMax   string
+	observedFields []string
+}
+
+func decodeMarketTradesProbeSummary(raw json.RawMessage) (marketTradesProbeSummary, error) {
+	var rows []map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &rows); err == nil {
+		return summarizeProbeRows(rows, "", false), nil
+	}
+
+	var wrapped map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		return marketTradesProbeSummary{}, err
+	}
+	rowsRaw := wrapped["data"]
+	if len(rowsRaw) == 0 {
+		rowsRaw = wrapped["trades"]
+	}
+	if len(rowsRaw) == 0 {
+		return marketTradesProbeSummary{}, fmt.Errorf("missing data or trades array")
+	}
+	if err := json.Unmarshal(rowsRaw, &rows); err != nil {
+		return marketTradesProbeSummary{}, err
+	}
+	nextCursor := ""
+	cursorPresent := false
+	if cursorRaw, ok := wrapped["next_cursor"]; ok {
+		cursorPresent = true
+		nextCursor = jsonStringOrNumber(cursorRaw)
+	}
+	return summarizeProbeRows(rows, nextCursor, cursorPresent), nil
+}
+
+func summarizeProbeRows(rows []map[string]json.RawMessage, nextCursor string, cursorPresent bool) marketTradesProbeSummary {
+	out := marketTradesProbeSummary{
+		rowCount:      len(rows),
+		cursorPresent: cursorPresent,
+		nextCursor:    nextCursor,
+	}
+	fields := map[string]bool{}
+	for _, row := range rows {
+		for key := range row {
+			fields[key] = true
+		}
+		for _, key := range []string{"match_time", "created_at", "last_updated"} {
+			value := jsonStringOrNumber(row[key])
+			if value == "" {
+				continue
+			}
+			if out.timestampMin == "" || value < out.timestampMin {
+				out.timestampMin = value
+			}
+			if out.timestampMax == "" || value > out.timestampMax {
+				out.timestampMax = value
+			}
+		}
+	}
+	out.observedFields = make([]string, 0, len(fields))
+	for key := range fields {
+		out.observedFields = append(out.observedFields, key)
+	}
+	sort.Strings(out.observedFields)
+	return out
 }
 
 func cleanOrderIDs(orderIDs []string) []string {

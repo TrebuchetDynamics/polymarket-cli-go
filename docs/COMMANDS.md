@@ -73,6 +73,7 @@ polygolem - Safe Polymarket SDK and CLI for Go
     market - Get CLOB market by condition ID
     market-by-token - Resolve CLOB market by token ID
     market-order - Create a signed CLOB market/FOK order
+    market-trades-probe - Probe CLOB trade scope for one market or token
     markets - List CLOB markets
     order - Get a single authenticated CLOB order
     orders - List authenticated CLOB orders
@@ -557,6 +558,7 @@ polygolem clob [flags]
 | `polygolem clob market` | Get CLOB market by condition ID |
 | `polygolem clob market-by-token` | Resolve CLOB market by token ID |
 | `polygolem clob market-order` | Create a signed CLOB market/FOK order |
+| `polygolem clob market-trades-probe` | Probe CLOB trade scope for one market or token |
 | `polygolem clob markets` | List CLOB markets |
 | `polygolem clob order` | Get a single authenticated CLOB order |
 | `polygolem clob orders` | List authenticated CLOB orders |
@@ -900,6 +902,27 @@ polygolem clob market-order [flags]
 | `--price` | `string` | `""` | limit price |
 | `--side` | `string` | `buy` | order side |
 | `--token` | `string` | `""` | CLOB token id |
+
+### polygolem clob market-trades-probe
+
+Probe CLOB trade scope for one market or token
+
+**Usage:**
+
+```bash
+polygolem clob market-trades-probe [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--asset-id` | `string` | `""` | CLOB token ID |
+| `--cursor` | `string` | `""` | optional next_cursor for diagnostics |
+| `-h, --help` | `bool` | `false` | help for market-trades-probe |
+| `--json` | `bool` | `false` | emit JSON output |
+| `--market` | `string` | `""` | market condition ID |
+| `--output` | `string` | `json` | output format (json) |
 
 ### polygolem clob markets
 

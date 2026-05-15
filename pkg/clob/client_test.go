@@ -3,6 +3,7 @@ package clob
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -537,5 +538,34 @@ func TestClientHeartbeatPostsPublicRoute(t *testing.T) {
 	}
 	if posted["heartbeat_id"] != "hb-123" {
 		t.Fatalf("heartbeat_id=%#v want hb-123", posted["heartbeat_id"])
+	}
+}
+
+func TestMarketTradesProbeExposesRedactedSummary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"api-key","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","passphrase":"pass"}`))
+		case "/data/trades":
+			_, _ = w.Write([]byte(`{"limit":100,"next_cursor":"LTE=","count":1,"data":[{"id":"trade-1","market":"0x1111111111111111111111111111111111111111111111111111111111111111","asset_id":"12345","owner":"secret-owner","match_time":"1700000000"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{BaseURL: server.URL})
+	res, err := client.MarketTradesProbe(context.Background(), testPrivateKey, MarketTradesProbeRequest{
+		AssetID: "12345",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Classification != ProbeAccountScoped || res.RowCount != 1 {
+		t.Fatalf("probe=%+v", res)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", res), "secret-owner") {
+		t.Fatalf("probe leaked raw row identity: %+v", res)
 	}
 }

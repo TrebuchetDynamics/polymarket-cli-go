@@ -97,6 +97,37 @@ func (c *Client) GetRawWithHeaders(ctx context.Context, path string, headers map
 	return raw, nil
 }
 
+// GetRawWithHeadersStatus performs a GET request and returns the HTTP status
+// alongside raw bytes. It is intentionally separate from GetRawWithHeaders so
+// existing callers keep their current error contract.
+func (c *Client) GetRawWithHeadersStatus(ctx context.Context, path string, headers map[string]string) ([]byte, int, error) {
+	url := c.config.BaseURL + path
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", c.config.UserAgent)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, resp.StatusCode, fmt.Errorf("HTTP %d %s: %s", resp.StatusCode, url, string(raw))
+	}
+	return raw, resp.StatusCode, nil
+}
+
 // Post performs a POST request. POSTs are never retried.
 func (c *Client) Post(ctx context.Context, path string, body interface{}, result interface{}) error {
 	return c.doWithHeaders(ctx, http.MethodPost, path, body, result, nil)

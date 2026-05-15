@@ -3,6 +3,7 @@ package clob
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -738,6 +739,102 @@ func TestListTradesAcceptsPaginatedObjectResponse(t *testing.T) {
 	}
 	if len(trades) != 1 || trades[0].ID != "trade-1" {
 		t.Fatalf("trades=%+v", trades)
+	}
+}
+
+func TestMarketTradesProbeRequiresExactlyOneSelector(t *testing.T) {
+	client := NewClient("http://example.test", nil)
+
+	_, err := client.MarketTradesProbe(context.Background(), testOrderPrivateKey, MarketTradesProbeRequest{})
+	if err == nil || !strings.Contains(err.Error(), "exactly one") {
+		t.Fatalf("empty selector err=%v", err)
+	}
+
+	_, err = client.MarketTradesProbe(context.Background(), testOrderPrivateKey, MarketTradesProbeRequest{
+		Market:  "0x1111111111111111111111111111111111111111111111111111111111111111",
+		AssetID: "12345",
+	})
+	if err == nil || !strings.Contains(err.Error(), "exactly one") {
+		t.Fatalf("two selectors err=%v", err)
+	}
+}
+
+func TestMarketTradesProbeBuildsMarketQueryAndRedactsRows(t *testing.T) {
+	var sawPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/data/trades":
+			sawPath = r.URL.RequestURI()
+			_, _ = w.Write([]byte(`{
+				"limit":100,
+				"next_cursor":"LTE=",
+				"count":1,
+				"data":[{
+					"id":"trade-1",
+					"market":"0x1111111111111111111111111111111111111111111111111111111111111111",
+					"asset_id":"12345",
+					"price":"0.50",
+					"size":"10",
+					"match_time":"1700000000",
+					"owner":"owner-redacted",
+					"maker_address":"0x1234567890123456789012345678901234567890"
+				}]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	res, err := client.MarketTradesProbe(context.Background(), testOrderPrivateKey, MarketTradesProbeRequest{
+		Market: "0x1111111111111111111111111111111111111111111111111111111111111111",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sawPath, "market=0x1111111111111111111111111111111111111111111111111111111111111111") {
+		t.Fatalf("path=%q", sawPath)
+	}
+	if res.RowCount != 1 || res.NextCursor != "LTE=" || !res.CursorPresent {
+		t.Fatalf("probe summary=%+v", res)
+	}
+	if res.Classification != ProbeAccountScoped {
+		t.Fatalf("classification=%q want %q", res.Classification, ProbeAccountScoped)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", res), "owner-redacted") || strings.Contains(fmt.Sprintf("%+v", res), "0x1234567890123456789012345678901234567890") {
+		t.Fatalf("probe leaked raw row identity: %+v", res)
+	}
+}
+
+func TestMarketTradesProbeClassifiesEmptyAsInconclusive(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/derive-api-key":
+			_, _ = w.Write([]byte(`{"apiKey":"owner-key","secret":"c2VjcmV0","passphrase":"pass"}`))
+		case "/data/trades":
+			_, _ = w.Write([]byte(`{"limit":100,"next_cursor":"LTE=","count":0,"data":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	tc := transport.New(server.Client(), transport.DefaultConfig(server.URL+"/"))
+	client := NewClient(server.URL+"/", tc)
+
+	res, err := client.MarketTradesProbe(context.Background(), testOrderPrivateKey, MarketTradesProbeRequest{AssetID: "12345"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Classification != ProbeEmptyInconclusive {
+		t.Fatalf("classification=%q", res.Classification)
 	}
 }
 

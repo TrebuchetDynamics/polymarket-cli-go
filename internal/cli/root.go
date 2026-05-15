@@ -40,7 +40,8 @@ func (w *wire) printJSON(cmd *cobra.Command, v interface{}) error {
 }
 
 func newWire(jsonOut bool) *wire {
-	clobClient := clob.NewClient(clobBaseURL, nil)
+	clobURL := firstNonEmptyCLI(firstEnv("POLYMARKET_CLOB_URL", "CLOB_URL"), clobBaseURL)
+	clobClient := clob.NewClient(clobURL, nil)
 	if key, ok := clobL2CredentialsFromEnv(); ok {
 		clobClient.SetL2Credentials(key)
 	}
@@ -49,7 +50,7 @@ func newWire(jsonOut bool) *wire {
 		gamma:    gamma.NewClient(gammaBaseURL, nil),
 		clob:     clobClient,
 		data:     dataapi.NewClient(dataBaseURL, nil),
-		discover: marketdiscovery.New(gamma.NewClient(gammaBaseURL, nil), clob.NewClient(clobBaseURL, nil)),
+		discover: marketdiscovery.New(gamma.NewClient(gammaBaseURL, nil), clob.NewClient(clobURL, nil)),
 		jsonOut:  jsonOut,
 	}
 }

@@ -159,3 +159,43 @@ func TestTransportGetNoRetryOn404(t *testing.T) {
 		t.Fatal("expected error for 404")
 	}
 }
+
+func TestGetRawWithHeadersStatusReturnsBodyAndStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("POLY_API_KEY") != "configured-key" {
+			t.Fatalf("missing auth header")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := New(server.Client(), DefaultConfig(server.URL))
+	raw, status, err := client.GetRawWithHeadersStatus(context.Background(), "/", map[string]string{
+		"POLY_API_KEY": "configured-key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != http.StatusAccepted || string(raw) != `{"ok":true}` {
+		t.Fatalf("status=%d raw=%s", status, raw)
+	}
+}
+
+func TestGetRawWithHeadersStatusReturnsHTTPStatusOnError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"nope"}`))
+	}))
+	defer server.Close()
+
+	client := New(server.Client(), DefaultConfig(server.URL))
+	_, status, err := client.GetRawWithHeadersStatus(context.Background(), "/", nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if status != http.StatusUnauthorized {
+		t.Fatalf("status=%d", status)
+	}
+}

@@ -119,6 +119,37 @@ type TradeRecord struct {
 	LastUpdated     string `json:"last_updated"`
 }
 
+type ProbeClassification string
+
+const (
+	ProbeMarketWide              ProbeClassification = "market_wide"
+	ProbeAccountScoped           ProbeClassification = "account_scoped"
+	ProbeEmptyInconclusive       ProbeClassification = "empty_inconclusive"
+	ProbeUnauthorizedUnavailable ProbeClassification = "unauthorized_or_unavailable"
+	ProbeSchemaUnknown           ProbeClassification = "schema_unknown"
+)
+
+type MarketTradesProbeRequest struct {
+	Market     string `json:"market,omitempty"`
+	AssetID    string `json:"asset_id,omitempty"`
+	NextCursor string `json:"next_cursor,omitempty"`
+}
+
+type MarketTradesProbeResult struct {
+	Classification ProbeClassification `json:"classification"`
+	Endpoint       string              `json:"endpoint"`
+	SelectorType   string              `json:"selector_type"`
+	Selector       string              `json:"selector"`
+	HTTPStatus     int                 `json:"http_status"`
+	RowCount       int                 `json:"row_count"`
+	CursorPresent  bool                `json:"cursor_present"`
+	NextCursor     string              `json:"next_cursor,omitempty"`
+	TimestampMin   string              `json:"timestamp_min,omitempty"`
+	TimestampMax   string              `json:"timestamp_max,omitempty"`
+	ObservedFields []string            `json:"observed_fields,omitempty"`
+	Warning        string              `json:"warning,omitempty"`
+}
+
 // BuilderFeeKeyRecord represents one CLOB builder-fee key.
 type BuilderFeeKeyRecord struct {
 	Key        string `json:"key"`
@@ -253,6 +284,18 @@ func (c *Client) ListTrades(ctx context.Context, privateKey string) ([]TradeReco
 		return nil, err
 	}
 	return tradeRecordsFromInternal(rows), nil
+}
+
+func (c *Client) MarketTradesProbe(ctx context.Context, privateKey string, params MarketTradesProbeRequest) (*MarketTradesProbeResult, error) {
+	row, err := c.inner.MarketTradesProbe(ctx, privateKey, internalclob.MarketTradesProbeRequest{
+		Market:     params.Market,
+		AssetID:    params.AssetID,
+		NextCursor: params.NextCursor,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return marketTradesProbeFromInternal(row), nil
 }
 
 // CancelOrder cancels a single open CLOB order.
@@ -438,6 +481,26 @@ func tradeRecordsFromInternal(rows []internalclob.TradeRecord) []TradeRecord {
 		}
 	}
 	return out
+}
+
+func marketTradesProbeFromInternal(row *internalclob.MarketTradesProbeResult) *MarketTradesProbeResult {
+	if row == nil {
+		return nil
+	}
+	return &MarketTradesProbeResult{
+		Classification: ProbeClassification(row.Classification),
+		Endpoint:       row.Endpoint,
+		SelectorType:   row.SelectorType,
+		Selector:       row.Selector,
+		HTTPStatus:     row.HTTPStatus,
+		RowCount:       row.RowCount,
+		CursorPresent:  row.CursorPresent,
+		NextCursor:     row.NextCursor,
+		TimestampMin:   row.TimestampMin,
+		TimestampMax:   row.TimestampMax,
+		ObservedFields: append([]string(nil), row.ObservedFields...),
+		Warning:        row.Warning,
+	}
 }
 
 func cancelOrdersFromInternal(row *internalclob.CancelOrdersResponse) *CancelOrdersResponse {
