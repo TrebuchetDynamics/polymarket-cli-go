@@ -1,5 +1,7 @@
 package types
 
+import "encoding/json"
+
 // CLOBServerTime is the CLOB server-time response.
 type CLOBServerTime struct {
 	Timestamp string `json:"timestamp"`
@@ -73,6 +75,119 @@ type CLOBMarket struct {
 	BlockaidCheckEnabled  bool           `json:"blockaid_check_enabled,omitempty"`
 	FeeDetails            CLOBFeeDetails `json:"fee_details,omitempty"`
 	MinimumOrderAge       int            `json:"minimum_order_age,omitempty"`
+}
+
+func (m *CLOBMarket) UnmarshalJSON(b []byte) error {
+	type alias CLOBMarket
+	var raw struct {
+		alias
+		ConditionIDShort   string `json:"c"`
+		GameStartTimeShort string `json:"gst"`
+		TokensShort        []struct {
+			TokenID string `json:"t"`
+			Outcome string `json:"o"`
+			Price   string `json:"p"`
+			Winner  bool   `json:"w"`
+		} `json:"t"`
+		RewardsShort *struct {
+			MinSize         *float64 `json:"mi"`
+			MaxSpread       *float64 `json:"ma"`
+			MinimumOrderAge *int     `json:"moas"`
+		} `json:"r"`
+		OrderMinSizeShort          *float64 `json:"mos"`
+		OrderPriceMinTickSizeShort *float64 `json:"mts"`
+		MakerBaseFeeShort          *int     `json:"mbf"`
+		TakerBaseFeeShort          *int     `json:"tbf"`
+		AcceptingOrdersShort       *bool    `json:"ao"`
+		EnableOrderBookShort       *bool    `json:"cbos"`
+		NegRiskShort               *bool    `json:"nr"`
+		RFQEnabledShort            *bool    `json:"rfqe"`
+		TakerOrderDelayShort       *bool    `json:"itode"`
+		BlockaidCheckEnabledShort  *bool    `json:"ibce"`
+		FeeDetailsShort            *struct {
+			Rate      *float64 `json:"r"`
+			Exponent  *float64 `json:"e"`
+			TakerOnly *bool    `json:"to"`
+		} `json:"fd"`
+		MinimumOrderAgeShort *int `json:"oas"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*m = CLOBMarket(raw.alias)
+	if m.ConditionID == "" {
+		m.ConditionID = raw.ConditionIDShort
+	}
+	if m.GameStartTime == "" {
+		m.GameStartTime = raw.GameStartTimeShort
+	}
+	if len(m.Tokens) == 0 && len(raw.TokensShort) > 0 {
+		m.Tokens = make([]CLOBToken, len(raw.TokensShort))
+		for i, token := range raw.TokensShort {
+			m.Tokens[i] = CLOBToken{
+				TokenID: token.TokenID,
+				Outcome: token.Outcome,
+				Price:   token.Price,
+				Winner:  token.Winner,
+			}
+		}
+	}
+	if raw.RewardsShort != nil {
+		if raw.RewardsShort.MinSize != nil {
+			m.RewardsMinSize = *raw.RewardsShort.MinSize
+		}
+		if raw.RewardsShort.MaxSpread != nil {
+			m.RewardsMaxSpread = *raw.RewardsShort.MaxSpread
+		}
+		if raw.RewardsShort.MinimumOrderAge != nil {
+			m.MinimumOrderAge = *raw.RewardsShort.MinimumOrderAge
+		}
+	}
+	if raw.OrderMinSizeShort != nil {
+		m.OrderMinSize = *raw.OrderMinSizeShort
+	}
+	if raw.OrderPriceMinTickSizeShort != nil {
+		m.OrderPriceMinTickSize = *raw.OrderPriceMinTickSizeShort
+	}
+	if raw.MakerBaseFeeShort != nil {
+		m.MakerBaseFee = *raw.MakerBaseFeeShort
+	}
+	if raw.TakerBaseFeeShort != nil {
+		m.TakerBaseFee = *raw.TakerBaseFeeShort
+	}
+	if raw.AcceptingOrdersShort != nil {
+		m.AcceptingOrders = *raw.AcceptingOrdersShort
+	}
+	if raw.EnableOrderBookShort != nil {
+		m.EnableOrderBook = *raw.EnableOrderBookShort
+	}
+	if raw.NegRiskShort != nil {
+		m.NegRisk = *raw.NegRiskShort
+	}
+	if raw.RFQEnabledShort != nil {
+		m.RFQEnabled = *raw.RFQEnabledShort
+	}
+	if raw.TakerOrderDelayShort != nil {
+		m.TakerOrderDelay = *raw.TakerOrderDelayShort
+	}
+	if raw.BlockaidCheckEnabledShort != nil {
+		m.BlockaidCheckEnabled = *raw.BlockaidCheckEnabledShort
+	}
+	if raw.FeeDetailsShort != nil {
+		if raw.FeeDetailsShort.Rate != nil {
+			m.FeeDetails.Rate = *raw.FeeDetailsShort.Rate
+		}
+		if raw.FeeDetailsShort.Exponent != nil {
+			m.FeeDetails.Exponent = *raw.FeeDetailsShort.Exponent
+		}
+		if raw.FeeDetailsShort.TakerOnly != nil {
+			m.FeeDetails.TakerOnly = *raw.FeeDetailsShort.TakerOnly
+		}
+	}
+	if raw.MinimumOrderAgeShort != nil {
+		m.MinimumOrderAge = *raw.MinimumOrderAgeShort
+	}
+	return nil
 }
 
 // CLOBMarketByTokenResponse resolves a CLOB token ID to its parent market.

@@ -120,15 +120,24 @@ func (m *CLOBMarket) UnmarshalJSON(b []byte) error {
 	type alias CLOBMarket
 	var raw struct {
 		alias
+		ConditionIDShort   string `json:"c"`
 		GameStartTimeShort string `json:"gst"`
 		TokensShort        []struct {
 			TokenID string `json:"t"`
 			Outcome string `json:"o"`
 		} `json:"t"`
+		RewardsShort *struct {
+			MinSize         *float64 `json:"mi"`
+			MaxSpread       *float64 `json:"ma"`
+			MinimumOrderAge *int     `json:"moas"`
+		} `json:"r"`
 		OrderMinSizeShort          *float64 `json:"mos"`
 		OrderPriceMinTickSizeShort *float64 `json:"mts"`
 		MakerBaseFeeShort          *int     `json:"mbf"`
 		TakerBaseFeeShort          *int     `json:"tbf"`
+		AcceptingOrdersShort       *bool    `json:"ao"`
+		EnableOrderBookShort       *bool    `json:"cbos"`
+		NegRiskShort               *bool    `json:"nr"`
 		RFQEnabledShort            *bool    `json:"rfqe"`
 		TakerOrderDelayShort       *bool    `json:"itode"`
 		BlockaidCheckEnabledShort  *bool    `json:"ibce"`
@@ -143,6 +152,9 @@ func (m *CLOBMarket) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*m = CLOBMarket(raw.alias)
+	if m.ConditionID == "" {
+		m.ConditionID = raw.ConditionIDShort
+	}
 	if m.GameStartTime == "" {
 		m.GameStartTime = raw.GameStartTimeShort
 	}
@@ -153,6 +165,17 @@ func (m *CLOBMarket) UnmarshalJSON(b []byte) error {
 				TokenID: token.TokenID,
 				Outcome: token.Outcome,
 			}
+		}
+	}
+	if raw.RewardsShort != nil {
+		if raw.RewardsShort.MinSize != nil {
+			m.RewardsMinSize = *raw.RewardsShort.MinSize
+		}
+		if raw.RewardsShort.MaxSpread != nil {
+			m.RewardsMaxSpread = *raw.RewardsShort.MaxSpread
+		}
+		if raw.RewardsShort.MinimumOrderAge != nil {
+			m.MinimumOrderAge = *raw.RewardsShort.MinimumOrderAge
 		}
 	}
 	if raw.OrderMinSizeShort != nil {
@@ -166,6 +189,15 @@ func (m *CLOBMarket) UnmarshalJSON(b []byte) error {
 	}
 	if raw.TakerBaseFeeShort != nil {
 		m.TakerBaseFee = *raw.TakerBaseFeeShort
+	}
+	if raw.AcceptingOrdersShort != nil {
+		m.AcceptingOrders = *raw.AcceptingOrdersShort
+	}
+	if raw.EnableOrderBookShort != nil {
+		m.EnableOrderBook = *raw.EnableOrderBookShort
+	}
+	if raw.NegRiskShort != nil {
+		m.NegRisk = *raw.NegRiskShort
 	}
 	if raw.RFQEnabledShort != nil {
 		m.RFQEnabled = *raw.RFQEnabledShort
