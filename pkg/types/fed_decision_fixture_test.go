@@ -53,6 +53,28 @@ func TestFedDecisionGammaFixturePreservesMarketTruth(t *testing.T) {
 	}
 }
 
+func TestFedDecisionSearchFixtureFindsEventBeforeDetail(t *testing.T) {
+	var search SearchResponse
+	readJSONFixture(t, "gamma-search.json", &search)
+
+	if search.Pagination.TotalResults < 1 {
+		t.Fatalf("search pagination did not report results: %+v", search.Pagination)
+	}
+	event, ok := findEventBySlug(search.Events, "fed-decision-in-june-825")
+	if !ok {
+		t.Fatalf("search did not find fed-decision-in-june-825; events=%+v", search.Events)
+	}
+	if event.ID != "101772" || event.Title != "Fed Decision in June?" {
+		t.Fatalf("unexpected search event identity: id=%q title=%q", event.ID, event.Title)
+	}
+	if len(event.Markets) != 5 {
+		t.Fatalf("search event markets=%d want 5", len(event.Markets))
+	}
+	for _, market := range event.Markets {
+		assertFedDecisionGammaMarket(t, market)
+	}
+}
+
 func TestFedDecisionCLOBFixturesPreserveCurrentProviderShape(t *testing.T) {
 	var markets []CLOBMarket
 	readJSONFixture(t, "clob-markets.json", &markets)
@@ -167,4 +189,13 @@ func hasTag(tags []Tag, slug string) bool {
 		}
 	}
 	return false
+}
+
+func findEventBySlug(events []Event, slug string) (Event, bool) {
+	for _, event := range events {
+		if event.Slug == slug {
+			return event, true
+		}
+	}
+	return Event{}, false
 }
